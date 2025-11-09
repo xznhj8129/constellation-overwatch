@@ -31,6 +31,13 @@ type CreateEntityRequest struct {
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
+type UpdateEntityRequest struct {
+	Status     string                 `json:"status,omitempty" validate:"omitempty,oneof=active inactive unknown"`
+	Priority   string                 `json:"priority,omitempty" validate:"omitempty,oneof=low normal high critical"`
+	Position   *Position              `json:"position,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+}
+
 type Position struct {
 	Latitude  float64 `json:"latitude" validate:"required,min=-90,max=90"`
 	Longitude float64 `json:"longitude" validate:"required,min=-180,max=180"`

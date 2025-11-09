@@ -329,6 +329,10 @@ func (en *EmbeddedNATS) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+func (en *EmbeddedNATS) GetConnection() *nats.Conn {
+	return en.nc
+}
+
 func (en *EmbeddedNATS) HealthCheck() error {
 	if en.nc == nil {
 		return fmt.Errorf("NATS connection not initialized")

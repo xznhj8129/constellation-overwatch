@@ -1,0 +1,56 @@
+package templates
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - Constellation Overwatch</title>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@latest/bundles/datastar.js"></script>
+		</head>
+		<body>
+			<div class="container">
+				<header class="header">
+					<h1 class="title">CONSTELLATION OVERWATCH</h1>
+					<div class="subtitle">Edge Awareness Plane</div>
+					<div class="status-bar">
+						<span class="status-item">SYSTEM: ONLINE</span>
+						<span class="status-item">TIME: <span id="time">--:--:--</span></span>
+					</div>
+				</header>
+				<div class="main-layout">
+					{ children... }
+				</div>
+			</div>
+			<script>
+				// Update time
+				setInterval(() => {
+					document.getElementById('time').textContent = new Date().toLocaleTimeString();
+				}, 1000);
+			</script>
+		</body>
+	</html>
+}
+
+templ Navigation(activeTab string) {
+	<nav class="side-nav">
+		<div id="nav-content">
+			<a href="/" class={ "nav-button", templ.KV("active", activeTab == "entities") }>
+				<span class="nav-icon">⎔</span>
+				<span>Entities</span>
+			</a>
+			<a href="/streams" class={ "nav-button", templ.KV("active", activeTab == "streams") }>
+				<span class="nav-icon">◈</span>
+				<span>Stream Monitor</span>
+			</a>
+			<div class="nav-footer">
+				<div class="nav-status">READY</div>
+			</div>
+		</div>
+	</nav>
+	<main class="content-area">
+		{ children... }
+	</main>
+}

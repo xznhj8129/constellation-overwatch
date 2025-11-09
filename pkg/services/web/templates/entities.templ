@@ -1,0 +1,142 @@
+package templates
+
+import (
+	"fmt"
+	"constellation-overwatch/pkg/ontology"
+)
+
+templ EntitiesPage(organizations []ontology.Organization, selectedOrgID string, entities []ontology.Entity) {
+	@Layout("Entities") {
+		@Navigation("entities") {
+			<div class="tab-content" data-signals={ fmt.Sprintf("{selectedOrgID: '%s'}", selectedOrgID) }>
+				@OrganizationsPanel(organizations, selectedOrgID)
+				@EntitiesPanel(selectedOrgID, entities)
+			</div>
+		}
+	}
+}
+
+templ OrganizationsPanel(organizations []ontology.Organization, selectedOrgID string) {
+	<div id="organizations-panel" class="panel">
+		<div class="panel-header">
+			<h2>Organizations</h2>
+			<button class="refresh-btn" data-on:click="@get('/api/organizations')" data-signals="{_fetching: false}" data-indicator:_fetching="">↻</button>
+			<span class="loading" data-show="_fetching"></span>
+		</div>
+		<div class="data-grid">
+			@OrganizationsTable(organizations, selectedOrgID)
+		</div>
+	</div>
+}
+
+templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID string) {
+	<table id="org-table" class="data-table">
+		<thead>
+			<tr>
+				<th>Name</th>
+				<th>Type</th>
+				<th>Status</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, org := range organizations {
+				<tr class={ templ.KV("selected", org.OrgID == selectedOrgID) }>
+					<td>{ org.Name }</td>
+					<td class="org-type">{ org.OrgType }</td>
+					<td><span class="status-badge active">ACTIVE</span></td>
+					<td>
+						<button class="action-btn" 
+							data-on:click={ fmt.Sprintf("@get('/entities?org_id=%s')", org.OrgID) }>
+							View Entities
+						</button>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+templ EntitiesPanel(orgID string, entities []ontology.Entity) {
+	<div id="entities-panel" class="panel">
+		<div class="panel-header">
+			<h2>Entities</h2>
+			if orgID != "" {
+				<button class="action-btn" data-on:click={ fmt.Sprintf("@get('/entities/new?org_id=%s')", orgID) }>
+					+ New Entity
+				</button>
+				<button class="refresh-btn" 
+					data-on:click={ fmt.Sprintf("@get('/api/entities?org_id=%s')", orgID) }
+					data-signals="{_fetching: false}" 
+					data-indicator:_fetching="">↻</button>
+				<span class="loading" data-show="_fetching"></span>
+			}
+		</div>
+		<div class="data-grid">
+			if orgID == "" {
+				<p class="empty-state">Select an organization to view entities</p>
+			} else {
+				@EntitiesTable(orgID, entities)
+			}
+		</div>
+	</div>
+	<div id="entity-form-modal"></div>
+}
+
+templ EntitiesTable(orgID string, entities []ontology.Entity) {
+	<table id="entity-table" class="data-table">
+		<thead>
+			<tr>
+				<th>Type</th>
+				<th>Status</th>
+				<th>Priority</th>
+				<th>Live</th>
+				<th>Position</th>
+				<th>Updated</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			if len(entities) == 0 {
+				<tr><td colspan="7" class="empty-state">No entities found</td></tr>
+			} else {
+				for _, entity := range entities {
+					@EntityRow(orgID, entity)
+				}
+			}
+		</tbody>
+	</table>
+}
+
+templ EntityRow(orgID string, entity ontology.Entity) {
+	<tr id={ fmt.Sprintf("entity-%s", entity.EntityID) }>
+		<td class="entity-type">{ entity.EntityType }</td>
+		<td><span class={ "status-badge", entity.Status }>{ entity.Status }</span></td>
+		<td class={ fmt.Sprintf("priority-%s", entity.Priority) }>{ entity.Priority }</td>
+		<td class={ fmt.Sprintf("live-%v", entity.IsLive) }>
+			if entity.IsLive {
+				YES
+			} else {
+				NO
+			}
+		</td>
+		<td class="position">
+			if entity.Latitude != nil && entity.Longitude != nil {
+				{ fmt.Sprintf("%.4f, %.4f", *entity.Latitude, *entity.Longitude) }
+			} else {
+				N/A
+			}
+		</td>
+		<td class="timestamp">{ entity.UpdatedAt.Format("15:04:05") }</td>
+		<td>
+			<button class="action-btn small" 
+				data-on:click={ fmt.Sprintf("@get('/entities/edit?org_id=%s&entity_id=%s')", orgID, entity.EntityID) }>
+				Edit
+			</button>
+			<button class="action-btn small danger" 
+				data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this entity?')) @delete('/api/entities/%s?org_id=%s')", entity.EntityID, orgID) }>
+				Delete
+			</button>
+		</td>
+	</tr>
+}

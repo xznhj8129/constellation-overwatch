@@ -122,7 +122,10 @@ go mod download
 go run ./cmd/microlith/main.go
 ```
 
-The server will start on port 8080 with an embedded NATS server on port 4222.
+The server will start:
+- API server on port 8080 
+- Web interface on port 8090
+- Embedded NATS server on port 4222
 
 ### Configuration
 
@@ -136,6 +139,7 @@ Configuration options:
 
 - `API_BEARER_TOKEN` - Bearer token for API authentication (default: `constellation-dev-token`)
 - `PORT` - HTTP server port (default: `8080`)
+- `WEB_PORT` - Web interface port (default: `8090`)
 - `DB_PATH` - SQLite database path (default: `./db/constellation.db`)
 - `NATS_PORT` - NATS server port (default: `4222`)
 - `NATS_DATA_DIR` - NATS data directory (default: `./data/nats`)

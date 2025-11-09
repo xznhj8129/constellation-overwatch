@@ -4,17 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"constellation-overwatch/api"
-	"constellation-overwatch/api/middleware"
 	"constellation-overwatch/db"
 	"constellation-overwatch/pkg/shared"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/web"
 	"constellation-overwatch/pkg/services/workers"
 
 	"github.com/joho/godotenv"
@@ -129,36 +126,26 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Create HTTP server mux
-	mux := http.NewServeMux()
+	// Create unified web server (includes both web UI and REST API)
+	webServer, err := web.NewServer(dbService, nats.GetConnection(), nats)
+	if err != nil {
+		log.Fatal("Failed to create web server:", err)
+	}
 
-	// Initialize handlers
-	handlers := api.NewHandlers(dbService.GetDB(), nats)
-	handlers.RegisterRoutes(mux, nats)
-
-	// Apply CORS middleware to all routes
-	handler := middleware.CORS(middleware.RequestLogger(mux))
-
-	// Configure server
+	// Get port from environment
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      handler,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
-
-	// Start server in goroutine
+	// Start unified server in goroutine
 	go func() {
-		log.Printf("Starting Constellation API server on port %s", port)
+		log.Printf("Starting Constellation Overwatch unified server on port %s", port)
 		log.Printf("Bearer token: %s", getAPIToken())
-		
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("Web UI available at: http://localhost:%s", port)
+		log.Printf("REST API available at: http://localhost:%s/api/v1/", port)
+
+		if err := webServer.Start(port); err != nil {
 			log.Fatal("Server failed to start:", err)
 		}
 	}()
@@ -166,14 +153,6 @@ func main() {
 	// Wait for shutdown signal
 	<-sigChan
 	log.Println("Shutting down server...")
-
-	// Shutdown HTTP server
-	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
-	defer shutdownCancel()
-
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Failed to shutdown server gracefully: %v", err)
-	}
 
 	// Stop workers
 	if workerManager != nil {
@@ -183,8 +162,8 @@ func main() {
 	}
 
 	// Shutdown NATS
-	if nats != nil {
-		if err := nats.Shutdown(shutdownCtx); err != nil {
+if nats != nil {
+		if err := nats.Shutdown(ctx); err != nil {
 			log.Printf("Failed to shutdown NATS: %v", err)
 		}
 	}

@@ -1,0 +1,153 @@
+package templates
+
+import (
+	"fmt"
+	"constellation-overwatch/pkg/ontology"
+)
+
+templ EntityForm(orgID string, entity *ontology.Entity, isEdit bool) {
+	<div class="modal-backdrop" data-on:click="this.parentElement.innerHTML=''">
+		<div class="modal" data-on:click.stop="">
+			<div class="modal-header">
+				if isEdit {
+					<h2>Edit Entity</h2>
+				} else {
+					<h2>New Entity</h2>
+				}
+				<button class="close-btn" data-on:click="this.closest('#entity-form-modal').innerHTML=''">&times;</button>
+			</div>
+			<form class="entity-form"
+				data-signals="{_fetching: false}"
+				if isEdit {
+					data-on:submit.prevent={ fmt.Sprintf("@put('/api/entities/%s?org_id=%s')", entity.EntityID, orgID) }
+				} else {
+					data-on:submit.prevent={ fmt.Sprintf("@post('/api/entities?org_id=%s')", orgID) }
+				}
+				data-on:finished="if(event.detail.ok) this.closest('#entity-form-modal').innerHTML=''">
+				
+				<div class="form-group">
+					<label for="entity_type">Entity Type</label>
+					<select name="entity_type" id="entity_type" required>
+						<option value="">Select Type</option>
+						<option value="aircraft_multirotor" selected?={ entity != nil && entity.EntityType == "aircraft_multirotor" }>Aircraft Multirotor</option>
+						<option value="ground_vehicle" selected?={ entity != nil && entity.EntityType == "ground_vehicle" }>Ground Vehicle</option>
+						<option value="sensor_fixed" selected?={ entity != nil && entity.EntityType == "sensor_fixed" }>Fixed Sensor</option>
+						<option value="control_station" selected?={ entity != nil && entity.EntityType == "control_station" }>Control Station</option>
+						<option value="watercraft_surface" selected?={ entity != nil && entity.EntityType == "watercraft_surface" }>Surface Watercraft</option>
+						<option value="person" selected?={ entity != nil && entity.EntityType == "person" }>Person</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label for="status">Status</label>
+					<select name="status" id="status" required>
+						<option value="unknown" selected?={ entity == nil || entity.Status == "unknown" }>Unknown</option>
+						<option value="active" selected?={ entity != nil && entity.Status == "active" }>Active</option>
+						<option value="inactive" selected?={ entity != nil && entity.Status == "inactive" }>Inactive</option>
+						<option value="maintenance" selected?={ entity != nil && entity.Status == "maintenance" }>Maintenance</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label for="priority">Priority</label>
+					<select name="priority" id="priority" required>
+						<option value="normal" selected?={ entity == nil || entity.Priority == "normal" }>Normal</option>
+						<option value="low" selected?={ entity != nil && entity.Priority == "low" }>Low</option>
+						<option value="high" selected?={ entity != nil && entity.Priority == "high" }>High</option>
+						<option value="critical" selected?={ entity != nil && entity.Priority == "critical" }>Critical</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label>
+						<input type="checkbox" name="is_live" value="true" checked?={ entity != nil && entity.IsLive }/>
+						Is Live
+					</label>
+				</div>
+
+				<fieldset class="form-group">
+					<legend>Position (Optional)</legend>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="latitude">Latitude</label>
+							<input type="number" 
+								name="latitude" 
+								id="latitude" 
+								step="0.000001" 
+								min="-90" 
+								max="90"
+								if entity != nil && entity.Latitude != nil {
+									value={ fmt.Sprintf("%f", *entity.Latitude) }
+								}
+								placeholder="e.g., 37.7749"/>
+						</div>
+						<div class="form-group">
+							<label for="longitude">Longitude</label>
+							<input type="number" 
+								name="longitude" 
+								id="longitude" 
+								step="0.000001" 
+								min="-180" 
+								max="180"
+								if entity != nil && entity.Longitude != nil {
+									value={ fmt.Sprintf("%f", *entity.Longitude) }
+								}
+								placeholder="e.g., -122.4194"/>
+						</div>
+					</div>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="altitude">Altitude (meters)</label>
+							<input type="number" 
+								name="altitude" 
+								id="altitude" 
+								step="0.1"
+								if entity != nil && entity.Altitude != nil {
+									value={ fmt.Sprintf("%f", *entity.Altitude) }
+								}
+								placeholder="e.g., 100"/>
+						</div>
+						<div class="form-group">
+							<label for="heading">Heading (degrees)</label>
+							<input type="number" 
+								name="heading" 
+								id="heading" 
+								step="0.1" 
+								min="0" 
+								max="360"
+								if entity != nil && entity.Heading != nil {
+									value={ fmt.Sprintf("%f", *entity.Heading) }
+								}
+								placeholder="e.g., 270"/>
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="velocity">Velocity (m/s)</label>
+						<input type="number" 
+							name="velocity" 
+							id="velocity" 
+							step="0.1" 
+							min="0"
+							if entity != nil && entity.Velocity != nil {
+								value={ fmt.Sprintf("%f", *entity.Velocity) }
+							}
+							placeholder="e.g., 15.5"/>
+					</div>
+				</fieldset>
+
+				<div class="form-actions">
+					<button type="submit" class="action-btn primary">
+						if isEdit {
+							Update Entity
+						} else {
+							Create Entity
+						}
+					</button>
+					<button type="button" class="action-btn" data-on:click="this.closest('#entity-form-modal').innerHTML=''">
+						Cancel
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}
