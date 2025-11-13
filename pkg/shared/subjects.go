@@ -53,6 +53,21 @@ const (
 	ConsumerTelemetryProcessor = "telemetry-processor"
 )
 
+// KV Bucket names
+const (
+	KVBucketGlobalState = "CONSTELLATION_GLOBAL_STATE"
+)
+
+// KV Key patterns for global state
+const (
+	KVKeyFleet       = "fleet:%s"          // fleet_id
+	KVKeySwarm       = "swarm:%s"          // swarm_id
+	KVKeyFleetList   = "fleets:list"       // List of all fleet IDs
+	KVKeySwarmList   = "swarms:list"       // List of all swarm IDs
+	KVKeyFleetSwarms = "fleet:%s:swarms"   // fleet_id -> list of swarm IDs
+	KVKeySwarmFleet  = "swarm:%s:fleet"    // swarm_id -> fleet_id
+)
+
 // Helper functions to generate subjects
 func EntityCreatedSubject(orgID string) string {
 	return fmt.Sprintf(SubjectEntityCreated, orgID)
@@ -84,4 +99,21 @@ func CommandEntitySubject(orgID, entityID string) string {
 
 func CommandBroadcastSubject(orgID string) string {
 	return fmt.Sprintf(SubjectCommandBroadcast, orgID)
+}
+
+// Helper functions to generate KV keys
+func FleetKey(fleetID string) string {
+	return fmt.Sprintf(KVKeyFleet, fleetID)
+}
+
+func SwarmKey(swarmID string) string {
+	return fmt.Sprintf(KVKeySwarm, swarmID)
+}
+
+func FleetSwarmsKey(fleetID string) string {
+	return fmt.Sprintf(KVKeyFleetSwarms, fleetID)
+}
+
+func SwarmFleetKey(swarmID string) string {
+	return fmt.Sprintf(KVKeySwarmFleet, swarmID)
 }

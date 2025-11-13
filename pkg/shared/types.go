@@ -44,6 +44,34 @@ type Event struct {
 	Source    string                 `json:"source"`
 }
 
+// Fleet represents a collection of swarms
+type Fleet struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	OrgID       string            `json:"org_id"`
+	SwarmIDs    []string          `json:"swarm_ids"`
+	Status      string            `json:"status"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// Swarm represents a group of entities working together
+type Swarm struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	OrgID       string            `json:"org_id"`
+	FleetID     string            `json:"fleet_id,omitempty"`
+	EntityIDs   []string          `json:"entity_ids"`
+	Status      string            `json:"status"`
+	Type        string            `json:"type"` // e.g., "formation", "patrol", "search"
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
 // Health check
 type HealthStatus struct {
 	Status    string            `json:"status"`

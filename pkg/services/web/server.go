@@ -13,6 +13,7 @@ import (
 	"constellation-overwatch/db"
 	"constellation-overwatch/pkg/ontology"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/web/datastar"
 	"constellation-overwatch/pkg/services/web/templates"
 	"constellation-overwatch/pkg/shared"
 
@@ -25,6 +26,7 @@ type Server struct {
 	natsEmbedded *embeddednats.EmbeddedNATS
 	orgSvc    *services.OrganizationService
 	entitySvc *services.EntityService
+	sseHandler *SSEHandler
 	mux       *http.ServeMux
 }
 
@@ -35,6 +37,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		natsEmbedded: natsEmbedded,
 		orgSvc:       services.NewOrganizationService(dbService.GetDB()),
 		entitySvc:    services.NewEntityService(dbService.GetDB(), natsEmbedded),
+		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
 		mux:          http.NewServeMux(),
 	}
 
@@ -51,6 +54,7 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/entities", s.handleEntitiesPage)
 	s.mux.HandleFunc("/entities/new", s.handleEntityForm)
 	s.mux.HandleFunc("/entities/edit", s.handleEntityForm)
+	s.mux.HandleFunc("/organizations/new", s.handleOrganizationForm)
 	s.mux.HandleFunc("/streams", s.handleStreamsPage)
 
 	// Web API endpoints (for Datastar/SSE)
@@ -94,18 +98,14 @@ func (s *Server) handleEntitiesPage(w http.ResponseWriter, r *http.Request) {
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		fmt.Fprintf(w, "event: datastar-patch-elements\n")
-		fmt.Fprintf(w, "data: mode outer\n")
-		fmt.Fprintf(w, "data: selector body\n")
-		fmt.Fprintf(w, "data: elements ")
+		sse := datastar.NewServerSentEventGenerator(w, r)
 		component := templates.EntitiesPage(orgs, orgID, entities)
-		component.Render(r.Context(), w)
-		fmt.Fprintf(w, "\n\n")
-		w.(http.Flusher).Flush()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			log.Printf("Error patching entities page: %v", err)
+		}
 		return
 	}
 
@@ -132,18 +132,14 @@ func (s *Server) handleEntityForm(w http.ResponseWriter, r *http.Request) {
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		fmt.Fprintf(w, "event: datastar-patch-elements\n")
-		fmt.Fprintf(w, "data: mode inner\n")
-		fmt.Fprintf(w, "data: selector #entity-form-modal\n")
-		fmt.Fprintf(w, "data: elements ")
+		sse := datastar.NewServerSentEventGenerator(w, r)
 		component := templates.EntityForm(orgID, entity, isEdit)
-		component.Render(r.Context(), w)
-		fmt.Fprintf(w, "\n\n")
-		w.(http.Flusher).Flush()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("#entity-form-modal"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+		if err != nil {
+			log.Printf("Error patching entity form: %v", err)
+		}
 		return
 	}
 
@@ -154,18 +150,14 @@ func (s *Server) handleEntityForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStreamsPage(w http.ResponseWriter, r *http.Request) {
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		fmt.Fprintf(w, "event: datastar-patch-elements\n")
-		fmt.Fprintf(w, "data: mode outer\n")
-		fmt.Fprintf(w, "data: selector body\n")
-		fmt.Fprintf(w, "data: elements ")
+		sse := datastar.NewServerSentEventGenerator(w, r)
 		component := templates.StreamsPage()
-		component.Render(r.Context(), w)
-		fmt.Fprintf(w, "\n\n")
-		w.(http.Flusher).Flush()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			log.Printf("Error patching streams page: %v", err)
+		}
 		return
 	}
 
@@ -173,10 +165,29 @@ func (s *Server) handleStreamsPage(w http.ResponseWriter, r *http.Request) {
 	component.Render(r.Context(), w)
 }
 
+func (s *Server) handleOrganizationForm(w http.ResponseWriter, r *http.Request) {
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := templates.OrganizationForm()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("#org-form-modal"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+		if err != nil {
+			log.Printf("Error patching organization form: %v", err)
+		}
+		return
+	}
+
+	component := templates.OrganizationForm()
+	component.Render(r.Context(), w)
+}
+
 // API handlers
 
 func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
+	switch r.Method {
+	case "GET":
 		orgs, err := s.orgSvc.ListOrganizations()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -185,18 +196,14 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 
 		// If this is a Datastar request, return SSE format
 		if r.Header.Get("Accept") == "text/event-stream" {
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-
-			fmt.Fprintf(w, "event: datastar-patch-elements\n")
-			fmt.Fprintf(w, "data: mode inner\n")
-			fmt.Fprintf(w, "data: selector #org-table\n")
-			fmt.Fprintf(w, "data: elements ")
+			sse := datastar.NewServerSentEventGenerator(w, r)
 			component := templates.OrganizationsTable(orgs, "")
-			component.Render(r.Context(), w)
-			fmt.Fprintf(w, "\n\n")
-			w.(http.Flusher).Flush()
+			err := sse.PatchComponent(r.Context(), component,
+				datastar.WithSelector("#org-table"),
+				datastar.WithMode(datastar.ElementPatchModeInner))
+			if err != nil {
+				log.Printf("Error patching organizations: %v", err)
+			}
 			return
 		}
 
@@ -205,6 +212,49 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"organizations": orgs,
 		})
+
+	case "POST":
+		// Parse form data
+		r.ParseForm()
+
+		// Create organization request
+		req := &ontology.CreateOrganizationRequest{
+			Name:    r.FormValue("name"),
+			OrgType: r.FormValue("org_type"),
+		}
+
+		// Create the organization
+		org, err := s.orgSvc.CreateOrganization(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// If Datastar, refresh the org table and close modal
+		if r.Header.Get("Accept") == "text/event-stream" {
+			sse := datastar.NewServerSentEventGenerator(w, r)
+
+			// Refresh organizations list
+			orgs, err := s.orgSvc.ListOrganizations()
+			if err != nil {
+				log.Printf("Error fetching organizations: %v", err)
+			} else {
+				component := templates.OrganizationsTable(orgs, org.OrgID)
+				sse.PatchComponent(r.Context(), component,
+					datastar.WithSelector("#org-table"),
+					datastar.WithMode(datastar.ElementPatchModeInner))
+			}
+
+			// Close the modal
+			sse.PatchElements("",
+				datastar.WithSelector("#org-form-modal"),
+				datastar.WithMode(datastar.ElementPatchModeInner))
+			return
+		}
+
+		// Otherwise return JSON
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(org)
 	}
 }
 
@@ -225,18 +275,14 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 
 		// If this is a Datastar request, return SSE format
 		if r.Header.Get("Accept") == "text/event-stream" {
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-
-			fmt.Fprintf(w, "event: datastar-patch-elements\n")
-			fmt.Fprintf(w, "data: mode inner\n")
-			fmt.Fprintf(w, "data: selector #entity-table\n")
-			fmt.Fprintf(w, "data: elements ")
+			sse := datastar.NewServerSentEventGenerator(w, r)
 			component := templates.EntitiesTable(orgID, entities)
-			component.Render(r.Context(), w)
-			fmt.Fprintf(w, "\n\n")
-			w.(http.Flusher).Flush()
+			err := sse.PatchComponent(r.Context(), component,
+				datastar.WithSelector("#entity-table"),
+				datastar.WithMode(datastar.ElementPatchModeInner))
+			if err != nil {
+				log.Printf("Error patching entities: %v", err)
+			}
 			return
 		}
 
@@ -300,18 +346,19 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 
 		// If Datastar, return SSE format with new row
 		if r.Header.Get("Accept") == "text/event-stream" {
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-
-			fmt.Fprintf(w, "event: datastar-patch-elements\n")
-			fmt.Fprintf(w, "data: mode append\n")
-			fmt.Fprintf(w, "data: selector #entity-table tbody\n")
-			fmt.Fprintf(w, "data: elements ")
+			sse := datastar.NewServerSentEventGenerator(w, r)
 			component := templates.EntityRow(orgID, *entity)
-			component.Render(r.Context(), w)
-			fmt.Fprintf(w, "\n\n")
-			w.(http.Flusher).Flush()
+			err := sse.PatchComponent(r.Context(), component,
+				datastar.WithSelector("#entity-table tbody"),
+				datastar.WithMode(datastar.ElementPatchModeAppend))
+			if err != nil {
+				log.Printf("Error patching new entity: %v", err)
+			}
+
+			// Close the modal
+			sse.PatchElements("",
+				datastar.WithSelector("#entity-form-modal"),
+				datastar.WithMode(datastar.ElementPatchModeInner))
 			return
 		}
 
@@ -399,18 +446,19 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 
 		// If Datastar, return the updated row
 		if r.Header.Get("Accept") == "text/event-stream" {
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-
-			fmt.Fprintf(w, "event: datastar-patch-elements\n")
-			fmt.Fprintf(w, "data: mode outer\n")
-			fmt.Fprintf(w, "data: selector #entity-%s\n", entityID)
-			fmt.Fprintf(w, "data: elements ")
+			sse := datastar.NewServerSentEventGenerator(w, r)
 			component := templates.EntityRow(orgID, *entity)
-			component.Render(r.Context(), w)
-			fmt.Fprintf(w, "\n\n")
-			w.(http.Flusher).Flush()
+			err := sse.PatchComponent(r.Context(), component,
+				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
+				datastar.WithMode(datastar.ElementPatchModeOuter))
+			if err != nil {
+				log.Printf("Error patching updated entity: %v", err)
+			}
+
+			// Close the modal
+			sse.PatchElements("",
+				datastar.WithSelector("#entity-form-modal"),
+				datastar.WithMode(datastar.ElementPatchModeInner))
 			return
 		}
 
@@ -427,15 +475,13 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 
 		// If Datastar, remove the element
 		if r.Header.Get("Accept") == "text/event-stream" {
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-
-			fmt.Fprintf(w, "event: datastar-patch-elements\n")
-			fmt.Fprintf(w, "data: mode remove\n")
-			fmt.Fprintf(w, "data: selector #entity-%s\n", entityID)
-			fmt.Fprintf(w, "data: elements <div></div>\n\n")
-			w.(http.Flusher).Flush()
+			sse := datastar.NewServerSentEventGenerator(w, r)
+			err := sse.PatchElements("",
+				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
+				datastar.WithMode(datastar.ElementPatchModeRemove))
+			if err != nil {
+				log.Printf("Error removing entity: %v", err)
+			}
 			return
 		}
 
@@ -447,54 +493,8 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 
 // SSE handler for real-time streams
 func (s *Server) handleStreamSSE(w http.ResponseWriter, r *http.Request) {
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	// Create a channel to signal when to stop
-	done := r.Context().Done()
-
-	// Subscribe to all NATS messages
-	subject := "constellation.>"
-
-	sub, err := s.nc.Subscribe(subject, func(m *nats.Msg) {
-		// Parse the message
-		var msg map[string]interface{}
-		if err := json.Unmarshal(m.Data, &msg); err == nil {
-			// Create stream message component
-			timestamp := time.Now().Format("15:04:05")
-			jsonData, _ := json.MarshalIndent(msg, "", "  ")
-
-			component := templates.StreamMessage(m.Subject, timestamp, string(jsonData))
-
-			// Write Datastar SSE event
-			fmt.Fprintf(w, "event: datastar-patch-elements\n")
-			fmt.Fprintf(w, "data: mode append\n")
-			fmt.Fprintf(w, "data: selector #stream-messages\n")
-			fmt.Fprintf(w, "data: elements ")
-			component.Render(r.Context(), w)
-			fmt.Fprintf(w, "\n\n")
-			w.(http.Flusher).Flush()
-		}
-	})
-
-	if err != nil {
-		log.Printf("Failed to subscribe to NATS: %v", err)
-		return
-	}
-	defer sub.Unsubscribe()
-
-	// Send initial connection message
-	fmt.Fprintf(w, "event: datastar-patch-elements\n")
-	fmt.Fprintf(w, "data: mode inner\n")
-	fmt.Fprintf(w, "data: selector #stream-messages\n")
-	fmt.Fprintf(w, "data: elements <div class=\"stream-message\"><div class=\"msg-header\"><span class=\"msg-subject\">system</span><span class=\"msg-time\">%s</span></div><div class=\"msg-body\"><div class=\"msg-data\"><pre>Connected to stream</pre></div></div></div>\n\n", time.Now().Format("15:04:05"))
-	w.(http.Flusher).Flush()
-
-	// Keep connection open until client disconnects
-	<-done
+	// Delegate to SSE handler
+	s.sseHandler.StreamMessages(w, r)
 }
 
 // REST API v1 handlers (with authentication)

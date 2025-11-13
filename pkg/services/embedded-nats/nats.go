@@ -26,6 +26,7 @@ type EmbeddedNATS struct {
 	server  *server.Server
 	nc      *nats.Conn
 	js      nats.JetStreamContext
+	kv      nats.KeyValue
 	config  *Config
 	streams map[string]*StreamConfig
 }
@@ -265,6 +266,39 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 	return nil
 }
 
+// CreateGlobalStateKV creates or retrieves the global state KV bucket
+func (en *EmbeddedNATS) CreateGlobalStateKV(bucketName string) error {
+	if en.js == nil {
+		return fmt.Errorf("JetStream not initialized")
+	}
+
+	// Configure KV bucket
+	config := &nats.KeyValueConfig{
+		Bucket:      bucketName,
+		Description: "Global state storage for fleets and swarms",
+		MaxBytes:    512 * 1024 * 1024, // 512MB
+		TTL:         0,                  // No TTL - data persists until deleted
+		History:     10,                 // Keep last 10 versions
+		Replicas:    1,
+	}
+
+	// Try to get existing bucket
+	kv, err := en.js.KeyValue(bucketName)
+	if err != nil {
+		// Bucket doesn't exist, create it
+		kv, err = en.js.CreateKeyValue(config)
+		if err != nil {
+			return fmt.Errorf("failed to create KV bucket %s: %w", bucketName, err)
+		}
+		log.Printf("Created KV bucket: %s", bucketName)
+	} else {
+		log.Printf("Using existing KV bucket: %s", bucketName)
+	}
+
+	en.kv = kv
+	return nil
+}
+
 func (en *EmbeddedNATS) PublishWithDedup(subject string, data []byte, msgID string) error {
 	msg := nats.NewMsg(subject)
 	msg.Data = data
@@ -314,6 +348,10 @@ func (en *EmbeddedNATS) Connection() *nats.Conn {
 
 func (en *EmbeddedNATS) JetStream() nats.JetStreamContext {
 	return en.js
+}
+
+func (en *EmbeddedNATS) KeyValue() nats.KeyValue {
+	return en.kv
 }
 
 func (en *EmbeddedNATS) Shutdown(ctx context.Context) error {

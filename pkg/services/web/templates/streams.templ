@@ -23,9 +23,9 @@ templ StreamPanel() {
 			</select>
 		</div>
 		<div class="stream-container">
-			<div id="stream-messages" 
+			<div id="stream-messages"
 				class="stream-messages"
-				data-on:load="@get('/api/streams/sse')">
+				data-init="@get('/api/streams/sse')">
 				<div class="empty-state">Connecting to stream...</div>
 			</div>
 		</div>

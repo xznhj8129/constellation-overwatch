@@ -69,6 +69,11 @@ func initNATS() error {
 		return fmt.Errorf("failed to create constellation streams: %w", err)
 	}
 
+	// Create global state KV bucket
+	if err := nats.CreateGlobalStateKV(shared.KVBucketGlobalState); err != nil {
+		return fmt.Errorf("failed to create global state KV bucket: %w", err)
+	}
+
 	// Create durable consumers
 	consumers := []struct {
 		stream   string
