@@ -21,13 +21,13 @@ import (
 )
 
 type Server struct {
-	db        *db.Service
-	nc        *nats.Conn
+	db           *db.Service
+	nc           *nats.Conn
 	natsEmbedded *embeddednats.EmbeddedNATS
-	orgSvc    *services.OrganizationService
-	entitySvc *services.EntityService
-	sseHandler *SSEHandler
-	mux       *http.ServeMux
+	orgSvc       *services.OrganizationService
+	entitySvc    *services.EntityService
+	sseHandler   *SSEHandler
+	mux          *http.ServeMux
 }
 
 func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS) (*Server, error) {
@@ -278,7 +278,7 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 			sse := datastar.NewServerSentEventGenerator(w, r)
 			component := templates.EntitiesTable(orgID, entities)
 			err := sse.PatchComponent(r.Context(), component,
-				datastar.WithSelector("#entity-table"),
+				datastar.WithSelector("#entities-content"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
 			if err != nil {
 				log.Printf("Error patching entities: %v", err)

@@ -28,7 +28,7 @@ func NewSSEHandler(nc *nats.Conn, js nats.JetStreamContext) *SSEHandler {
 
 // StreamMessages streams NATS messages to the client via SSE
 func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
-	// Create SSE generator
+	// Create SSE generator using our wrapper (which uses official Datastar)
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
 	// Subscribe to all constellation subjects
@@ -50,7 +50,7 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 		timestamp := time.Now().Format("15:04:05")
 		messageHTML := renderStreamMessage(msg.Subject, timestamp, string(prettyJSON))
 
-		// Patch the element into the stream
+		// Patch the element into the stream (prepend new messages at top)
 		err = sse.PatchElements(messageHTML,
 			datastar.WithSelector("#stream-messages"),
 			datastar.WithMode(datastar.ElementPatchModePrepend))
@@ -119,7 +119,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 		filter = "all"
 	}
 
-	// Create SSE generator
+	// Create SSE generator using our wrapper (which uses official Datastar)
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
 	// Determine which subjects to subscribe to based on filter

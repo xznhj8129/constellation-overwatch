@@ -1,34 +1,24 @@
 package datastar
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
+
+	"github.com/a-h/templ"
+	ds "github.com/starfederation/datastar-go/datastar"
 )
 
-// ServerSentEventGenerator handles SSE communication with the browser
+// ServerSentEventGenerator wraps the official Datastar SSE functionality
+// This wrapper maintains API compatibility while using the official library
 type ServerSentEventGenerator struct {
-	w http.ResponseWriter
-	r *http.Request
+	sse *ds.ServerSentEventGenerator
 }
 
-// NewServerSentEventGenerator creates a new SSE generator and sets up the response headers
+// NewServerSentEventGenerator creates a new SSE generator using the official Datastar library
 func NewServerSentEventGenerator(w http.ResponseWriter, r *http.Request) *ServerSentEventGenerator {
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
-	// Flush headers
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
 	return &ServerSentEventGenerator{
-		w: w,
-		r: r,
+		sse: ds.NewSSE(w, r),
 	}
 }
 
@@ -36,14 +26,14 @@ func NewServerSentEventGenerator(w http.ResponseWriter, r *http.Request) *Server
 type PatchElementMode string
 
 const (
-	ElementPatchModeMorph  PatchElementMode = "morph"
-	ElementPatchModeInner  PatchElementMode = "inner"
-	ElementPatchModeOuter  PatchElementMode = "outer"
+	ElementPatchModeMorph   PatchElementMode = "morph" // Maps to outer
+	ElementPatchModeInner   PatchElementMode = "inner"
+	ElementPatchModeOuter   PatchElementMode = "outer"
 	ElementPatchModePrepend PatchElementMode = "prepend"
-	ElementPatchModeAppend PatchElementMode = "append"
-	ElementPatchModeBefore PatchElementMode = "before"
-	ElementPatchModeAfter  PatchElementMode = "after"
-	ElementPatchModeRemove PatchElementMode = "remove"
+	ElementPatchModeAppend  PatchElementMode = "append"
+	ElementPatchModeBefore  PatchElementMode = "before"
+	ElementPatchModeAfter   PatchElementMode = "after"
+	ElementPatchModeRemove  PatchElementMode = "remove"
 )
 
 // PatchElementsOptions contains options for patching elements
@@ -78,51 +68,50 @@ func WithViewTransition(enable bool) PatchElementsOption {
 }
 
 // PatchElements sends HTML elements to the browser for DOM manipulation
-func (sse *ServerSentEventGenerator) PatchElements(html string, opts ...PatchElementsOption) error {
+// Uses the official Datastar library under the hood
+func (s *ServerSentEventGenerator) PatchElements(html string, opts ...PatchElementsOption) error {
 	options := &PatchElementsOptions{
-		Mode: ElementPatchModeMorph,
+		Mode: ElementPatchModeMorph, // Default to morph/outer
 	}
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	// Build the event data
-	var dataLines []string
-	dataLines = append(dataLines, "event: datastar-patch-elements")
+	// Convert to official Datastar options
+	var dsOpts []ds.PatchElementOption
 
-	// Add selector if provided
 	if options.Selector != "" {
-		dataLines = append(dataLines, fmt.Sprintf("data: selector %s", options.Selector))
+		dsOpts = append(dsOpts, ds.WithSelector(options.Selector))
 	}
 
-	// Add mode if not default
-	if options.Mode != ElementPatchModeMorph {
-		dataLines = append(dataLines, fmt.Sprintf("data: mode %s", options.Mode))
+	// Map mode to official Datastar mode
+	var dsMode ds.ElementPatchMode
+	switch options.Mode {
+	case ElementPatchModeInner:
+		dsMode = ds.ElementPatchModeInner
+	case ElementPatchModePrepend:
+		dsMode = ds.ElementPatchModePrepend
+	case ElementPatchModeAppend:
+		dsMode = ds.ElementPatchModeAppend
+	case ElementPatchModeBefore:
+		dsMode = ds.ElementPatchModeBefore
+	case ElementPatchModeAfter:
+		dsMode = ds.ElementPatchModeAfter
+	case ElementPatchModeRemove:
+		dsMode = ds.ElementPatchModeRemove
+	default:
+		dsMode = ds.ElementPatchModeOuter // Default and morph both map to outer
 	}
 
-	// Add view transition if enabled
+	if dsMode != ds.ElementPatchModeOuter {
+		dsOpts = append(dsOpts, ds.WithMode(dsMode))
+	}
+
 	if options.ViewTransition {
-		dataLines = append(dataLines, "data: vt true")
+		dsOpts = append(dsOpts, ds.WithViewTransitions())
 	}
 
-	// Add the HTML content (may be multiple lines)
-	for _, line := range strings.Split(html, "\n") {
-		dataLines = append(dataLines, fmt.Sprintf("data: %s", line))
-	}
-
-	// Write the event
-	eventData := strings.Join(dataLines, "\n") + "\n\n"
-	_, err := fmt.Fprint(sse.w, eventData)
-	if err != nil {
-		return err
-	}
-
-	// Flush to send immediately
-	if flusher, ok := sse.w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
-	return nil
+	return s.sse.PatchElements(html, dsOpts...)
 }
 
 // PatchSignalsOptions contains options for patching signals
@@ -140,42 +129,20 @@ func WithOnlyIfMissing(enable bool) PatchSignalsOption {
 	}
 }
 
-// PatchSignals sends signal updates to the browser
-func (sse *ServerSentEventGenerator) PatchSignals(signals map[string]interface{}, opts ...PatchSignalsOption) error {
+// PatchSignals sends signal updates to the browser using the official Datastar library
+func (s *ServerSentEventGenerator) PatchSignals(signals map[string]interface{}, opts ...PatchSignalsOption) error {
 	options := &PatchSignalsOptions{}
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	// Marshal signals to JSON
-	signalsJSON, err := json.Marshal(signals)
-	if err != nil {
-		return err
-	}
-
-	// Build the event
-	var dataLines []string
-	dataLines = append(dataLines, "event: datastar-patch-signals")
-
+	// Convert to official Datastar options
+	var dsOpts []ds.PatchSignalsOption
 	if options.OnlyIfMissing {
-		dataLines = append(dataLines, "data: onlyIfMissing true")
+		dsOpts = append(dsOpts, ds.WithOnlyIfMissing(true))
 	}
 
-	dataLines = append(dataLines, fmt.Sprintf("data: %s", string(signalsJSON)))
-
-	// Write the event
-	eventData := strings.Join(dataLines, "\n") + "\n\n"
-	_, err = fmt.Fprint(sse.w, eventData)
-	if err != nil {
-		return err
-	}
-
-	// Flush to send immediately
-	if flusher, ok := sse.w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
-	return nil
+	return s.sse.MarshalAndPatchSignals(signals, dsOpts...)
 }
 
 // ExecuteScriptOptions contains options for executing scripts
@@ -202,65 +169,127 @@ func WithAttributes(attrs map[string]string) ExecuteScriptOption {
 }
 
 // ExecuteScript sends JavaScript code to be executed in the browser
-func (sse *ServerSentEventGenerator) ExecuteScript(script string, opts ...ExecuteScriptOption) error {
-	options := &ExecuteScriptOptions{
-		AutoRemove: true,
+// Note: The official library doesn't have ExecuteScript, so we'll implement it manually
+func (s *ServerSentEventGenerator) ExecuteScript(script string, opts ...ExecuteScriptOption) error {
+	// For now, we'll use PatchElements to inject a script tag
+	// This is a common pattern when ExecuteScript is not available
+	scriptHTML := `<script>` + script + `</script>`
+	return s.sse.PatchElements(scriptHTML, ds.WithSelector("head"), ds.WithModeAppend())
+}
+
+// RemoveElement removes an element from the DOM
+func (s *ServerSentEventGenerator) RemoveElement(selector string) error {
+	return s.sse.RemoveElement(selector)
+}
+
+// Redirect redirects the client to a new page
+// Note: The official library may not have Redirect, so we'll use ExecuteScript
+func (s *ServerSentEventGenerator) Redirect(url string) error {
+	script := `window.location.href = "` + url + `";`
+	return s.ExecuteScript(script)
+}
+
+// PatchComponent is a convenience method that renders a templ component and patches it
+func (s *ServerSentEventGenerator) PatchComponent(ctx context.Context, component templ.Component, opts ...PatchElementsOption) error {
+	// Convert options
+	options := &PatchElementsOptions{
+		Mode: ElementPatchModeMorph,
 	}
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	var dataLines []string
-	dataLines = append(dataLines, "event: datastar-execute-script")
+	// Convert to official Datastar options
+	var dsOpts []ds.PatchElementOption
 
-	if !options.AutoRemove {
-		dataLines = append(dataLines, "data: autoRemove false")
+	if options.Selector != "" {
+		dsOpts = append(dsOpts, ds.WithSelector(options.Selector))
 	}
 
-	if len(options.Attributes) > 0 {
-		for key, value := range options.Attributes {
-			dataLines = append(dataLines, fmt.Sprintf("data: %s %s", key, value))
-		}
+	// Map mode
+	var dsMode ds.ElementPatchMode
+	switch options.Mode {
+	case ElementPatchModeInner:
+		dsMode = ds.ElementPatchModeInner
+	case ElementPatchModePrepend:
+		dsMode = ds.ElementPatchModePrepend
+	case ElementPatchModeAppend:
+		dsMode = ds.ElementPatchModeAppend
+	case ElementPatchModeBefore:
+		dsMode = ds.ElementPatchModeBefore
+	case ElementPatchModeAfter:
+		dsMode = ds.ElementPatchModeAfter
+	case ElementPatchModeRemove:
+		dsMode = ds.ElementPatchModeRemove
+	default:
+		dsMode = ds.ElementPatchModeOuter
 	}
 
-	dataLines = append(dataLines, fmt.Sprintf("data: %s", script))
-
-	// Write the event
-	eventData := strings.Join(dataLines, "\n") + "\n\n"
-	_, err := fmt.Fprint(sse.w, eventData)
-	if err != nil {
-		return err
+	if dsMode != ds.ElementPatchModeOuter {
+		dsOpts = append(dsOpts, ds.WithMode(dsMode))
 	}
 
-	// Flush to send immediately
-	if flusher, ok := sse.w.(http.Flusher); ok {
-		flusher.Flush()
+	if options.ViewTransition {
+		dsOpts = append(dsOpts, ds.WithViewTransitions())
 	}
 
-	return nil
+	// Use the official Datastar PatchElementTempl method
+	return s.sse.PatchElementTempl(component, dsOpts...)
 }
 
-// ReadSignals parses incoming signal data from the browser
+// ReadSignals parses incoming signal data from the browser using the official Datastar library
 func ReadSignals(r *http.Request, target interface{}) error {
-	var data []byte
-	var err error
+	return ds.ReadSignals(r, target)
+}
 
-	if r.Method == http.MethodGet {
-		// For GET requests, read from query parameter
-		datastarParam := r.URL.Query().Get("datastar")
-		if datastarParam == "" {
-			return fmt.Errorf("missing datastar query parameter")
+// Helper function to read signals as a map
+func ReadSignalsMap(r *http.Request) (map[string]interface{}, error) {
+	var signals map[string]interface{}
+	err := ds.ReadSignals(r, &signals)
+	return signals, err
+}
+
+// Helper function to read form data and merge with signals
+func ReadFormWithSignals(r *http.Request) (map[string]interface{}, error) {
+	// First try to read signals
+	signals, err := ReadSignalsMap(r)
+	if err != nil {
+		signals = make(map[string]interface{})
+	}
+
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		return signals, err
+	}
+
+	// Merge form data into signals
+	for key, values := range r.Form {
+		if len(values) > 0 {
+			signals[key] = values[0]
 		}
-		data = []byte(datastarParam)
-	} else {
-		// For other methods, read from body
-		data = make([]byte, r.ContentLength)
-		_, err = r.Body.Read(data)
-		if err != nil && err.Error() != "EOF" {
+	}
+
+	return signals, nil
+}
+
+// MarshalAndPatchSignals is a convenience wrapper around the official Datastar method
+func MarshalAndPatchSignals(sse *ServerSentEventGenerator, data interface{}, opts ...PatchSignalsOption) error {
+	// Convert data to map if it's not already
+	var signals map[string]interface{}
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		signals = v
+	default:
+		// Marshal and unmarshal to convert struct to map
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(jsonData, &signals); err != nil {
 			return err
 		}
 	}
 
-	// Unmarshal JSON into target
-	return json.Unmarshal(data, target)
+	return sse.PatchSignals(signals, opts...)
 }
