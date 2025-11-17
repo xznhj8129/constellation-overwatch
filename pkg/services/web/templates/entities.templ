@@ -107,8 +107,10 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 }
 
 templ OrganizationEditRow(org ontology.Organization) {
-	<tr id={ "org-row-" + org.OrgID } class="form-row-inline">
-		<form data-on:submit__prevent={ "@put('/api/organizations/" + org.OrgID + "', {contentType: 'form'})" }
+	<tr id={ fmt.Sprintf("org-row-%s", org.OrgID) } class="form-row-inline">
+		<form id={ fmt.Sprintf("edit-org-form-%s", org.OrgID) }
+			data-org-id={ org.OrgID }
+			data-on:submit__prevent="@put(`/api/organizations/${el.dataset.orgId}`, {contentType: 'form'})"
 			data-indicator:updating>
 			<td>
 				<input type="text"
@@ -138,7 +140,7 @@ templ OrganizationEditRow(org ontology.Organization) {
 					Save
 				</button>
 				<button type="button" class="action-btn small"
-					data-on:click={ "@get('/organizations/cancel/" + org.OrgID + "')" }>
+					data-on:click={ fmt.Sprintf("@get('/organizations/cancel/%s')", org.OrgID) }>
 					Cancel
 				</button>
 			</td>
