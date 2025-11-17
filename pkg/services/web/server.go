@@ -283,15 +283,15 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 		sse := datastar.NewServerSentEventGenerator(w, r)
 		log.Printf("[API] SSE generator created successfully")
 
-		// Append the new organization row to the table
+		// Insert the new organization row before the form row
 		log.Printf("[API] Rendering organization row component")
 		component := templates.OrganizationRow(*org, org.OrgID)
 
-		log.Printf("[API] Patching component with selector '#org-table tbody', mode: append")
+		log.Printf("[API] Patching component with selector '#new-org-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
-			datastar.WithSelector("#org-table tbody"),
-			datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
-			log.Printf("[API] ERROR appending org row: %v", err)
+			datastar.WithSelector("#new-org-form-row"),
+			datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
+			log.Printf("[API] ERROR inserting org row: %v", err)
 			return
 		}
 

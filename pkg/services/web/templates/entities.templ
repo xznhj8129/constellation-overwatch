@@ -53,7 +53,7 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 			for _, org := range organizations {
 				@OrganizationRow(org, selectedOrgID)
 			}
-			<tr class="form-row-inline">
+			<tr id="new-org-form-row" class="form-row-inline">
 				<form id="new-org-form"
 					data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
 					data-indicator:submitting>
