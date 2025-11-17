@@ -598,6 +598,7 @@ legend {
 .action-btn.small {
     padding: 4px 12px;
     font-size: 0.85rem;
+    min-width: 60px;
 }
 
 .action-btn.danger {
@@ -615,14 +616,7 @@ tr.selected {
     background: rgba(0, 212, 255, 0.1);
 }
 
-/* Datastar indicators */
-[data-show] {
-    display: none;
-}
-
-[data-show="true"] {
-    display: inline-block;
-}
+/* Datastar indicators - Let Datastar handle visibility */
 
 /* Inline Form Row */
 .form-row-inline {

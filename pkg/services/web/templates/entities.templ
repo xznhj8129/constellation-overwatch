@@ -80,8 +80,7 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 					</td>
 					<td>
 						<button type="submit" class="action-btn primary small" data-attr:disabled="$submitting">
-							<span data-show="!$submitting">+ Add</span>
-							<span data-show="$submitting">Adding...</span>
+							Add
 						</button>
 					</td>
 				</form>
@@ -94,13 +93,56 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 }
 
 templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
-	<tr class={ templ.KV("selected", org.OrgID == selectedOrgID) }>
+	<tr id={ "org-row-" + org.OrgID } class={ templ.KV("selected", org.OrgID == selectedOrgID) }>
 		<td>{ org.Name }</td>
 		<td class="org-type">{ org.OrgType }</td>
 		<td><span class="status-badge active">ACTIVE</span></td>
 		<td>
-			<button class="action-btn small" disabled>Edit</button>
+			<button class="action-btn small"
+				data-on:click={ "@get('/organizations/edit/" + org.OrgID + "')" }>
+				Edit
+			</button>
 		</td>
+	</tr>
+}
+
+templ OrganizationEditRow(org ontology.Organization) {
+	<tr id={ "org-row-" + org.OrgID } class="form-row-inline">
+		<form data-on:submit__prevent={ "@put('/api/organizations/" + org.OrgID + "', {contentType: 'form'})" }
+			data-indicator:updating>
+			<td>
+				<input type="text"
+					name="name"
+					class="inline-form-input"
+					value={ org.Name }
+					required
+					maxlength="255"/>
+			</td>
+			<td>
+				<select name="org_type" class="inline-form-input" required>
+					<option value="military" selected?={ org.OrgType == "military" }>Military</option>
+					<option value="civilian" selected?={ org.OrgType == "civilian" }>Civilian</option>
+					<option value="commercial" selected?={ org.OrgType == "commercial" }>Commercial</option>
+					<option value="ngo" selected?={ org.OrgType == "ngo" }>NGO</option>
+				</select>
+			</td>
+			<td>
+				<input type="text"
+					name="description"
+					class="inline-form-input"
+					value={ org.Description }
+					maxlength="500"/>
+			</td>
+			<td style="display: flex; gap: 4px;">
+				<button type="submit" class="action-btn primary small" data-attr:disabled="$updating">
+					Save
+				</button>
+				<button type="button" class="action-btn small"
+					data-on:click={ "@get('/organizations/cancel/" + org.OrgID + "')" }>
+					Cancel
+				</button>
+			</td>
+		</form>
 	</tr>
 }
 

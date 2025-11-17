@@ -13,6 +13,7 @@ CREATE TABLE organizations (
   org_id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   org_type TEXT NOT NULL CHECK(org_type IN ('military', 'civilian', 'commercial', 'ngo')),
+  description TEXT DEFAULT '',
   classification_levels TEXT DEFAULT 'unclassified',
   data_sharing_agreements TEXT DEFAULT '',
   metadata TEXT DEFAULT '{}',
