@@ -56,11 +56,13 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/entities/edit", s.handleEntityForm)
 	s.mux.HandleFunc("/organizations/new", s.handleOrganizationForm)
 	s.mux.HandleFunc("/streams", s.handleStreamsPage)
+	s.mux.HandleFunc("/overwatch", s.handleOverwatchPage)
 
 	// Web API endpoints (for Datastar/SSE)
 	s.mux.HandleFunc("/api/organizations", s.handleAPIOrganizations)
 	s.mux.HandleFunc("/api/entities", s.handleAPIEntities)
 	s.mux.HandleFunc("/api/entities/", s.handleAPIEntity) // For specific entity operations
+	s.mux.HandleFunc("/api/overwatch/kv", s.handleAPIOverwatchKV)
 
 	// SSE endpoint for streams
 	s.mux.HandleFunc("/api/streams/sse", s.handleStreamSSE)
@@ -87,13 +89,18 @@ func (s *Server) handleEntitiesPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load all entities by default
 	var entities []ontology.Entity
 	if orgID != "" {
+		// If org_id is provided, filter by that org
 		entities, err = s.entitySvc.ListEntities(orgID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	} else {
+		// Otherwise load all entities
+		entities, err = s.entitySvc.ListAllEntities()
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// If this is a Datastar request, return SSE format
@@ -170,9 +177,10 @@ func (s *Server) handleOrganizationForm(w http.ResponseWriter, r *http.Request) 
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
 		component := templates.OrganizationForm()
+		// Try using fragment/morph mode instead of inner
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#org-form-modal"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithMode(datastar.ElementPatchModeMorph))
 		if err != nil {
 			log.Printf("Error patching organization form: %v", err)
 		}
@@ -180,6 +188,24 @@ func (s *Server) handleOrganizationForm(w http.ResponseWriter, r *http.Request) 
 	}
 
 	component := templates.OrganizationForm()
+	component.Render(r.Context(), w)
+}
+
+func (s *Server) handleOverwatchPage(w http.ResponseWriter, r *http.Request) {
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := templates.OverwatchPage()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			log.Printf("Error patching overwatch page: %v", err)
+		}
+		return
+	}
+
+	component := templates.OverwatchPage()
 	component.Render(r.Context(), w)
 }
 
@@ -214,60 +240,73 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 		})
 
 	case "POST":
+		// Log request details for debugging
+		log.Printf("[API] POST /api/organizations - Content-Type: %s, Accept: %s",
+			r.Header.Get("Content-Type"), r.Header.Get("Accept"))
+
 		// Parse form data
-		r.ParseForm()
+		if err := r.ParseForm(); err != nil {
+			log.Printf("[API] Error parsing form: %v", err)
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
 
 		// Create organization request
 		req := &ontology.CreateOrganizationRequest{
-			Name:    r.FormValue("name"),
-			OrgType: r.FormValue("org_type"),
+			Name:        r.FormValue("name"),
+			OrgType:     r.FormValue("org_type"),
+			Description: r.FormValue("description"),
 		}
+
+		log.Printf("[API] Creating organization: name=%s, type=%s", req.Name, req.OrgType)
 
 		// Create the organization
 		org, err := s.orgSvc.CreateOrganization(req)
 		if err != nil {
+			log.Printf("[API] Error creating organization: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// If Datastar, refresh the org table and close modal
-		if r.Header.Get("Accept") == "text/event-stream" {
-			sse := datastar.NewServerSentEventGenerator(w, r)
+		log.Printf("[API] Organization created: %s (ID: %s)", org.Name, org.OrgID)
 
-			// Refresh organizations list
-			orgs, err := s.orgSvc.ListOrganizations()
-			if err != nil {
-				log.Printf("Error fetching organizations: %v", err)
-			} else {
-				component := templates.OrganizationsTable(orgs, org.OrgID)
-				sse.PatchComponent(r.Context(), component,
-					datastar.WithSelector("#org-table"),
-					datastar.WithMode(datastar.ElementPatchModeInner))
-			}
+		// Always send SSE response (Datastar forms always expect SSE)
+		log.Printf("[API] Creating SSE connection for response")
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		log.Printf("[API] SSE generator created successfully")
 
-			// Close the modal
-			sse.PatchElements("",
-				datastar.WithSelector("#org-form-modal"),
-				datastar.WithMode(datastar.ElementPatchModeInner))
+		// Append the new organization row to the table
+		log.Printf("[API] Rendering organization row component")
+		component := templates.OrganizationRow(*org, org.OrgID)
+
+		log.Printf("[API] Patching component with selector '#org-table tbody', mode: append")
+		if err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("#org-table tbody"),
+			datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
+			log.Printf("[API] ERROR appending org row: %v", err)
 			return
 		}
 
-		// Otherwise return JSON
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(org)
+		log.Printf("[API] ✓ SSE patch sent successfully - new row appended to table")
 	}
 }
 
 func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
-	if orgID == "" {
-		http.Error(w, "org_id required", http.StatusBadRequest)
-		return
-	}
 
 	switch r.Method {
 	case "GET":
-		entities, err := s.entitySvc.ListEntities(orgID)
+		var entities []ontology.Entity
+		var err error
+
+		if orgID != "" {
+			// If org_id is provided, filter by that org
+			entities, err = s.entitySvc.ListEntities(orgID)
+		} else {
+			// Otherwise load all entities
+			entities, err = s.entitySvc.ListAllEntities()
+		}
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -293,6 +332,11 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "POST":
+		if orgID == "" {
+			http.Error(w, "org_id required for creating entities", http.StatusBadRequest)
+			return
+		}
+
 		// Parse form data
 		r.ParseForm()
 
@@ -495,6 +539,65 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStreamSSE(w http.ResponseWriter, r *http.Request) {
 	// Delegate to SSE handler
 	s.sseHandler.StreamMessages(w, r)
+}
+
+// API handler for Overwatch KV store
+func (s *Server) handleAPIOverwatchKV(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get all keys from the KV store
+	kv := s.natsEmbedded.KeyValue()
+	if kv == nil {
+		http.Error(w, "KV store not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	// Get all keys using Keys() method
+	keys, err := kv.Keys()
+	if err != nil {
+		log.Printf("Error fetching KV keys: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch all entries
+	var kvEntries []templates.KVEntry
+	for _, key := range keys {
+		entry, err := kv.Get(key)
+		if err != nil {
+			log.Printf("Error getting key %s: %v", key, err)
+			continue
+		}
+
+		kvEntries = append(kvEntries, templates.KVEntry{
+			Key:      key,
+			Value:    string(entry.Value()),
+			Revision: fmt.Sprintf("%d", entry.Revision()),
+			Updated:  entry.Created().Format("15:04:05"),
+		})
+	}
+
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := templates.KVStateTable(kvEntries)
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("#kv-content"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+		if err != nil {
+			log.Printf("Error patching KV content: %v", err)
+		}
+		return
+	}
+
+	// Otherwise return JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"entries": kvEntries,
+	})
 }
 
 // REST API v1 handlers (with authentication)

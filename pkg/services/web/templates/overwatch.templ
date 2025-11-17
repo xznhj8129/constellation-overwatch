@@ -1,0 +1,66 @@
+package templates
+
+// KVEntry represents a key-value store entry for display
+type KVEntry struct {
+	Key      string
+	Value    string
+	Revision string
+	Updated  string
+}
+
+templ OverwatchPage() {
+	@Layout("Overwatch") {
+		@Navigation("overwatch") {
+			<div class="tab-content" data-signals="{_kvFetching: false}">
+				@OverwatchPanel()
+			</div>
+		}
+	}
+}
+
+templ OverwatchPanel() {
+	<div id="overwatch-panel" class="panel">
+		<div class="panel-header">
+			<h2>Global State Monitor</h2>
+			<button class="refresh-btn"
+				data-on:click="@get('/api/overwatch/kv')"
+				data-indicator:_kvFetching
+				data-attr:disabled="$_kvFetching">
+				<span data-show="!$_kvFetching">↻</span>
+				<span class="loading" data-show="$_kvFetching"></span>
+			</button>
+		</div>
+		<div id="kv-content" class="data-grid">
+			<p class="empty-state">Loading global state...</p>
+		</div>
+	</div>
+}
+
+templ KVStateTable(kvEntries []KVEntry) {
+	<div class="kv-monitor">
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Key</th>
+					<th>Value</th>
+					<th>Revision</th>
+					<th>Updated</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(kvEntries) == 0 {
+					<tr><td colspan="4" class="empty-state">No entries in global state</td></tr>
+				} else {
+					for _, entry := range kvEntries {
+						<tr>
+							<td class="kv-key"><code>{ entry.Key }</code></td>
+							<td class="kv-value"><pre>{ entry.Value }</pre></td>
+							<td class="kv-revision">{ entry.Revision }</td>
+							<td class="timestamp">{ entry.Updated }</td>
+						</tr>
+					}
+				}
+			</tbody>
+		</table>
+	</div>
+}

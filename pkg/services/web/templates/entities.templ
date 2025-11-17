@@ -25,10 +25,6 @@ templ OrganizationsPanel(organizations []ontology.Organization, selectedOrgID st
 	<div id="organizations-panel" class="panel">
 		<div class="panel-header">
 			<h2>Organizations</h2>
-			<button class="action-btn"
-				data-on:click="@get('/organizations/new')">
-				+ New Organization
-			</button>
 			<button class="refresh-btn"
 				data-on:click="@get('/api/organizations')"
 				data-indicator:_orgFetching
@@ -41,7 +37,6 @@ templ OrganizationsPanel(organizations []ontology.Organization, selectedOrgID st
 			@OrganizationsTable(organizations, selectedOrgID)
 		</div>
 	</div>
-	<div id="org-form-modal"></div>
 }
 
 templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID string) {
@@ -55,34 +50,67 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 			</tr>
 		</thead>
 		<tbody>
-			for _, org := range organizations {
-				<tr class={ templ.KV("selected", org.OrgID == selectedOrgID) }>
-					<td>{ org.Name }</td>
-					<td class="org-type">{ org.OrgType }</td>
-					<td><span class="status-badge active">ACTIVE</span></td>
+			<tr class="form-row-inline">
+				<form id="new-org-form"
+					data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
+					data-indicator:submitting>
 					<td>
-						<button class="action-btn"
-							data-on:click={ fmt.Sprintf("$selectedOrgID = '%s'; @get('/api/entities?org_id=%s')", org.OrgID, org.OrgID) }>
-							View Entities
+						<input type="text"
+							name="name"
+							class="inline-form-input"
+							placeholder="Organization Name *"
+							required
+							maxlength="255"/>
+					</td>
+					<td>
+						<select name="org_type" class="inline-form-input" required>
+							<option value="">Select Type *</option>
+							<option value="military">Military</option>
+							<option value="civilian">Civilian</option>
+							<option value="commercial">Commercial</option>
+							<option value="ngo">NGO</option>
+						</select>
+					</td>
+					<td>
+						<input type="text"
+							name="description"
+							class="inline-form-input"
+							placeholder="Description (optional)"
+							maxlength="500"/>
+					</td>
+					<td>
+						<button type="submit" class="action-btn primary small" data-attr:disabled="$submitting">
+							<span data-show="!$submitting">+ Add</span>
+							<span data-show="$submitting">Adding...</span>
 						</button>
 					</td>
-				</tr>
+				</form>
+			</tr>
+			for _, org := range organizations {
+				@OrganizationRow(org, selectedOrgID)
 			}
 		</tbody>
 	</table>
 }
 
+templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
+	<tr class={ templ.KV("selected", org.OrgID == selectedOrgID) }>
+		<td>{ org.Name }</td>
+		<td class="org-type">{ org.OrgType }</td>
+		<td><span class="status-badge active">ACTIVE</span></td>
+		<td>
+			<button class="action-btn small" disabled>Edit</button>
+		</td>
+	</tr>
+}
+
 templ EntitiesPanel(orgID string, entities []ontology.Entity) {
 	<div id="entities-panel" class="panel">
 		<div class="panel-header">
-			<h2>Entities</h2>
-			<div data-show="$selectedOrgID !== ''">
-				<button class="action-btn"
-					data-on:click="@get('/entities/new?org_id=' + $selectedOrgID)">
-					+ New Entity
-				</button>
+			<h2>All Entities</h2>
+			<div>
 				<button class="refresh-btn"
-					data-on:click="@get('/api/entities?org_id=' + $selectedOrgID)"
+					data-on:click="@get('/entities')"
 					data-indicator:_entitiesFetching
 					data-attr:disabled="$_entitiesFetching">
 					<span data-show="!$_entitiesFetching">↻</span>
@@ -91,11 +119,7 @@ templ EntitiesPanel(orgID string, entities []ontology.Entity) {
 			</div>
 		</div>
 		<div id="entities-content" class="data-grid">
-			if orgID == "" {
-				<p class="empty-state" data-show="$selectedOrgID === ''">Select an organization to view entities</p>
-			} else {
-				@EntitiesTable(orgID, entities)
-			}
+			@EntitiesTable(orgID, entities)
 		</div>
 	</div>
 	<div id="entity-form-modal"></div>
@@ -105,6 +129,7 @@ templ EntitiesTable(orgID string, entities []ontology.Entity) {
 	<table id="entity-table" class="data-table">
 		<thead>
 			<tr>
+				<th>Org ID</th>
 				<th>Type</th>
 				<th>Status</th>
 				<th>Priority</th>
@@ -116,10 +141,10 @@ templ EntitiesTable(orgID string, entities []ontology.Entity) {
 		</thead>
 		<tbody>
 			if len(entities) == 0 {
-				<tr><td colspan="7" class="empty-state">No entities found</td></tr>
+				<tr><td colspan="8" class="empty-state">No entities found</td></tr>
 			} else {
 				for _, entity := range entities {
-					@EntityRow(orgID, entity)
+					@EntityRow(entity.OrgID, entity)
 				}
 			}
 		</tbody>
@@ -128,6 +153,7 @@ templ EntitiesTable(orgID string, entities []ontology.Entity) {
 
 templ EntityRow(orgID string, entity ontology.Entity) {
 	<tr id={ fmt.Sprintf("entity-%s", entity.EntityID) }>
+		<td class="org-id">{ entity.OrgID }</td>
 		<td class="entity-type">{ entity.EntityType }</td>
 		<td><span class={ "status-badge", entity.Status }>{ entity.Status }</span></td>
 		<td class={ fmt.Sprintf("priority-%s", entity.Priority) }>{ entity.Priority }</td>
@@ -147,11 +173,11 @@ templ EntityRow(orgID string, entity ontology.Entity) {
 		</td>
 		<td class="timestamp">{ entity.UpdatedAt.Format("15:04:05") }</td>
 		<td>
-			<button class="action-btn small" 
+			<button class="action-btn small"
 				data-on:click={ fmt.Sprintf("@get('/entities/edit?org_id=%s&entity_id=%s')", orgID, entity.EntityID) }>
 				Edit
 			</button>
-			<button class="action-btn small danger" 
+			<button class="action-btn small danger"
 				data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this entity?')) @delete('/api/entities/%s?org_id=%s')", entity.EntityID, orgID) }>
 				Delete
 			</button>

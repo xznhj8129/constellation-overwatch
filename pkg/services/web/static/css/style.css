@@ -624,6 +624,49 @@ tr.selected {
     display: inline-block;
 }
 
+/* Inline Form Row */
+.form-row-inline {
+    background: rgba(0, 212, 255, 0.05);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.form-row-inline form {
+    display: contents;
+}
+
+.form-row-inline td {
+    padding: 12px;
+    vertical-align: middle;
+}
+
+.inline-form-input {
+    width: 100%;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    padding: 10px;
+    transition: all 0.3s ease;
+}
+
+.inline-form-input:focus {
+    outline: none;
+    border-color: var(--text-secondary);
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+.inline-form-input::placeholder {
+    color: rgba(0, 212, 255, 0.5);
+    opacity: 1;
+}
+
+.inline-form-input option {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }

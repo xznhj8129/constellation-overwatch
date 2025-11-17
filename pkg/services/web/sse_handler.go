@@ -33,29 +33,32 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Subscribe to all constellation subjects
 	sub, err := h.nc.Subscribe("constellation.>", func(msg *nats.Msg) {
-		// Parse the message data
+		// Try to parse as JSON for pretty formatting
+		var displayData string
 		var data interface{}
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
-			log.Printf("[SSE] Error unmarshaling message: %v", err)
-			return
-		}
-
-		// Format the data as pretty JSON
-		prettyJSON, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			prettyJSON = msg.Data
+			// Not valid JSON, just display raw data
+			displayData = string(msg.Data)
+		} else {
+			// Valid JSON, format it nicely
+			prettyJSON, err := json.MarshalIndent(data, "", "  ")
+			if err != nil {
+				displayData = string(msg.Data)
+			} else {
+				displayData = string(prettyJSON)
+			}
 		}
 
 		// Create a stream message element
 		timestamp := time.Now().Format("15:04:05")
-		messageHTML := renderStreamMessage(msg.Subject, timestamp, string(prettyJSON))
+		messageHTML := renderStreamMessage(msg.Subject, timestamp, displayData)
 
 		// Patch the element into the stream (prepend new messages at top)
-		err = sse.PatchElements(messageHTML,
+		patchErr := sse.PatchElements(messageHTML,
 			datastar.WithSelector("#stream-messages"),
 			datastar.WithMode(datastar.ElementPatchModePrepend))
-		if err != nil {
-			log.Printf("[SSE] Error patching elements: %v", err)
+		if patchErr != nil {
+			log.Printf("[SSE] Error patching elements: %v", patchErr)
 			return
 		}
 	})
@@ -141,17 +144,20 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	var subs []*nats.Subscription
 	for _, subj := range subjects {
 		sub, err := h.nc.Subscribe(subj, func(msg *nats.Msg) {
-			// Parse the message data
+			// Try to parse as JSON for pretty formatting
+			var displayData string
 			var data interface{}
 			if err := json.Unmarshal(msg.Data, &data); err != nil {
-				log.Printf("[SSE] Error unmarshaling message: %v", err)
-				return
-			}
-
-			// Format the data as pretty JSON
-			prettyJSON, err := json.MarshalIndent(data, "", "  ")
-			if err != nil {
-				prettyJSON = msg.Data
+				// Not valid JSON, just display raw data
+				displayData = string(msg.Data)
+			} else {
+				// Valid JSON, format it nicely
+				prettyJSON, err := json.MarshalIndent(data, "", "  ")
+				if err != nil {
+					displayData = string(msg.Data)
+				} else {
+					displayData = string(prettyJSON)
+				}
 			}
 
 			// Determine message type for styling
@@ -159,14 +165,14 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 
 			// Create a stream message element with type
 			timestamp := time.Now().Format("15:04:05")
-			messageHTML := renderStreamMessageWithType(msg.Subject, timestamp, msgType, string(prettyJSON))
+			messageHTML := renderStreamMessageWithType(msg.Subject, timestamp, msgType, displayData)
 
 			// Patch the element into the stream
-			err = sse.PatchElements(messageHTML,
+			patchErr := sse.PatchElements(messageHTML,
 				datastar.WithSelector("#stream-messages"),
 				datastar.WithMode(datastar.ElementPatchModePrepend))
-			if err != nil {
-				log.Printf("[SSE] Error patching elements: %v", err)
+			if patchErr != nil {
+				log.Printf("[SSE] Error patching elements: %v", patchErr)
 				return
 			}
 		})

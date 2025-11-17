@@ -92,10 +92,34 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 
 func (s *EntityService) ListEntities(orgID string) ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
-		`SELECT entity_id, org_id, entity_type, status, priority, is_live, 
-		        latitude, longitude, altitude, heading, velocity, 
-		        components, tags, metadata, created_at, updated_at 
+		`SELECT entity_id, org_id, entity_type, status, priority, is_live,
+		        latitude, longitude, altitude, heading, velocity,
+		        components, tags, metadata, created_at, updated_at
 		 FROM entities WHERE org_id = ?`, orgID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query entities: %w", err)
+	}
+	defer rows.Close()
+
+	var entities []ontology.Entity
+	for rows.Next() {
+		entity, err := s.scanEntity(rows)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, *entity)
+	}
+
+	return entities, nil
+}
+
+func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
+	rows, err := s.db.Query(
+		`SELECT entity_id, org_id, entity_type, status, priority, is_live,
+		        latitude, longitude, altitude, heading, velocity,
+		        components, tags, metadata, created_at, updated_at
+		 FROM entities ORDER BY updated_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query entities: %w", err)

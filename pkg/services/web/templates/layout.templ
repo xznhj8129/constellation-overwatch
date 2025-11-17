@@ -8,13 +8,13 @@ templ Layout(title string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>{ title } - Constellation Overwatch</title>
 			<link rel="stylesheet" href="/static/css/style.css"/>
-			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@latest/bundles/datastar.js"></script>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
 		</head>
 		<body>
 			<div class="container">
 				<header class="header">
 					<h1 class="title">CONSTELLATION OVERWATCH</h1>
-					<div class="subtitle">Edge Awareness Plane</div>
+					<div class="subtitle">Edge Awareness Kit</div>
 					<div class="status-bar">
 						<span class="status-item">SYSTEM: ONLINE</span>
 						<span class="status-item">TIME: <span id="time">--:--:--</span></span>
@@ -44,6 +44,10 @@ templ Navigation(activeTab string) {
 			<a href="/streams" class={ "nav-button", templ.KV("active", activeTab == "streams") }>
 				<span class="nav-icon">◈</span>
 				<span>Stream Monitor</span>
+			</a>
+			<a href="/overwatch" class={ "nav-button", templ.KV("active", activeTab == "overwatch") }>
+				<span class="nav-icon">◉</span>
+				<span>Overwatch</span>
 			</a>
 			<div class="nav-footer">
 				<div class="nav-status">READY</div>
