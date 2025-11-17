@@ -50,6 +50,9 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 			</tr>
 		</thead>
 		<tbody>
+			for _, org := range organizations {
+				@OrganizationRow(org, selectedOrgID)
+			}
 			<tr class="form-row-inline">
 				<form id="new-org-form"
 					data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
@@ -85,9 +88,6 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 					</td>
 				</form>
 			</tr>
-			for _, org := range organizations {
-				@OrganizationRow(org, selectedOrgID)
-			}
 		</tbody>
 	</table>
 }

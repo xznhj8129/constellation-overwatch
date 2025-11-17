@@ -165,7 +165,7 @@ func OrganizationsTable(organizations []ontology.Organization, selectedOrgID str
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<table id=\"org-table\" class=\"data-table\"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead> <tbody><tr class=\"form-row-inline\"><form id=\"new-org-form\" data-on:submit__prevent=\"@post('/api/organizations', {contentType: 'form'})\" data-indicator:submitting><td><input type=\"text\" name=\"name\" class=\"inline-form-input\" placeholder=\"Organization Name *\" required maxlength=\"255\"></td><td><select name=\"org_type\" class=\"inline-form-input\" required><option value=\"\">Select Type *</option> <option value=\"military\">Military</option> <option value=\"civilian\">Civilian</option> <option value=\"commercial\">Commercial</option> <option value=\"ngo\">NGO</option></select></td><td><input type=\"text\" name=\"description\" class=\"inline-form-input\" placeholder=\"Description (optional)\" maxlength=\"500\"></td><td><button type=\"submit\" class=\"action-btn primary small\" data-attr:disabled=\"$submitting\">Add</button></td></form></tr>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<table id=\"org-table\" class=\"data-table\"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -175,7 +175,7 @@ func OrganizationsTable(organizations []ontology.Organization, selectedOrgID str
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<tr class=\"form-row-inline\"><form id=\"new-org-form\" data-on:submit__prevent=\"@post('/api/organizations', {contentType: 'form'})\" data-indicator:submitting><td><input type=\"text\" name=\"name\" class=\"inline-form-input\" placeholder=\"Organization Name *\" required maxlength=\"255\"></td><td><select name=\"org_type\" class=\"inline-form-input\" required><option value=\"\">Select Type *</option> <option value=\"military\">Military</option> <option value=\"civilian\">Civilian</option> <option value=\"commercial\">Commercial</option> <option value=\"ngo\">NGO</option></select></td><td><input type=\"text\" name=\"description\" class=\"inline-form-input\" placeholder=\"Description (optional)\" maxlength=\"500\"></td><td><button type=\"submit\" class=\"action-btn primary small\" data-attr:disabled=\"$submitting\">Add</button></td></form></tr></tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
