@@ -41,6 +41,10 @@ templ Navigation(activeTab string) {
 				<span class="nav-icon">⎔</span>
 				<span>Entities</span>
 			</a>
+			<a href="/fleet" class={ "nav-button", templ.KV("active", activeTab == "fleet") }>
+				<span class="nav-icon">✈</span>
+				<span>Fleet</span>
+			</a>
 			<a href="/streams" class={ "nav-button", templ.KV("active", activeTab == "streams") }>
 				<span class="nav-icon">◈</span>
 				<span>Stream Monitor</span>

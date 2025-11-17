@@ -57,6 +57,9 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/organizations/new", s.handleOrganizationForm)
 	s.mux.HandleFunc("/organizations/edit/", s.handleOrganizationEdit)
 	s.mux.HandleFunc("/organizations/cancel/", s.handleOrganizationCancel)
+	s.mux.HandleFunc("/fleet", s.handleFleetPage)
+	s.mux.HandleFunc("/fleet/edit/", s.handleFleetEdit)
+	s.mux.HandleFunc("/fleet/cancel/", s.handleFleetCancel)
 	s.mux.HandleFunc("/streams", s.handleStreamsPage)
 	s.mux.HandleFunc("/overwatch", s.handleOverwatchPage)
 
@@ -66,6 +69,7 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/organizations/", s.handleAPIOrganization)              // For specific organization operations
 	s.mux.HandleFunc("/api/entities", s.handleAPIEntities)
 	s.mux.HandleFunc("/api/entities/", s.handleAPIEntity) // For specific entity operations
+	s.mux.HandleFunc("/api/fleet/update", s.handleAPIFleetUpdate) // Update fleet entity
 	s.mux.HandleFunc("/api/overwatch/kv", s.handleAPIOverwatchKV)
 
 	// SSE endpoint for streams
@@ -354,6 +358,129 @@ func (s *Server) handleOrganizationCancel(w http.ResponseWriter, r *http.Request
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
 		log.Printf("[CANCEL] Error patching normal row: %v", err)
+	}
+}
+
+// Fleet handlers
+
+func (s *Server) handleFleetPage(w http.ResponseWriter, r *http.Request) {
+	// Fetch all organizations for the dropdown
+	orgs, err := s.orgSvc.ListOrganizations()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch all entities
+	entities, err := s.entitySvc.ListAllEntities()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := templates.FleetPage(orgs, entities)
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			log.Printf("Error patching fleet page: %v", err)
+		}
+		return
+	}
+
+	component := templates.FleetPage(orgs, entities)
+	component.Render(r.Context(), w)
+}
+
+func (s *Server) handleFleetEdit(w http.ResponseWriter, r *http.Request) {
+	// Extract entity ID from path: /fleet/edit/{entityID}
+	entityID := r.URL.Path[len("/fleet/edit/"):]
+	if entityID == "" {
+		http.Error(w, "Entity ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch all organizations for the dropdown
+	orgs, err := s.orgSvc.ListOrganizations()
+	if err != nil {
+		log.Printf("[FLEET-EDIT] Error fetching organizations: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch the entity - we need to find its org_id first
+	// Try all organizations to find the entity
+	var entity *ontology.Entity
+	for _, org := range orgs {
+		e, err := s.entitySvc.GetEntity(org.OrgID, entityID)
+		if err == nil {
+			entity = e
+			break
+		}
+	}
+
+	if entity == nil {
+		log.Printf("[FLEET-EDIT] Entity %s not found", entityID)
+		http.Error(w, "Entity not found", http.StatusNotFound)
+		return
+	}
+
+	log.Printf("[FLEET-EDIT] Returning edit row for entity: %s", entity.EntityID)
+
+	// Return the edit row component via SSE using Replace mode
+	sse := datastar.NewServerSentEventGenerator(w, r)
+	component := templates.FleetEditRow(orgs, *entity)
+	if err := sse.PatchComponent(r.Context(), component,
+		datastar.WithSelector("#fleet-row-"+entityID),
+		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
+		log.Printf("[FLEET-EDIT] Error patching edit row: %v", err)
+	}
+}
+
+func (s *Server) handleFleetCancel(w http.ResponseWriter, r *http.Request) {
+	// Extract entity ID from path: /fleet/cancel/{entityID}
+	entityID := r.URL.Path[len("/fleet/cancel/"):]
+	if entityID == "" {
+		http.Error(w, "Entity ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch all organizations for the dropdown
+	orgs, err := s.orgSvc.ListOrganizations()
+	if err != nil {
+		log.Printf("[FLEET-CANCEL] Error fetching organizations: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch the entity
+	var entity *ontology.Entity
+	for _, org := range orgs {
+		e, err := s.entitySvc.GetEntity(org.OrgID, entityID)
+		if err == nil {
+			entity = e
+			break
+		}
+	}
+
+	if entity == nil {
+		log.Printf("[FLEET-CANCEL] Entity %s not found", entityID)
+		http.Error(w, "Entity not found", http.StatusNotFound)
+		return
+	}
+
+	log.Printf("[FLEET-CANCEL] Returning normal row for entity: %s", entity.EntityID)
+
+	// Return the normal row component via SSE using Morph mode
+	sse := datastar.NewServerSentEventGenerator(w, r)
+	component := templates.FleetRow(orgs, *entity)
+	if err := sse.PatchComponent(r.Context(), component,
+		datastar.WithSelector("#fleet-row-"+entityID),
+		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		log.Printf("[FLEET-CANCEL] Error patching normal row: %v", err)
 	}
 }
 
@@ -755,6 +882,92 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})
 	}
+}
+
+// Fleet API handler
+func (s *Server) handleAPIFleetUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var entityID string
+	var orgID string
+	updates := make(map[string]interface{})
+
+	// Read JSON body (Datastar sends signals as JSON)
+	signals := make(map[string]interface{})
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&signals); err != nil {
+		log.Printf("[FLEET-API] Error reading JSON: %v", err)
+		http.Error(w, "Invalid request data", http.StatusBadRequest)
+		return
+	}
+
+	// Extract entity_id and org_id from signals
+	if id, ok := signals["entity_id"].(string); ok && id != "" {
+		entityID = id
+	}
+	if oid, ok := signals["edit_org_id"].(string); ok && oid != "" {
+		orgID = oid
+	}
+
+	if entityID == "" || orgID == "" {
+		http.Error(w, "Entity ID and Organization ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Extract update fields from signals
+	if entityType, ok := signals["edit_entity_type"]; ok {
+		updates["entity_type"] = entityType
+	}
+	if status, ok := signals["edit_status"]; ok {
+		updates["status"] = status
+	}
+	if priority, ok := signals["edit_priority"]; ok {
+		updates["priority"] = priority
+	}
+	if isLive, ok := signals["edit_is_live"]; ok {
+		// Convert string "true"/"false" to boolean
+		if str, ok := isLive.(string); ok {
+			updates["is_live"] = str == "true"
+		} else {
+			updates["is_live"] = isLive
+		}
+	}
+
+	log.Printf("[FLEET-API] PUT /api/fleet/update (entity_id=%s, org_id=%s)", entityID, orgID)
+	log.Printf("[FLEET-API] Updating entity with: %v", updates)
+
+	// Update the entity
+	entity, err := s.entitySvc.UpdateEntity(orgID, entityID, updates)
+	if err != nil {
+		log.Printf("[FLEET-API] Error updating entity: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
+
+	// Fetch all organizations for the dropdown in the returned row
+	orgs, err := s.orgSvc.ListOrganizations()
+	if err != nil {
+		log.Printf("[FLEET-API] Error fetching organizations: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return the updated row via SSE using Morph mode
+	sse := datastar.NewServerSentEventGenerator(w, r)
+	component := templates.FleetRow(orgs, *entity)
+	if err := sse.PatchComponent(r.Context(), component,
+		datastar.WithSelector("#fleet-row-"+entityID),
+		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		log.Printf("[FLEET-API] Error patching updated row: %v", err)
+		return
+	}
+
+	log.Printf("[FLEET-API] ✓ Fleet entity row updated via SSE with Morph mode")
 }
 
 // SSE handler for real-time streams
