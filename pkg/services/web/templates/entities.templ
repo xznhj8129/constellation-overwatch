@@ -107,42 +107,46 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 }
 
 templ OrganizationEditRow(org ontology.Organization) {
-	<tr id={ fmt.Sprintf("org-row-%s", org.OrgID) } class="form-row-inline">
-		<form id={ fmt.Sprintf("edit-org-form-%s", org.OrgID) } data-on:submit__prevent="@put('/api/organizations/update', {contentType: 'form'})" data-indicator:updating>
-			<input type="hidden" name="org_id" value={ org.OrgID }/>
-			<td>
-				<input type="text"
-					name="name"
-					class="inline-form-input"
-					value={ org.Name }
-					required
-					maxlength="255"/>
-			</td>
-			<td>
-				<select name="org_type" class="inline-form-input" required>
-					<option value="military" selected?={ org.OrgType == "military" }>Military</option>
-					<option value="civilian" selected?={ org.OrgType == "civilian" }>Civilian</option>
-					<option value="commercial" selected?={ org.OrgType == "commercial" }>Commercial</option>
-					<option value="ngo" selected?={ org.OrgType == "ngo" }>NGO</option>
-				</select>
-			</td>
-			<td>
-				<input type="text"
-					name="description"
-					class="inline-form-input"
-					value={ org.Description }
-					maxlength="500"/>
-			</td>
-			<td style="display: flex; gap: 4px;">
-				<button type="submit" class="action-btn primary small" data-attr:disabled="$updating">
-					Save
-				</button>
-				<button type="button" class="action-btn small"
-					data-on:click={ fmt.Sprintf("@get('/organizations/cancel/%s')", org.OrgID) }>
-					Cancel
-				</button>
-			</td>
-		</form>
+	<tr id={ fmt.Sprintf("org-row-%s", org.OrgID) } class="form-row-inline"
+		data-signals={ fmt.Sprintf(`{
+			org_id: '%s',
+			edit_name: '%s',
+			edit_org_type: '%s',
+			edit_description: '%s'
+		}`, org.OrgID, org.Name, org.OrgType, org.Description) }>
+		<td>
+			<input type="text"
+				data-bind="edit_name"
+				class="inline-form-input"
+				required
+				maxlength="255"/>
+		</td>
+		<td>
+			<select data-bind="edit_org_type" class="inline-form-input" required>
+				<option value="military">Military</option>
+				<option value="civilian">Civilian</option>
+				<option value="commercial">Commercial</option>
+				<option value="ngo">NGO</option>
+			</select>
+		</td>
+		<td>
+			<input type="text"
+				data-bind="edit_description"
+				class="inline-form-input"
+				maxlength="500"/>
+		</td>
+		<td style="display: flex; gap: 4px;">
+			<button type="button" class="action-btn primary small"
+				data-on:click="@put('/api/organizations/update')"
+				data-indicator:updating
+				data-attr:disabled="$updating">
+				Save
+			</button>
+			<button type="button" class="action-btn small"
+				data-on:click={ fmt.Sprintf("@get('/organizations/cancel/%s')", org.OrgID) }>
+				Cancel
+			</button>
+		</td>
 	</tr>
 }
 

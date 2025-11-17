@@ -26,9 +26,10 @@ func NewServerSentEventGenerator(w http.ResponseWriter, r *http.Request) *Server
 type PatchElementMode string
 
 const (
-	ElementPatchModeMorph   PatchElementMode = "morph" // Maps to outer
-	ElementPatchModeInner   PatchElementMode = "inner"
-	ElementPatchModeOuter   PatchElementMode = "outer"
+	ElementPatchModeMorph   PatchElementMode = "morph"   // Maps to outer (intelligent morphing)
+	ElementPatchModeInner   PatchElementMode = "inner"   // Morphs inner HTML
+	ElementPatchModeOuter   PatchElementMode = "outer"   // Intelligent morphing (default)
+	ElementPatchModeReplace PatchElementMode = "replace" // Complete replacement (old outer mode)
 	ElementPatchModePrepend PatchElementMode = "prepend"
 	ElementPatchModeAppend  PatchElementMode = "append"
 	ElementPatchModeBefore  PatchElementMode = "before"
@@ -89,6 +90,8 @@ func (s *ServerSentEventGenerator) PatchElements(html string, opts ...PatchEleme
 	switch options.Mode {
 	case ElementPatchModeInner:
 		dsMode = ds.ElementPatchModeInner
+	case ElementPatchModeReplace:
+		dsMode = ds.ElementPatchModeReplace
 	case ElementPatchModePrepend:
 		dsMode = ds.ElementPatchModePrepend
 	case ElementPatchModeAppend:
@@ -211,6 +214,8 @@ func (s *ServerSentEventGenerator) PatchComponent(ctx context.Context, component
 	switch options.Mode {
 	case ElementPatchModeInner:
 		dsMode = ds.ElementPatchModeInner
+	case ElementPatchModeReplace:
+		dsMode = ds.ElementPatchModeReplace
 	case ElementPatchModePrepend:
 		dsMode = ds.ElementPatchModePrepend
 	case ElementPatchModeAppend:

@@ -319,12 +319,12 @@ func (s *Server) handleOrganizationEdit(w http.ResponseWriter, r *http.Request) 
 
 	log.Printf("[EDIT] Returning edit row for organization: %s", org.Name)
 
-	// Return the edit row component via SSE using Morph mode
+	// Return the edit row component via SSE using Replace mode to force re-initialization of event listeners
 	sse := datastar.NewServerSentEventGenerator(w, r)
 	component := templates.OrganizationEditRow(*org)
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
-		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
 		log.Printf("[EDIT] Error patching edit row: %v", err)
 	}
 }
@@ -363,33 +363,58 @@ func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Parse form data
-	if err := r.ParseForm(); err != nil {
-		log.Printf("[API] Error parsing form: %v", err)
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
-		return
-	}
-
-	// Get org ID from form data
-	orgID := r.FormValue("org_id")
-	if orgID == "" {
-		http.Error(w, "Organization ID required in form data", http.StatusBadRequest)
-		return
-	}
-
-	log.Printf("[API] PUT /api/organizations/update (org_id=%s)", orgID)
-
-	// Build updates map - always include required fields
+	var orgID string
 	updates := make(map[string]interface{})
 
-	// Required fields - always include
-	updates["name"] = r.FormValue("name")
-	updates["org_type"] = r.FormValue("org_type")
+	// Try to parse as form data first (for form-based submissions)
+	if err := r.ParseForm(); err == nil && r.Form.Get("org_id") != "" {
+		// Form data submission
+		orgID = r.FormValue("org_id")
+		updates["name"] = r.FormValue("name")
+		updates["org_type"] = r.FormValue("org_type")
+		updates["description"] = r.FormValue("description")
 
-	// Optional field - include even if empty to allow clearing
-	updates["description"] = r.FormValue("description")
+		log.Printf("[API] PUT /api/organizations/update (form data, org_id=%s)", orgID)
+	} else {
+		// Read JSON body (Datastar sends signals as JSON)
+		signals := make(map[string]interface{})
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&signals); err != nil {
+			log.Printf("[API] Error reading JSON: %v", err)
+			http.Error(w, "Invalid request data", http.StatusBadRequest)
+			return
+		}
 
-	log.Printf("[API] Updating organization with: name=%s, org_type=%s, description=%s",
+		// Extract org_id from signals
+		if id, ok := signals["org_id"].(string); ok && id != "" {
+			orgID = id
+		}
+
+		if orgID == "" {
+			http.Error(w, "Organization ID required", http.StatusBadRequest)
+			return
+		}
+
+		// Extract update fields from signals (using simplified signal names)
+		if name, ok := signals["edit_name"]; ok {
+			updates["name"] = name
+		}
+		if orgType, ok := signals["edit_org_type"]; ok {
+			updates["org_type"] = orgType
+		}
+		if description, ok := signals["edit_description"]; ok {
+			updates["description"] = description
+		}
+
+		log.Printf("[API] PUT /api/organizations/update (JSON, org_id=%s)", orgID)
+	}
+
+	if orgID == "" {
+		http.Error(w, "Organization ID required", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("[API] Updating organization with: name=%v, org_type=%v, description=%v",
 		updates["name"], updates["org_type"], updates["description"])
 
 	// Update the organization
