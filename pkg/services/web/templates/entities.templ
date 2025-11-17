@@ -108,10 +108,8 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 
 templ OrganizationEditRow(org ontology.Organization) {
 	<tr id={ fmt.Sprintf("org-row-%s", org.OrgID) } class="form-row-inline">
-		<form id={ fmt.Sprintf("edit-org-form-%s", org.OrgID) }
-			data-org-id={ org.OrgID }
-			data-on:submit__prevent="@put(`/api/organizations/${el.dataset.orgId}`, {contentType: 'form'})"
-			data-indicator:updating>
+		<form id={ fmt.Sprintf("edit-org-form-%s", org.OrgID) } data-on:submit__prevent="@put('/api/organizations/update', {contentType: 'form'})" data-indicator:updating>
+			<input type="hidden" name="org_id" value={ org.OrgID }/>
 			<td>
 				<input type="text"
 					name="name"

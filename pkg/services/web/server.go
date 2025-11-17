@@ -62,7 +62,8 @@ func (s *Server) setupRoutes() {
 
 	// Web API endpoints (for Datastar/SSE)
 	s.mux.HandleFunc("/api/organizations", s.handleAPIOrganizations)
-	s.mux.HandleFunc("/api/organizations/", s.handleAPIOrganization) // For specific organization operations
+	s.mux.HandleFunc("/api/organizations/update", s.handleAPIOrganizationUpdate) // Update org (org_id in form data)
+	s.mux.HandleFunc("/api/organizations/", s.handleAPIOrganization)              // For specific organization operations
 	s.mux.HandleFunc("/api/entities", s.handleAPIEntities)
 	s.mux.HandleFunc("/api/entities/", s.handleAPIEntity) // For specific entity operations
 	s.mux.HandleFunc("/api/overwatch/kv", s.handleAPIOverwatchKV)
@@ -354,6 +355,71 @@ func (s *Server) handleOrganizationCancel(w http.ResponseWriter, r *http.Request
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
 		log.Printf("[CANCEL] Error patching normal row: %v", err)
 	}
+}
+
+func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		log.Printf("[API] Error parsing form: %v", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	// Get org ID from form data
+	orgID := r.FormValue("org_id")
+	if orgID == "" {
+		http.Error(w, "Organization ID required in form data", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("[API] PUT /api/organizations/update (org_id=%s)", orgID)
+
+	// Build updates map - always include required fields
+	updates := make(map[string]interface{})
+
+	// Required fields - always include
+	updates["name"] = r.FormValue("name")
+	updates["org_type"] = r.FormValue("org_type")
+
+	// Optional field - include even if empty to allow clearing
+	updates["description"] = r.FormValue("description")
+
+	log.Printf("[API] Updating organization with: name=%s, org_type=%s, description=%s",
+		updates["name"], updates["org_type"], updates["description"])
+
+	// Update the organization
+	if err := s.orgSvc.UpdateOrganization(orgID, updates); err != nil {
+		log.Printf("[API] Error updating organization: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch the updated organization
+	org, err := s.orgSvc.GetOrganization(orgID)
+	if err != nil {
+		log.Printf("[API] Error fetching updated organization: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
+
+	// Return the updated row via SSE using Morph mode for intelligent DOM diffing
+	sse := datastar.NewServerSentEventGenerator(w, r)
+	component := templates.OrganizationRow(*org, "")
+	if err := sse.PatchComponent(r.Context(), component,
+		datastar.WithSelector("#org-row-"+orgID),
+		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		log.Printf("[API] Error patching updated row: %v", err)
+		return
+	}
+
+	log.Printf("[API] ✓ Organization row updated via SSE with Morph mode")
 }
 
 func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
