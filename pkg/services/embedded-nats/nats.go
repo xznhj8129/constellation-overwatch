@@ -77,8 +77,28 @@ func (en *EmbeddedNATS) Start() error {
 		Port:       en.config.Port,
 		JetStream:  true,
 		StoreDir:   en.config.DataDir,
+
+		// Connection limits optimized for telemetry
+		MaxConn:            2000,
+		MaxSubs:            0, // Unlimited subscriptions
+		MaxPayload:         2 * 1024 * 1024, // 2MB max payload
+		MaxPending:         128 * 1024 * 1024, // 128MB pending data
+		MaxControlLine:     4096,
+		WriteDeadline:      5 * time.Second,
+
+		// Ping settings for better connection health monitoring
+		PingInterval:       2 * time.Minute,
+		MaxPingsOut:        3,
+
+		// Slow consumer settings
+		MaxSlowConsumers:   100,
+
+		// Disable debug logging by default
+		Debug:              false,
+		Trace:              false,
+		Logtime:            true,
 	}
-	
+
 	// Only enable websocket if we have TLS
 	if en.config.EnableTLS {
 		opts.Websocket = server.WebsocketOpts{
@@ -125,10 +145,13 @@ func (en *EmbeddedNATS) Start() error {
 
 func (en *EmbeddedNATS) connect() error {
 	url := fmt.Sprintf("nats://localhost:%d", en.config.Port)
-	
+
 	nc, err := nats.Connect(url,
 		nats.ReconnectWait(2*time.Second),
 		nats.MaxReconnects(-1),
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(5),
+		nats.Timeout(5*time.Second),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			log.Printf("NATS error: %v", err)
 		}),
@@ -145,7 +168,11 @@ func (en *EmbeddedNATS) connect() error {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
-	js, err := nc.JetStream()
+	// Create JetStream context with optimized settings for high-throughput telemetry
+	js, err := nc.JetStream(
+		nats.PublishAsyncMaxPending(256),     // Allow more pending async publishes
+		nats.MaxWait(3*time.Second),          // Reduced from default 5s for faster failures
+	)
 	if err != nil {
 		nc.Close()
 		return fmt.Errorf("failed to create JetStream context: %w", err)
@@ -232,12 +259,13 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 		},
 		{
 			Name:            "CONSTELLATION_TELEMETRY",
-			Subjects:        []string{"constellation.telemetry.>"},
-			Retention:       nats.InterestPolicy, // Keep while there are consumers
-			MaxMsgs:         25000,
-			MaxBytes:        64 * 1024 * 1024, // 64MB
-			MaxAge:          1 * time.Hour,
-			MaxMsgSize:      64 * 1024, // 64KB
+			// Accept both legacy patterns and standardized telemetry subjects
+			Subjects:        []string{"constellation.telemetry.>", "constellation.*.>"},
+			Retention:       nats.LimitsPolicy, // Keep based on limits (not consumer interest)
+			MaxMsgs:         100000,              // Increased for high-frequency telemetry
+			MaxBytes:        256 * 1024 * 1024,   // 256MB (increased from 64MB)
+			MaxAge:          2 * time.Hour,       // Increased from 1 hour
+			MaxMsgSize:      128 * 1024,          // 128KB (increased from 64KB for MAVLink messages)
 			Replicas:        1,
 			DuplicateWindow: 30 * time.Second,
 			AllowRollup:     true,
