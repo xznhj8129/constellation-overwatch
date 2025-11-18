@@ -84,9 +84,9 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/entities", s.handleAPIV1Entities)
 }
 
-func (s *Server) Start(port string) error {
-	log.Printf("Starting Constellation Overwatch Edge Awareness Plane on port %s", port)
-	return http.ListenAndServe(":"+port, s.mux)
+func (s *Server) Start(bindAddr string) error {
+	log.Printf("Starting Constellation Overwatch Edge Awareness Plane on %s", bindAddr)
+	return http.ListenAndServe(bindAddr, s.mux)
 }
 
 // Page handlers

@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	Host           string
 	Port           int
 	WSPort         int
 	DataDir        string
@@ -48,6 +49,7 @@ type StreamConfig struct {
 
 func DefaultConfig() *Config {
 	return &Config{
+		Host:            "0.0.0.0", // Bind to all interfaces by default
 		Port:            4222,
 		WSPort:          8222,
 		DataDir:         "./data/nats",
@@ -71,6 +73,7 @@ func New(cfg *Config) (*EmbeddedNATS, error) {
 
 func (en *EmbeddedNATS) Start() error {
 	opts := &server.Options{
+		Host:       en.config.Host,
 		Port:       en.config.Port,
 		JetStream:  true,
 		StoreDir:   en.config.DataDir,
@@ -116,7 +119,7 @@ func (en *EmbeddedNATS) Start() error {
 		return fmt.Errorf("failed to connect to embedded NATS: %w", err)
 	}
 
-	log.Printf("Embedded NATS server started on port %d", en.config.Port)
+	log.Printf("Embedded NATS server started on %s:%d", en.config.Host, en.config.Port)
 	return nil
 }
 

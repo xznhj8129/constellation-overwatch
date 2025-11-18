@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"constellation-overwatch/db"
@@ -50,11 +52,22 @@ func initDB() error {
 
 func initNATS() error {
 	var err error
-	
+
 	config := embeddednats.DefaultConfig()
 	config.DataDir = "./data/nats"
-	config.Port = 4222
-	
+
+	// Read NATS host from environment
+	if natsHost := os.Getenv("NATS_HOST"); natsHost != "" {
+		config.Host = natsHost
+	}
+
+	// Read NATS port from environment
+	if natsPort := os.Getenv("NATS_PORT"); natsPort != "" {
+		if port, err := strconv.Atoi(natsPort); err == nil {
+			config.Port = port
+		}
+	}
+
 	nats, err = embeddednats.New(config)
 	if err != nil {
 		return fmt.Errorf("failed to create embedded NATS: %w", err)
@@ -137,7 +150,12 @@ func main() {
 		log.Fatal("Failed to create web server:", err)
 	}
 
-	// Get port from environment
+	// Get host and port from environment
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "0.0.0.0" // Default to all interfaces
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -145,12 +163,27 @@ func main() {
 
 	// Start unified server in goroutine
 	go func() {
-		log.Printf("Starting Constellation Overwatch unified server on port %s", port)
-		log.Printf("Bearer token: %s", getAPIToken())
-		log.Printf("Web UI available at: http://localhost:%s", port)
-		log.Printf("REST API available at: http://localhost:%s/api/v1/", port)
+		bindAddr := fmt.Sprintf("%s:%s", host, port)
 
-		if err := webServer.Start(port); err != nil {
+		log.Printf("Starting Constellation Overwatch unified server on %s", bindAddr)
+		log.Printf("Bearer token: %s", getAPIToken())
+		log.Println("─────────────────────────────────────────────────────")
+		log.Printf("Local access:")
+		log.Printf("  Web UI:  http://localhost:%s", port)
+		log.Printf("  API:     http://localhost:%s/api/v1/", port)
+
+		// If binding to all interfaces, show network IP
+		if host == "0.0.0.0" || host == "" {
+			if localIP := getLocalIP(); localIP != "" {
+				log.Printf("Network access (other devices on LAN):")
+				log.Printf("  Web UI:  http://%s:%s", localIP, port)
+				log.Printf("  API:     http://%s:%s/api/v1/", localIP, port)
+				log.Printf("  NATS:    nats://%s:4222", localIP)
+			}
+		}
+		log.Println("─────────────────────────────────────────────────────")
+
+		if err := webServer.Start(bindAddr); err != nil {
 			log.Fatal("Server failed to start:", err)
 		}
 	}()
@@ -182,4 +215,21 @@ func getAPIToken() string {
 		token = "constellation-dev-token"
 	}
 	return token
+}
+
+// getLocalIP returns the non-loopback local IP of the host
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback then return it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
 }
