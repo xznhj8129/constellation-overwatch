@@ -410,7 +410,7 @@ func EntitiesPanel(orgID string, entities []ontology.Entity) templ.Component {
 			templ_7745c5c3_Var21 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div id=\"entities-panel\" class=\"panel\"><div class=\"panel-header\"><h2>All Entities</h2><div><button class=\"refresh-btn\" data-on:click=\"@get('/entities')\" data-indicator:_entitiesFetching data-attr:disabled=\"$_entitiesFetching\"><span data-show=\"!$_entitiesFetching\">↻</span> <span class=\"loading\" data-show=\"$_entitiesFetching\"></span></button></div></div><div id=\"entities-content\" class=\"data-grid\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div id=\"entities-panel\" class=\"panel\"><div class=\"panel-header\"><h2>All Entities</h2><div><button class=\"refresh-btn\" data-on:click=\"@get('/organizations')\" data-indicator:_entitiesFetching data-attr:disabled=\"$_entitiesFetching\"><span data-show=\"!$_entitiesFetching\">↻</span> <span class=\"loading\" data-show=\"$_entitiesFetching\"></span></button></div></div><div id=\"entities-content\" class=\"data-grid\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -677,9 +677,9 @@ func EntityRow(orgID string, entity ontology.Entity) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var37 string
-		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("@get('/entities/edit?org_id=%s&entity_id=%s')", orgID, entity.EntityID))
+		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("@get('/organizations/entities/edit?org_id=%s&entity_id=%s')", orgID, entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/entities.templ`, Line: 239, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/entities.templ`, Line: 239, Col: 118}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {

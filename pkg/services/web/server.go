@@ -52,9 +52,9 @@ func (s *Server) setupRoutes() {
 
 	// Pages
 	s.mux.HandleFunc("/", s.handleEntitiesPage)
-	s.mux.HandleFunc("/entities", s.handleEntitiesPage)
-	s.mux.HandleFunc("/entities/new", s.handleEntityForm)
-	s.mux.HandleFunc("/entities/edit", s.handleEntityForm)
+	s.mux.HandleFunc("/organizations", s.handleEntitiesPage)
+	s.mux.HandleFunc("/organizations/entities/new", s.handleEntityForm)
+	s.mux.HandleFunc("/organizations/entities/edit", s.handleEntityForm)
 	s.mux.HandleFunc("/organizations/new", s.handleOrganizationForm)
 	s.mux.HandleFunc("/organizations/edit/", s.handleOrganizationEdit)
 	s.mux.HandleFunc("/organizations/cancel/", s.handleOrganizationCancel)

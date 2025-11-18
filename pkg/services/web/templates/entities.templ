@@ -172,7 +172,7 @@ templ EntitiesPanel(orgID string, entities []ontology.Entity) {
 			<h2>All Entities</h2>
 			<div>
 				<button class="refresh-btn"
-					data-on:click="@get('/entities')"
+					data-on:click="@get('/organizations')"
 					data-indicator:_entitiesFetching
 					data-attr:disabled="$_entitiesFetching">
 					<span data-show="!$_entitiesFetching">↻</span>
@@ -236,7 +236,7 @@ templ EntityRow(orgID string, entity ontology.Entity) {
 		<td class="timestamp">{ entity.UpdatedAt.Format("15:04:05") }</td>
 		<td>
 			<button class="action-btn small"
-				data-on:click={ fmt.Sprintf("@get('/entities/edit?org_id=%s&entity_id=%s')", orgID, entity.EntityID) }>
+				data-on:click={ fmt.Sprintf("@get('/organizations/entities/edit?org_id=%s&entity_id=%s')", orgID, entity.EntityID) }>
 				Edit
 			</button>
 			<button class="action-btn small danger"
