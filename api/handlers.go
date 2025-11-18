@@ -71,6 +71,26 @@ func (h *Handlers) GetOrganization(w http.ResponseWriter, r *http.Request) {
 	sendSuccess(w, http.StatusOK, org)
 }
 
+func (h *Handlers) DeleteOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID := r.URL.Query().Get("org_id")
+	if orgID == "" {
+		sendError(w, http.StatusBadRequest, "MISSING_ORG_ID", "org_id is required")
+		return
+	}
+
+	err := h.orgService.DeleteOrganization(orgID)
+	if err != nil {
+		if err.Error() == "organization not found" {
+			sendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		} else {
+			sendError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
+		}
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]string{"message": "Organization deleted successfully"})
+}
+
 // Entity handlers
 func (h *Handlers) CreateEntity(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
@@ -261,6 +281,8 @@ func (h *Handlers) RegisterRoutes(mux *http.ServeMux, nats *embeddednats.Embedde
 			} else {
 				middleware.BearerAuth(h.ListOrganizations)(w, r)
 			}
+		case http.MethodDelete:
+			middleware.BearerAuth(h.DeleteOrganization)(w, r)
 		default:
 			sendError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Method not allowed")
 		}

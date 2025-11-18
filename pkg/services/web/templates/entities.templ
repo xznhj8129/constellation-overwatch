@@ -114,6 +114,10 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 				title="Copy org_id for fleet device registration">
 				Copy
 			</button>
+			<button class="action-btn small danger"
+				data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID) }>
+				Delete
+			</button>
 		</td>
 	</tr>
 }

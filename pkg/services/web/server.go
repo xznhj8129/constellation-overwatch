@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"constellation-overwatch/api/middleware"
@@ -635,6 +636,40 @@ func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("[API] ✓ Organization row updated via SSE with Morph mode")
 
+	case "DELETE":
+		log.Printf("[API] DELETE /api/organizations/%s", orgID)
+		log.Printf("[API] Accept header: %s", r.Header.Get("Accept"))
+
+		// Delete the organization
+		if err := s.orgSvc.DeleteOrganization(orgID); err != nil {
+			log.Printf("[API] Error deleting organization: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("[API] Organization deleted: %s", orgID)
+
+		// If Datastar, remove the row from the UI
+		acceptHeader := r.Header.Get("Accept")
+		if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
+			log.Printf("[API] Sending SSE response to remove row")
+			sse := datastar.NewServerSentEventGenerator(w, r)
+			err := sse.PatchElements("",
+				datastar.WithSelector("#org-row-"+orgID),
+				datastar.WithMode(datastar.ElementPatchModeRemove))
+			if err != nil {
+				log.Printf("[API] Error removing organization row: %v", err)
+			} else {
+				log.Printf("[API] ✓ SSE response sent successfully")
+			}
+			return
+		}
+
+		log.Printf("[API] No SSE request detected, returning JSON")
+		// Otherwise return JSON success
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -1079,6 +1114,8 @@ func (s *Server) handleAPIV1Organizations(w http.ResponseWriter, r *http.Request
 		} else {
 			middleware.BearerAuth(s.listOrganizations)(w, r)
 		}
+	case http.MethodDelete:
+		middleware.BearerAuth(s.deleteOrganization)(w, r)
 	default:
 		sendError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Method not allowed")
 	}
@@ -1149,6 +1186,38 @@ func (s *Server) getOrganization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendSuccess(w, http.StatusOK, org)
+}
+
+func (s *Server) deleteOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID := r.URL.Query().Get("org_id")
+	if orgID == "" {
+		sendError(w, http.StatusBadRequest, "MISSING_ORG_ID", "org_id is required")
+		return
+	}
+
+	err := s.orgSvc.DeleteOrganization(orgID)
+	if err != nil {
+		if err.Error() == "organization not found" {
+			sendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		} else {
+			sendError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
+		}
+		return
+	}
+
+	// If this is a Datastar request, remove the row from the UI
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		err := sse.PatchElements("",
+			datastar.WithSelector("#org-row-"+orgID),
+			datastar.WithMode(datastar.ElementPatchModeRemove))
+		if err != nil {
+			log.Printf("Error removing organization row: %v", err)
+		}
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]string{"message": "Organization deleted successfully"})
 }
 
 func (s *Server) createEntity(w http.ResponseWriter, r *http.Request) {
