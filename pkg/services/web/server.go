@@ -69,8 +69,10 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/organizations/update", s.handleAPIOrganizationUpdate) // Update org (org_id in form data)
 	s.mux.HandleFunc("/api/organizations/", s.handleAPIOrganization)              // For specific organization operations
 	s.mux.HandleFunc("/api/entities", s.handleAPIEntities)
-	s.mux.HandleFunc("/api/entities/", s.handleAPIEntity) // For specific entity operations
+	s.mux.HandleFunc("/api/entities/", s.handleAPIEntity)         // For specific entity operations
+	s.mux.HandleFunc("/api/fleet", s.handleAPIFleet)              // Create and list fleet entities
 	s.mux.HandleFunc("/api/fleet/update", s.handleAPIFleetUpdate) // Update fleet entity
+	s.mux.HandleFunc("/api/fleet/", s.handleAPIFleetEntity)       // Delete fleet entity
 	s.mux.HandleFunc("/api/overwatch/kv", s.handleAPIOverwatchKV)
 
 	// SSE endpoint for streams
@@ -1003,6 +1005,211 @@ func (s *Server) handleAPIFleetUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("[FLEET-API] ✓ Fleet entity row updated via SSE with Morph mode")
+}
+
+// Fleet API handlers for create and list
+func (s *Server) handleAPIFleet(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		// Fetch all entities
+		entities, err := s.entitySvc.ListAllEntities()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Fetch all organizations for rendering
+		orgs, err := s.orgSvc.ListOrganizations()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// If this is a Datastar request, return SSE format
+		if r.Header.Get("Accept") == "text/event-stream" {
+			sse := datastar.NewServerSentEventGenerator(w, r)
+			component := templates.FleetTable(orgs, entities)
+			err := sse.PatchComponent(r.Context(), component,
+				datastar.WithSelector("#fleet-table"),
+				datastar.WithMode(datastar.ElementPatchModeInner))
+			if err != nil {
+				log.Printf("Error patching fleet: %v", err)
+			}
+			return
+		}
+
+		// Otherwise return JSON
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"entities": entities,
+		})
+
+	case "POST":
+		// Log request details for debugging
+		log.Printf("[FLEET-API] POST /api/fleet - Content-Type: %s, Accept: %s",
+			r.Header.Get("Content-Type"), r.Header.Get("Accept"))
+
+		// Parse form data
+		if err := r.ParseForm(); err != nil {
+			log.Printf("[FLEET-API] Error parsing form: %v", err)
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		// Get org_id from form
+		orgID := r.FormValue("org_id")
+		if orgID == "" {
+			http.Error(w, "org_id required", http.StatusBadRequest)
+			return
+		}
+
+		// Create entity request
+		req := &ontology.CreateEntityRequest{
+			EntityType: r.FormValue("entity_type"),
+			Status:     r.FormValue("status"),
+			Priority:   r.FormValue("priority"),
+		}
+
+		// Handle position data if provided
+		if lat := r.FormValue("latitude"); lat != "" {
+			if lon := r.FormValue("longitude"); lon != "" {
+				latVal, _ := strconv.ParseFloat(lat, 64)
+				lonVal, _ := strconv.ParseFloat(lon, 64)
+				req.Position = &ontology.Position{
+					Latitude:  latVal,
+					Longitude: lonVal,
+				}
+				if alt := r.FormValue("altitude"); alt != "" {
+					altVal, _ := strconv.ParseFloat(alt, 64)
+					req.Position.Altitude = altVal
+				}
+			}
+		}
+
+		// Handle is_live
+		metadata := make(map[string]interface{})
+		metadata["is_live"] = r.FormValue("is_live") == "true"
+		req.Metadata = metadata
+
+		log.Printf("[FLEET-API] Creating fleet entity: type=%s, org_id=%s", req.EntityType, orgID)
+
+		// Create the entity
+		entity, err := s.entitySvc.CreateEntity(orgID, req)
+		if err != nil {
+			log.Printf("[FLEET-API] Error creating entity: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
+
+		// Fetch all organizations for rendering the row
+		orgs, err := s.orgSvc.ListOrganizations()
+		if err != nil {
+			log.Printf("[FLEET-API] Error fetching organizations: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Always send SSE response (Datastar forms always expect SSE)
+		log.Printf("[FLEET-API] Creating SSE connection for response")
+		sse := datastar.NewServerSentEventGenerator(w, r)
+
+		// Insert the new fleet row before the form row
+		log.Printf("[FLEET-API] Rendering fleet row component")
+		component := templates.FleetRow(orgs, *entity)
+
+		log.Printf("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
+		if err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("#new-fleet-form-row"),
+			datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
+			log.Printf("[FLEET-API] ERROR inserting fleet row: %v", err)
+			return
+		}
+
+		// Reset the form after successful submission
+		log.Printf("[FLEET-API] Resetting form via ExecuteScript")
+		if err := sse.ExecuteScript("document.getElementById('new-fleet-form').reset()"); err != nil {
+			log.Printf("[FLEET-API] ERROR resetting form: %v", err)
+		}
+
+		log.Printf("[FLEET-API] ✓ SSE patch sent successfully - new row appended and form reset")
+	}
+}
+
+// Fleet API handler for specific entity operations (delete)
+func (s *Server) handleAPIFleetEntity(w http.ResponseWriter, r *http.Request) {
+	// Extract entity ID from path: /api/fleet/{entityID}
+	entityID := r.URL.Path[len("/api/fleet/"):]
+	if entityID == "" || entityID == "update" {
+		http.Error(w, "Entity ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Get org_id from query
+	orgID := r.URL.Query().Get("org_id")
+
+	switch r.Method {
+	case "DELETE":
+		log.Printf("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
+		log.Printf("[FLEET-API] Accept header: %s", r.Header.Get("Accept"))
+
+		// If org_id not provided, try to find it
+		if orgID == "" {
+			orgs, err := s.orgSvc.ListOrganizations()
+			if err != nil {
+				log.Printf("[FLEET-API] Error fetching organizations: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			// Find the entity's org_id
+			for _, org := range orgs {
+				if _, err := s.entitySvc.GetEntity(org.OrgID, entityID); err == nil {
+					orgID = org.OrgID
+					break
+				}
+			}
+		}
+
+		if orgID == "" {
+			http.Error(w, "Could not find entity", http.StatusNotFound)
+			return
+		}
+
+		// Delete the entity
+		if err := s.entitySvc.DeleteEntity(orgID, entityID); err != nil {
+			log.Printf("[FLEET-API] Error deleting entity: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("[FLEET-API] Entity deleted: %s", entityID)
+
+		// If Datastar, remove the row from the UI
+		acceptHeader := r.Header.Get("Accept")
+		if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
+			log.Printf("[FLEET-API] Sending SSE response to remove row")
+			sse := datastar.NewServerSentEventGenerator(w, r)
+			err := sse.PatchElements("",
+				datastar.WithSelector("#fleet-row-"+entityID),
+				datastar.WithMode(datastar.ElementPatchModeRemove))
+			if err != nil {
+				log.Printf("[FLEET-API] Error removing fleet row: %v", err)
+			} else {
+				log.Printf("[FLEET-API] ✓ SSE response sent successfully")
+			}
+			return
+		}
+
+		log.Printf("[FLEET-API] No SSE request detected, returning JSON")
+		// Otherwise return JSON success
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // SSE handler for real-time streams
