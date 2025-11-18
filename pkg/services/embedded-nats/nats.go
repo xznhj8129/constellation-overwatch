@@ -91,7 +91,6 @@ func (en *EmbeddedNATS) Start() error {
 		MaxPingsOut:        3,
 
 		// Slow consumer settings
-		MaxSlowConsumers:   100,
 
 		// Disable debug logging by default
 		Debug:              false,
@@ -259,8 +258,7 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 		},
 		{
 			Name:            "CONSTELLATION_TELEMETRY",
-			// Accept both legacy patterns and standardized telemetry subjects
-			Subjects:        []string{"constellation.telemetry.>", "constellation.*.>"},
+			Subjects:        []string{"constellation.telemetry.>"},
 			Retention:       nats.LimitsPolicy, // Keep based on limits (not consumer interest)
 			MaxMsgs:         100000,              // Increased for high-frequency telemetry
 			MaxBytes:        256 * 1024 * 1024,   // 256MB (increased from 64MB)
