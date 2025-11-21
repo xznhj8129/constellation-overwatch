@@ -1287,10 +1287,18 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Create SSE generator
+	// Verify we have a flusher (required for SSE)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Printf("[Overwatch] ERROR: ResponseWriter does not support flushing (SSE won't work)")
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	// Create SSE generator (this sets SSE headers automatically)
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
-	log.Printf("[Overwatch] Client connected for KV watching from %s", r.RemoteAddr)
+	log.Printf("[Overwatch] ✓ SSE connection established from %s", r.RemoteAddr)
 
 	// Send initial state - get all current entries
 	entries, err := s.natsEmbedded.GetAllKVEntries()
@@ -1303,17 +1311,23 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	// Parse entries into entity states organized by org
 	entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
 
+	log.Printf("[Overwatch] Sending initial state with %d entities...", len(entityStatesByOrg))
+
 	// Send initial state
 	if err := s.sendEntityStatesUpdate(sse, entityStatesByOrg); err != nil {
 		log.Printf("[Overwatch] Error sending initial state: %v", err)
 		return
 	}
 
+	// CRITICAL: Flush the response to ensure SSE events reach the browser
+	flusher.Flush()
+	log.Printf("[Overwatch] ✓ Initial state flushed to client")
+
 	// Start watching for changes in a goroutine
 	ctx := r.Context()
 	go func() {
 		watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
-			log.Printf("[Overwatch KV Watch] Change detected for key: %s, operation: %s", key, entry.Operation())
+			log.Printf("[Overwatch KV Watch] ⚡ Change detected for key: %s, operation: %s", key, entry.Operation())
 
 			// On ANY change, refetch the complete global state from NATS KV
 			entries, err := s.natsEmbedded.GetAllKVEntries()
@@ -1326,8 +1340,17 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 			entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
 
 			// Send complete global state to client
-			log.Printf("[Overwatch KV Watch] Sending complete global state update")
-			return s.sendEntityStatesUpdate(sse, entityStatesByOrg)
+			log.Printf("[Overwatch KV Watch] Sending update with %d entities", len(entityStatesByOrg))
+			if err := s.sendEntityStatesUpdate(sse, entityStatesByOrg); err != nil {
+				log.Printf("[Overwatch KV Watch] ERROR sending update: %v", err)
+				return err
+			}
+
+			// CRITICAL: Flush after each update to ensure browser receives it
+			flusher.Flush()
+			log.Printf("[Overwatch KV Watch] ✓ Update flushed to client")
+
+			return nil
 		})
 
 		if watchErr != nil && watchErr != context.Canceled {
@@ -1679,13 +1702,7 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 
 // sendEntityStatesUpdate sends an SSE update with entity states
 func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, entityStatesByOrg map[string][]shared.EntityState) error {
-	// Create a map of signals to update
-	signals := make(map[string]interface{})
-
-	// Add entity states by org (original format)
-	signals["entityStatesByOrg"] = entityStatesByOrg
-
-	// ALSO add a flattened array for easier iteration in Datastar
+	// Flatten entities for rendering
 	flatEntities := []shared.EntityState{}
 	for orgID, entities := range entityStatesByOrg {
 		for _, entity := range entities {
@@ -1696,10 +1713,6 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 			flatEntities = append(flatEntities, entity)
 		}
 	}
-	signals["entities"] = flatEntities
-
-	signals["lastUpdate"] = time.Now().Format("15:04:05")
-	signals["_isConnected"] = true // Indicate SSE connection is active
 
 	// Debug: Log what we're sending
 	totalEntities := 0
@@ -1710,19 +1723,86 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 			log.Printf("[Overwatch]   - Entity: %s (type: %s, has_analytics: %v, has_detections: %v, has_threat_intel: %v)",
 				entity.EntityID, entity.EntityType,
 				entity.Analytics != nil, entity.Detections != nil, entity.ThreatIntel != nil)
+
+			// Debug analytics data
+			if entity.Analytics != nil {
+				log.Printf("[Overwatch]     Analytics: tracked=%d, active=%d, frames=%d, threats=%d",
+					entity.Analytics.TrackedObjectsCount,
+					entity.Analytics.ActiveObjectsCount,
+					entity.Analytics.TotalFramesProcessed,
+					entity.Analytics.ActiveThreatCount)
+			}
+
+			// Debug detections data
+			if entity.Detections != nil && entity.Detections.TrackedObjects != nil {
+				log.Printf("[Overwatch]     Detections: %d tracked objects", len(entity.Detections.TrackedObjects))
+				for trackID, obj := range entity.Detections.TrackedObjects {
+					log.Printf("[Overwatch]       - %s: %s (active: %v, confidence: %.2f, threat: %s)",
+						trackID, obj.Label, obj.IsActive, obj.AvgConfidence, obj.ThreatLevel)
+				}
+			}
+
+			// Debug threat intel data
+			if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
+				log.Printf("[Overwatch]     ThreatIntel: alert_level=%s, total_threats=%d",
+					entity.ThreatIntel.ThreatSummary.AlertLevel,
+					entity.ThreatIntel.ThreatSummary.TotalThreats)
+			}
 		}
 	}
 	log.Printf("[Overwatch] Total entities in SSE update: %d across %d orgs", totalEntities, len(entityStatesByOrg))
 
-	// Debug: Dump first entity as JSON to see what we're actually sending
-	if len(flatEntities) > 0 {
-		if jsonData, err := json.MarshalIndent(flatEntities[0], "", "  "); err == nil {
-			log.Printf("[Overwatch] First entity JSON being sent via SSE:\n%s", string(jsonData))
+	// Render entity cards as HTML using Templ
+	var htmlBuilder strings.Builder
+	if len(flatEntities) == 0 {
+		// Render empty state
+		htmlBuilder.WriteString(`<div class="empty-state" style="color: #888; padding: 40px; text-align: center;"><p>No entity states in global store. Waiting for telemetry data...</p></div>`)
+	} else {
+		// Render each entity card
+		for _, entity := range flatEntities {
+			if err := templates.EntityCard(entity).Render(context.Background(), &htmlBuilder); err != nil {
+				log.Printf("[Overwatch] Error rendering entity card: %v", err)
+				continue
+			}
 		}
 	}
 
-	// Send the signal update
-	return sse.PatchSignals(signals)
+	html := htmlBuilder.String()
+	log.Printf("[Overwatch] Rendered HTML length: %d bytes", len(html))
+
+	// Log first 200 chars of HTML for debugging
+	if len(html) > 200 {
+		log.Printf("[Overwatch] HTML preview: %s...", html[:200])
+	} else {
+		log.Printf("[Overwatch] Full HTML: %s", html)
+	}
+
+	// Send the HTML update via PatchElements
+	log.Printf("[Overwatch] Calling PatchElements with selector=#entities-container, mode=inner")
+	err := sse.PatchElements(html,
+		datastar.WithSelector("#entities-container"),
+		datastar.WithMode(datastar.ElementPatchModeInner))
+
+	if err != nil {
+		log.Printf("[Overwatch] ERROR in PatchElements: %v", err)
+		return err
+	}
+
+	log.Printf("[Overwatch] PatchElements completed successfully")
+
+	// Send connection status and metadata signals
+	signals := map[string]interface{}{
+		"_isConnected": true,
+		"lastUpdate":   time.Now().Format("15:04:05"),
+	}
+
+	if err := sse.PatchSignals(signals); err != nil {
+		log.Printf("[Overwatch] ERROR in PatchSignals: %v", err)
+		return err
+	}
+
+	log.Printf("[Overwatch] PatchSignals sent: _isConnected=true, lastUpdate=%s", signals["lastUpdate"])
+	return nil
 }
 
 // API handler for debugging KV data structure

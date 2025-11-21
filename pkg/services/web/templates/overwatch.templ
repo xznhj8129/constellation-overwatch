@@ -1,5 +1,10 @@
 package templates
 
+import (
+	"fmt"
+	"constellation-overwatch/pkg/shared"
+)
+
 templ OverwatchPage() {
 	@Layout("Overwatch") {
 		@Navigation("overwatch") {
@@ -32,75 +37,131 @@ templ OverwatchPanel() {
 			</div>
 		</div>
 		<div id="overwatch-content" class="overwatch-content">
-			<!-- Debug Panel -->
-			<div style="background: #222; padding: 15px; margin: 10px; border: 1px solid #444; border-radius: 4px; font-family: monospace; font-size: 11px;">
-				<div style="color: #0f0; margin-bottom: 5px;">DEBUG INFO:</div>
-				<div style="color: #fff;">Entities Array Length: <span data-text="$entities.length" style="color: #ff0;"></span></div>
-				<div style="color: #fff;">Org Keys: <span data-text="JSON.stringify(Object.keys($entityStatesByOrg))" style="color: #0ff;"></span></div>
+			<!-- This will be populated by Datastar SSE with server-rendered HTML -->
+			<div id="entities-container" class="entities-grid" style="padding: 20px;">
+				<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
+					<p>No entity states in global store. Waiting for telemetry data...</p>
+					<p style="font-size: 10px; margin-top: 10px;">Using server-side HTML rendering via SSE PatchElements</p>
+				</div>
 			</div>
-			<!-- This will be populated by Datastar based on entities signal -->
-			<div data-show="$entities.length === 0" class="empty-state">
-				<p>No entity states in global store. Waiting for telemetry data...</p>
+		</div>
+	</div>
+}
+
+templ EntityCard(entity shared.EntityState) {
+	<div id={ "entity-" + entity.EntityID } class="entity-card" style="border: 2px solid #f0f; margin: 5px; padding: 10px;">
+		<div class="entity-card-inner">
+			<!-- Header -->
+			<div id={ "entity-header-" + entity.EntityID } class="entity-header" style="margin-bottom: 15px;">
+				<div style="color: #0ff; font-size: 18px; font-weight: bold;">
+					Entity ID: { entity.EntityID }
+				</div>
+				<div style="color: #888; font-size: 12px;">
+					Device: <span style="color: #fff;">{ entity.DeviceID }</span>
+				</div>
+				<div style="color: #888; font-size: 12px;">
+					Status: <span style="color: #0f0;">{ entity.Status }</span>
+				</div>
+				<div style="color: #888; font-size: 12px;">
+					Type: <span style="color: #ff0;">{ entity.EntityType }</span>
+				</div>
 			</div>
-			<div data-show="$entities.length > 0" style="padding: 20px;">
-				<!-- Render entities using flat array -->
-				<div class="entities-grid">
-					<div data-for="entity, index in $entities">
-						<div class="entity-card" style="border: 2px solid #f0f; margin: 5px; padding: 10px;" data-bind:id="'entity-card-' + entity.entity_id">
-								<!-- DEBUG: Dump entity JSON -->
-								<div style="background: #222; color: #0f0; padding: 10px; margin-bottom: 10px; font-family: monospace; font-size: 10px; white-space: pre-wrap; border: 1px solid #444;" data-text="JSON.stringify(entity, null, 2)"></div>
-								<div class="entity-card-inner">
-									<!-- Header -->
-									<div class="entity-header">
-										<div style="color: #0ff; font-size: 18px; font-weight: bold;" data-text="entity.entity_id"></div>
-										<div style="color: #888; font-size: 12px;">Device: <span data-text="entity.device_id"></span></div>
-										<div style="color: #888; font-size: 12px;">Status: <span data-text="entity.status"></span></div>
-									</div>
-
-									<!-- Analytics -->
-									<div data-show="entity.analytics" class="entity-section" style="margin-top: 15px;">
-										<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px;">Analytics</h4>
-										<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px;">
-											<div><span style="color: #888;">Tracked:</span> <span style="color: #fff;" data-text="entity.analytics.tracked_objects_count"></span></div>
-											<div><span style="color: #888;">Active:</span> <span style="color: #fff;" data-text="entity.analytics.active_objects_count"></span></div>
-											<div><span style="color: #888;">Frames:</span> <span style="color: #fff;" data-text="entity.analytics.total_frames_processed"></span></div>
-											<div><span style="color: #888;">Threats:</span> <span style="color: #fff;" data-text="entity.analytics.active_threat_count"></span></div>
-										</div>
-									</div>
-
-									<!-- Tracked Objects -->
-									<div data-show="entity.detections && entity.detections.tracked_objects" class="entity-section" style="margin-top: 15px;">
-										<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px;">Tracked Objects</h4>
-										<div class="tracked-objects" style="margin-top: 10px;">
-											<div data-for="obj, trackId in entity.detections.tracked_objects">
-												<div data-show="obj.is_active" style="background: #1a1a1a; padding: 8px; margin: 5px 0; border-left: 3px solid #0f0;">
-													<span style="color: #fff; font-weight: bold;" data-text="obj.label"></span>
-													<span style="color: #0f0; margin-left: 10px;" data-text="(obj.avg_confidence * 100).toFixed(1) + '%'"></span>
-													<span style="color: #ff0; margin-left: 10px;" data-text="obj.threat_level"></span>
-												</div>
-											</div>
-										</div>
-									</div>
-
-									<!-- Threat Intelligence -->
-									<div data-show="entity.threat_intel && entity.threat_intel.threat_summary" class="entity-section" style="margin-top: 15px;">
-										<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px;">Threat Intelligence</h4>
-										<div style="margin-top: 10px;">
-											<div style="background: #1a1a1a; padding: 10px;">
-												<div><span style="color: #888;">Alert Level:</span> <span style="color: #ff0; font-weight: bold;" data-text="entity.threat_intel.threat_summary.alert_level"></span></div>
-												<div style="margin-top: 5px;"><span style="color: #888;">Total Threats:</span> <span style="color: #fff;" data-text="entity.threat_intel.threat_summary.total_threats"></span></div>
-											</div>
-										</div>
-									</div>
-
-									<!-- Footer -->
-									<div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #444; color: #666; font-size: 11px;">
-										<span data-text="'Updated: ' + new Date(entity.updated_at).toLocaleTimeString()"></span>
-									</div>
-									</div>
+			<!-- Analytics -->
+			if entity.Analytics != nil {
+				<div id={ "analytics-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
+					<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Analytics</h4>
+					<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+						<div id={ "analytics-tracked-" + entity.EntityID }>
+							<span style="color: #888;">Tracked:</span>
+							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
+						</div>
+						<div id={ "analytics-active-" + entity.EntityID }>
+							<span style="color: #888;">Active:</span>
+							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.ActiveObjectsCount) }</span>
+						</div>
+						<div id={ "analytics-frames-" + entity.EntityID }>
+							<span style="color: #888;">Frames:</span>
+							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.TotalFramesProcessed) }</span>
+						</div>
+						<div id={ "analytics-threats-" + entity.EntityID }>
+							<span style="color: #888;">Threats:</span>
+							<span style="color: #f00; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }</span>
 						</div>
 					</div>
 				</div>
+			}
+			<!-- Tracked Objects -->
+			if entity.Detections != nil && entity.Detections.TrackedObjects != nil && len(entity.Detections.TrackedObjects) > 0 {
+				<div id={ "detections-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
+					<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Tracked Objects</h4>
+					<div class="tracked-objects">
+						for trackID, obj := range entity.Detections.TrackedObjects {
+							if obj.IsActive {
+								<div id={ "track-" + trackID } style="background: #1a1a1a; padding: 10px; margin: 5px 0; border-left: 3px solid #0f0; border-radius: 3px;">
+									<div id={ "track-header-" + trackID } style="display: flex; justify-content: space-between; align-items: center;">
+										<div style="display: flex; align-items: center; gap: 8px;">
+											<span id={ "track-status-" + trackID } style="color: #0f0; font-size: 10px; font-weight: bold; background: #0f03; padding: 2px 6px; border-radius: 3px;">ACTIVE</span>
+											<span id={ "track-label-" + trackID } style="color: #fff; font-weight: bold; font-size: 14px;">{ obj.Label }</span>
+										</div>
+										<div>
+											<span id={ "track-confidence-" + trackID } style="color: #0f0; margin-left: 10px; font-size: 12px;">
+												{ fmt.Sprintf("%.1f%%", obj.AvgConfidence*100) }
+											</span>
+											<span id={ "track-threat-" + trackID } style="color: #ff0; margin-left: 10px; font-size: 12px; font-weight: bold;">{ obj.ThreatLevel }</span>
+										</div>
+									</div>
+									<div id={ "track-meta-" + trackID } style="color: #888; font-size: 11px; margin-top: 5px;">
+										Frames: <span id={ "track-frames-" + trackID } style="color: #fff;">{ fmt.Sprintf("%d", obj.FrameCount) }</span> |
+										Track ID: <span style="color: #0ff;">{ trackID }</span>
+									</div>
+								</div>
+							} else {
+								<div id={ "track-" + trackID } style="background: #0a0a0a; padding: 10px; margin: 5px 0; border-left: 3px solid #444; border-radius: 3px; opacity: 0.7;">
+									<div id={ "track-header-" + trackID } style="display: flex; justify-content: space-between; align-items: center;">
+										<div style="display: flex; align-items: center; gap: 8px;">
+											<span id={ "track-status-" + trackID } style="color: #666; font-size: 10px; font-weight: bold; background: #3333; padding: 2px 6px; border-radius: 3px;">INACTIVE</span>
+											<span id={ "track-label-" + trackID } style="color: #aaa; font-weight: bold; font-size: 14px;">{ obj.Label }</span>
+										</div>
+										<div>
+											<span id={ "track-confidence-" + trackID } style="color: #888; margin-left: 10px; font-size: 12px;">
+												{ fmt.Sprintf("%.1f%%", obj.AvgConfidence*100) }
+											</span>
+											if obj.ThreatLevel == "HIGH_THREAT" {
+												<span id={ "track-threat-" + trackID } style="color: #f88; margin-left: 10px; font-size: 12px; font-weight: bold;">{ obj.ThreatLevel }</span>
+											} else {
+												<span id={ "track-threat-" + trackID } style="color: #888; margin-left: 10px; font-size: 12px; font-weight: bold;">{ obj.ThreatLevel }</span>
+											}
+										</div>
+									</div>
+									<div id={ "track-meta-" + trackID } style="color: #666; font-size: 11px; margin-top: 5px;">
+										Frames: <span id={ "track-frames-" + trackID } style="color: #888;">{ fmt.Sprintf("%d", obj.FrameCount) }</span> |
+										Track ID: <span style="color: #0aa;">{ trackID }</span>
+									</div>
+								</div>
+							}
+						}
+					</div>
+				</div>
+			}
+			<!-- Threat Intelligence -->
+			if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
+				<div id={ "threat-intel-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
+					<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Threat Intelligence</h4>
+					<div style="background: #1a1a1a; padding: 15px; border-radius: 3px;">
+						<div style="margin-bottom: 10px;">
+							<span style="color: #888;">Alert Level:</span>
+							<span style="color: #ff0; font-weight: bold; font-size: 16px; margin-left: 10px;">{ entity.ThreatIntel.ThreatSummary.AlertLevel }</span>
+						</div>
+						<div>
+							<span style="color: #888;">Total Threats:</span>
+							<span style="color: #f00; font-weight: bold; font-size: 16px; margin-left: 10px;">{ fmt.Sprintf("%d", entity.ThreatIntel.ThreatSummary.TotalThreats) }</span>
+						</div>
+					</div>
+				</div>
+			}
+			<!-- Footer -->
+			<div id={ "entity-footer-" + entity.EntityID } style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #444; color: #666; font-size: 11px;">
+				<span>Updated: { entity.UpdatedAt.Format("15:04:05") }</span>
 			</div>
 		</div>
 	</div>
