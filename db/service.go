@@ -208,3 +208,19 @@ func (s *Service) GetSchemaVersion() (string, error) {
 	// TODO: Implement schema versioning
 	return "1.0.0", nil
 }
+
+// EntityExists checks if an entity exists in the database
+func (s *Service) EntityExists(entityID string) (bool, error) {
+	if entityID == "" {
+		return false, fmt.Errorf("entity_id cannot be empty")
+	}
+
+	var exists int
+	query := `SELECT COUNT(*) FROM entities WHERE entity_id = ?`
+	err := s.DB.QueryRow(query, entityID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check entity existence: %w", err)
+	}
+
+	return exists > 0, nil
+}

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -74,6 +75,7 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/fleet/update", s.handleAPIFleetUpdate) // Update fleet entity
 	s.mux.HandleFunc("/api/fleet/", s.handleAPIFleetEntity)       // Delete fleet entity
 	s.mux.HandleFunc("/api/overwatch/kv", s.handleAPIOverwatchKV)
+	s.mux.HandleFunc("/api/overwatch/kv/watch", s.handleAPIOverwatchKVWatch)
 
 	// SSE endpoint for streams
 	s.mux.HandleFunc("/api/streams/sse", s.handleStreamSSE)
@@ -1275,6 +1277,89 @@ func (s *Server) handleAPIOverwatchKV(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"entries": kvEntries,
 	})
+}
+
+// API handler for real-time KV watching via SSE
+func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Create SSE generator
+	sse := datastar.NewServerSentEventGenerator(w, r)
+
+	log.Printf("[Overwatch] Client connected for KV watching from %s", r.RemoteAddr)
+
+	// Send initial state - get all current entries
+	entries, err := s.natsEmbedded.GetAllKVEntries()
+	if err != nil {
+		log.Printf("[Overwatch] Error fetching initial KV entries: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Parse entries into entity states organized by org
+	entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
+
+	// Send initial state
+	if err := s.sendEntityStatesUpdate(sse, entityStatesByOrg); err != nil {
+		log.Printf("[Overwatch] Error sending initial state: %v", err)
+		return
+	}
+
+	// Start watching for changes
+	ctx := r.Context()
+	watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
+		// Parse the updated entry
+		updatedStates := s.parseKVEntriesToEntityStates([]nats.KeyValueEntry{entry})
+
+		// Send the update
+		return s.sendEntityStatesUpdate(sse, updatedStates)
+	})
+
+	if watchErr != nil && watchErr != context.Canceled {
+		log.Printf("[Overwatch] Error watching KV: %v", watchErr)
+	}
+
+	log.Printf("[Overwatch] Client disconnected from %s", r.RemoteAddr)
+}
+
+// parseKVEntriesToEntityStates parses KV entries into EntityState objects organized by org
+func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[string][]shared.EntityState {
+	entityStatesByOrg := make(map[string][]shared.EntityState)
+
+	for _, entry := range entries {
+		// Try to parse as EntityState
+		var entityState shared.EntityState
+		if err := json.Unmarshal(entry.Value(), &entityState); err != nil {
+			log.Printf("[Overwatch] Failed to parse KV entry %s as EntityState: %v", entry.Key(), err)
+			continue
+		}
+
+		// Group by org_id
+		orgID := entityState.OrgID
+		if orgID == "" {
+			orgID = "unknown"
+		}
+
+		entityStatesByOrg[orgID] = append(entityStatesByOrg[orgID], entityState)
+	}
+
+	return entityStatesByOrg
+}
+
+// sendEntityStatesUpdate sends an SSE update with entity states
+func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, entityStatesByOrg map[string][]shared.EntityState) error {
+	// Create a map of signals to update
+	signals := make(map[string]interface{})
+
+	// Add entity states by org
+	signals["entityStatesByOrg"] = entityStatesByOrg
+	signals["lastUpdate"] = time.Now().Format("15:04:05")
+
+	// Send the signal update
+	return sse.PatchSignals(signals)
 }
 
 // REST API v1 handlers (with authentication)

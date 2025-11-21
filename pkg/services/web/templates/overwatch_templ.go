@@ -8,13 +8,6 @@ package templates
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// KVEntry represents a key-value store entry for display
-type KVEntry struct {
-	Key      string
-	Value    string
-	Revision string
-	Updated  string
-}
 
 func OverwatchPage() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -61,7 +54,7 @@ func OverwatchPage() templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\" data-signals=\"{_kvFetching: false}\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\" data-signals=\"{entityStatesByOrg: {}, lastUpdate: '', _isConnected: false}\" data-on:load=\"@get('/api/overwatch/kv/watch')\" data-indicator:_isConnected>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -110,7 +103,15 @@ func OverwatchPanel() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\"><div class=\"panel-header\"><h2>Global State Monitor</h2><button class=\"refresh-btn\" data-on:click=\"@get('/api/overwatch/kv')\" data-indicator:_kvFetching data-attr:disabled=\"$_kvFetching\"><span data-show=\"!$_kvFetching\">↻</span> <span class=\"loading\" data-show=\"$_kvFetching\"></span></button></div><div id=\"kv-content\" class=\"data-grid\"><p class=\"empty-state\">Loading global state...</p></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- This will be populated by Datastar based on entityStatesByOrg signal --><div data-show=\"Object.keys($entityStatesByOrg).length === 0\" class=\"empty-state\"><p>No entity states in global store. Waiting for telemetry data...</p></div><div data-show=\"Object.keys($entityStatesByOrg).length > 0\"><!-- Render organizations dynamically --><template data-for=\"(entities, orgId) in $entityStatesByOrg\"><div class=\"org-section\" data-bind:id=\"'org-' + orgId\"><h3 class=\"org-header\" data-text=\"orgId + ' (' + entities.length + ' entities)'\"></h3><div class=\"entities-grid\"><!-- Render entities for this org --><template data-for=\"entity in entities\"><div class=\"entity-card\" data-bind:id=\"'entity-card-' + entity.entity_id\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = EntityStateCard().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></template></div></div></template></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -118,7 +119,8 @@ func OverwatchPanel() templ.Component {
 	})
 }
 
-func KVStateTable(kvEntries []KVEntry) templ.Component {
+// EntityStateCard renders a single entity state card
+func EntityStateCard() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -139,76 +141,7 @@ func KVStateTable(kvEntries []KVEntry) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"kv-monitor\"><table class=\"data-table\"><thead><tr><th>Key</th><th>Value</th><th>Revision</th><th>Updated</th></tr></thead> <tbody>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if len(kvEntries) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<tr><td colspan=\"4\" class=\"empty-state\">No entries in global state</td></tr>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		} else {
-			for _, entry := range kvEntries {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<tr><td class=\"kv-key\"><code>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var6 string
-				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Key)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 56, Col: 43}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</code></td><td class=\"kv-value\"><pre>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Value)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 57, Col: 46}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</pre></td><td class=\"kv-revision\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var8 string
-				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Revision)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 58, Col: 47}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</td><td class=\"timestamp\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var9 string
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Updated)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 59, Col: 44}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</td></tr>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</tbody></table></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div class=\"entity-card-inner\"><div class=\"entity-header\"><span class=\"entity-id\" data-text=\"entity.entity_id\"></span> <span class=\"entity-type\" data-text=\"entity.entity_type\"></span></div><div class=\"entity-status-row\"><span class=\"badge\" data-class=\"'badge-' + entity.status\" data-text=\"entity.status\"></span> <span class=\"badge\" data-class=\"'badge-priority-' + entity.priority\" data-text=\"entity.priority\"></span> <span class=\"badge\" data-show=\"entity.is_live\" data-class=\"entity.is_live ? 'badge-live' : 'badge-offline'\"><span data-text=\"entity.is_live ? 'LIVE' : 'OFFLINE'\"></span></span></div><!-- Position Data --><div data-show=\"entity.position && entity.position.global\" class=\"entity-section\"><h4>Position</h4><div class=\"data-grid\"><div class=\"data-item\"><span class=\"label\">Lat:</span> <span class=\"value\" data-text=\"entity.position.global.latitude?.toFixed(6)\"></span></div><div class=\"data-item\"><span class=\"label\">Lon:</span> <span class=\"value\" data-text=\"entity.position.global.longitude?.toFixed(6)\"></span></div><div class=\"data-item\"><span class=\"label\">Alt MSL:</span> <span class=\"value\" data-text=\"entity.position.global.altitude_msl?.toFixed(1) + 'm'\"></span></div><div class=\"data-item\"><span class=\"label\">Alt Rel:</span> <span class=\"value\" data-text=\"entity.position.global.altitude_relative?.toFixed(1) + 'm'\"></span></div></div></div><!-- Attitude Data --><div data-show=\"entity.attitude && entity.attitude.euler\" class=\"entity-section\"><h4>Attitude</h4><div class=\"data-grid\"><div class=\"data-item\"><span class=\"label\">Roll:</span> <span class=\"value\" data-text=\"entity.attitude.euler.roll?.toFixed(2) + '°'\"></span></div><div class=\"data-item\"><span class=\"label\">Pitch:</span> <span class=\"value\" data-text=\"entity.attitude.euler.pitch?.toFixed(2) + '°'\"></span></div><div class=\"data-item\"><span class=\"label\">Yaw:</span> <span class=\"value\" data-text=\"entity.attitude.euler.yaw?.toFixed(2) + '°'\"></span></div></div></div><!-- VFR Data --><div data-show=\"entity.vfr\" class=\"entity-section\"><h4>Flight Performance</h4><div class=\"data-grid\"><div class=\"data-item\"><span class=\"label\">Airspeed:</span> <span class=\"value\" data-text=\"entity.vfr.airspeed?.toFixed(1) + ' m/s'\"></span></div><div class=\"data-item\"><span class=\"label\">Groundspeed:</span> <span class=\"value\" data-text=\"entity.vfr.groundspeed?.toFixed(1) + ' m/s'\"></span></div><div class=\"data-item\"><span class=\"label\">Heading:</span> <span class=\"value\" data-text=\"entity.vfr.heading + '°'\"></span></div><div class=\"data-item\"><span class=\"label\">Climb Rate:</span> <span class=\"value\" data-text=\"entity.vfr.climb_rate?.toFixed(1) + ' m/s'\"></span></div><div class=\"data-item\"><span class=\"label\">Throttle:</span> <span class=\"value\" data-text=\"entity.vfr.throttle + '%'\"></span></div></div></div><!-- Power Data --><div data-show=\"entity.power\" class=\"entity-section\"><h4>Power System</h4><div class=\"data-grid\"><div class=\"data-item\"><span class=\"label\">Voltage:</span> <span class=\"value\" data-text=\"entity.power.voltage?.toFixed(2) + 'V'\"></span></div><div class=\"data-item\"><span class=\"label\">Current:</span> <span class=\"value\" data-text=\"entity.power.current?.toFixed(2) + 'A'\"></span></div><div class=\"data-item\"><span class=\"label\">Battery:</span> <span class=\"value\" data-text=\"entity.power.battery_remaining + '%'\"></span></div></div></div><!-- Vehicle Status --><div data-show=\"entity.vehicle_status\" class=\"entity-section\"><h4>Vehicle Status</h4><div class=\"data-grid\"><div class=\"data-item\"><span class=\"label\">Armed:</span> <span class=\"value\" data-text=\"entity.vehicle_status.armed ? 'YES' : 'NO'\"></span></div><div class=\"data-item\"><span class=\"label\">Mode:</span> <span class=\"value\" data-text=\"entity.vehicle_status.mode\"></span></div></div></div><!-- Mission State --><div data-show=\"entity.mission\" class=\"entity-section\"><h4>Mission</h4><div class=\"data-grid\"><div class=\"data-item\"><span class=\"label\">Waypoint:</span> <span class=\"value\" data-text=\"entity.mission.current_waypoint + ' / ' + entity.mission.total_waypoints\"></span></div></div></div><!-- Timestamps --><div class=\"entity-footer\"><span class=\"timestamp\" data-text=\"'Updated: ' + new Date(entity.updated_at).toLocaleTimeString()\"></span></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

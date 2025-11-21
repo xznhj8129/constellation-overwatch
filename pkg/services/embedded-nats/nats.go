@@ -415,3 +415,59 @@ func (en *EmbeddedNATS) HealthCheck() error {
 
 	return nil
 }
+
+// WatchKV watches for changes in the KV store and calls the callback for each change
+func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, entry nats.KeyValueEntry) error) error {
+	if en.kv == nil {
+		return fmt.Errorf("KV store not initialized")
+	}
+
+	// Create a watcher for all keys
+	watcher, err := en.kv.WatchAll(nats.Context(ctx))
+	if err != nil {
+		return fmt.Errorf("failed to create KV watcher: %w", err)
+	}
+
+	// Process updates
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case entry := <-watcher.Updates():
+			if entry == nil {
+				// Channel closed
+				return nil
+			}
+
+			// Call the callback with the entry
+			if err := callback(entry.Key(), entry); err != nil {
+				log.Printf("Error in KV watch callback: %v", err)
+				// Continue watching despite callback errors
+			}
+		}
+	}
+}
+
+// GetAllKVEntries retrieves all entries from the KV store
+func (en *EmbeddedNATS) GetAllKVEntries() ([]nats.KeyValueEntry, error) {
+	if en.kv == nil {
+		return nil, fmt.Errorf("KV store not initialized")
+	}
+
+	keys, err := en.kv.Keys()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get keys: %w", err)
+	}
+
+	var entries []nats.KeyValueEntry
+	for _, key := range keys {
+		entry, err := en.kv.Get(key)
+		if err != nil {
+			log.Printf("Error getting key %s: %v", key, err)
+			continue
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}

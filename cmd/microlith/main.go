@@ -131,8 +131,8 @@ func main() {
 		log.Fatal("Failed to initialize NATS:", err)
 	}
 
-	// Start NATS workers
-	workerManager, err := workers.NewManager(nats)
+	// Start NATS workers with database access
+	workerManager, err := workers.NewManager(nats, dbService.GetDB())
 	if err != nil {
 		log.Fatal("Failed to create worker manager:", err)
 	}

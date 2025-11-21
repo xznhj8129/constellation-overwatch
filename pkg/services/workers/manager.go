@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -11,15 +12,19 @@ import (
 )
 
 type Manager struct {
-	workers []Worker
-	nc      *nats.Conn
-	js      nats.JetStreamContext
-	wg      sync.WaitGroup
-	ctx     context.Context
-	cancel  context.CancelFunc
+	workers  []Worker
+	nc       *nats.Conn
+	js       nats.JetStreamContext
+	db       *sql.DB
+	kv       nats.KeyValue
+	registry *EntityRegistry
+	wg       sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
-func NewManager(natsClient *embeddednats.EmbeddedNATS) (*Manager, error) {
+// NewManager creates a worker manager with database and KV store access
+func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, error) {
 	nc := natsClient.Connection()
 	if nc == nil {
 		return nil, fmt.Errorf("NATS connection not initialized")
@@ -30,17 +35,32 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS) (*Manager, error) {
 		return nil, fmt.Errorf("JetStream not initialized")
 	}
 
+	// Get or create KV store for global state
+	kv := natsClient.KeyValue()
+	if kv == nil {
+		return nil, fmt.Errorf("KV store not initialized")
+	}
+
+	// Create entity registry and load existing entities from DB
+	registry, err := NewEntityRegistry(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create entity registry: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Manager{
-		nc:     nc,
-		js:     js,
-		ctx:    ctx,
-		cancel: cancel,
+		nc:       nc,
+		js:       js,
+		db:       db,
+		kv:       kv,
+		registry: registry,
+		ctx:      ctx,
+		cancel:   cancel,
 		workers: []Worker{
-			NewTelemetryWorker(nc, js),
+			NewTelemetryWorker(nc, js, db, kv, registry),
 			NewEntityWorker(nc, js),
-			NewEventWorker(nc, js),
+			NewEventWorker(nc, js, db, registry),
 			NewCommandWorker(nc, js),
 		},
 	}, nil

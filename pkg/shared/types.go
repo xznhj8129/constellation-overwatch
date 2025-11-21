@@ -82,6 +82,191 @@ type HealthStatus struct {
 	Details   map[string]string `json:"details,omitempty"`
 }
 
+// ═══════════════════════════════════════════════════════════
+// GLOBAL STATE TYPES - Real-time entity state management
+// ═══════════════════════════════════════════════════════════
+
+// EntityState represents the complete real-time state of an entity
+type EntityState struct {
+	// Core Entity Identity (from entities table)
+	EntityID    string    `json:"entity_id"`
+	OrgID       string    `json:"org_id"`
+	OrgName     string    `json:"org_name,omitempty"`
+	EntityType  string    `json:"entity_type"`
+	Status      string    `json:"status"`
+	Priority    string    `json:"priority"`
+	IsLive      bool      `json:"is_live"`
+	ExpiryTime  *time.Time `json:"expiry_time,omitempty"`
+
+	// Position State
+	Position *PositionState `json:"position,omitempty"`
+
+	// Attitude State
+	Attitude *AttitudeState `json:"attitude,omitempty"`
+
+	// Vehicle Status
+	VehicleStatus *VehicleStatusState `json:"vehicle_status,omitempty"`
+
+	// Power System
+	Power *PowerState `json:"power,omitempty"`
+
+	// Flight Performance
+	VFR *VFRState `json:"vfr,omitempty"`
+
+	// Mission State
+	Mission *MissionState `json:"mission,omitempty"`
+
+	// Control Outputs
+	Actuators *ActuatorState `json:"actuators,omitempty"`
+
+	// Environmental
+	Environment *EnvironmentState `json:"environment,omitempty"`
+
+	// Database Fields
+	Components     map[string]interface{} `json:"components"`
+	Aliases        map[string]string      `json:"aliases"`
+	Tags           []string               `json:"tags"`
+	Source         string                 `json:"source"`
+	CreatedBy      string                 `json:"created_by"`
+	Classification string                 `json:"classification,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata"`
+
+	// Timestamps
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// PositionState contains position data from GPS and local navigation
+type PositionState struct {
+	Global *GlobalPosition `json:"global,omitempty"`
+	Local  *LocalPosition  `json:"local,omitempty"`
+}
+
+// GlobalPosition represents GPS-based global position
+type GlobalPosition struct {
+	Latitude         float64   `json:"latitude"`
+	Longitude        float64   `json:"longitude"`
+	AltitudeMSL      float64   `json:"altitude_msl"`
+	AltitudeRelative float64   `json:"altitude_relative"`
+	AltitudeTerrain  float64   `json:"altitude_terrain,omitempty"`
+	AccuracyH        float64   `json:"accuracy_h"`
+	AccuracyV        float64   `json:"accuracy_v"`
+	SatellitesVisible int      `json:"satellites_visible,omitempty"`
+	FixType          int      `json:"fix_type,omitempty"`
+	Timestamp        time.Time `json:"timestamp"`
+}
+
+// LocalPosition represents NED (North-East-Down) local position
+type LocalPosition struct {
+	X         float64   `json:"x"`
+	Y         float64   `json:"y"`
+	Z         float64   `json:"z"`
+	VX        float64   `json:"vx"`
+	VY        float64   `json:"vy"`
+	VZ        float64   `json:"vz"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// AttitudeState contains orientation data in multiple representations
+type AttitudeState struct {
+	Euler      *EulerAttitude      `json:"euler,omitempty"`
+	Quaternion *QuaternionAttitude `json:"quaternion,omitempty"`
+}
+
+// EulerAttitude represents orientation as Euler angles
+type EulerAttitude struct {
+	Roll       float64   `json:"roll"`
+	Pitch      float64   `json:"pitch"`
+	Yaw        float64   `json:"yaw"`
+	RollSpeed  float64   `json:"rollspeed"`
+	PitchSpeed float64   `json:"pitchspeed"`
+	YawSpeed   float64   `json:"yawspeed"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
+// QuaternionAttitude represents orientation as quaternion
+type QuaternionAttitude struct {
+	Q1         float64   `json:"q1"`
+	Q2         float64   `json:"q2"`
+	Q3         float64   `json:"q3"`
+	Q4         float64   `json:"q4"`
+	RollSpeed  float64   `json:"rollspeed,omitempty"`
+	PitchSpeed float64   `json:"pitchspeed,omitempty"`
+	YawSpeed   float64   `json:"yawspeed,omitempty"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
+// VehicleStatusState contains vehicle operational status
+type VehicleStatusState struct {
+	Armed          bool      `json:"armed"`
+	Mode           string    `json:"mode"`
+	CustomMode     uint32    `json:"custom_mode"`
+	Autopilot      uint8     `json:"autopilot"`
+	SystemStatus   uint8     `json:"system_status"`
+	VehicleType    uint8     `json:"vehicle_type"`
+	LandedState    uint8     `json:"landed_state"`
+	VTOLState      uint8     `json:"vtol_state,omitempty"`
+	Load           uint16    `json:"load"`
+	SensorsEnabled uint32    `json:"sensors_enabled"`
+	SensorsHealth  uint32    `json:"sensors_health"`
+	Timestamp      time.Time `json:"timestamp"`
+}
+
+// PowerState contains battery and power system data
+type PowerState struct {
+	Voltage        float64   `json:"voltage"`
+	Current        float64   `json:"current"`
+	BatteryRemain  int8      `json:"battery_remaining"`
+	Consumed       int32     `json:"consumed"`
+	EnergyConsumed int32     `json:"energy_consumed"`
+	Cells          []uint16  `json:"cells,omitempty"`
+	Temperature    int16     `json:"temperature"`
+	Timestamp      time.Time `json:"timestamp"`
+}
+
+// VFRState contains VFR (Visual Flight Rules) HUD data
+type VFRState struct {
+	Airspeed    float64   `json:"airspeed"`
+	Groundspeed float64   `json:"groundspeed"`
+	Heading     int16     `json:"heading"`
+	ClimbRate   float64   `json:"climb_rate"`
+	Throttle    uint16    `json:"throttle"`
+	Altitude    float64   `json:"altitude"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+// MissionState contains current mission information
+type MissionState struct {
+	CurrentWaypoint uint16    `json:"current_waypoint"`
+	TotalWaypoints  uint16    `json:"total_waypoints,omitempty"`
+	Timestamp       time.Time `json:"timestamp"`
+}
+
+// ActuatorState contains servo/motor output data
+type ActuatorState struct {
+	Servos    []uint16  `json:"servos"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// EnvironmentState contains environmental sensor data
+type EnvironmentState struct {
+	PressureAbs  float64   `json:"pressure_abs"`
+	PressureDiff float64   `json:"pressure_diff"`
+	Temperature  int16     `json:"temperature"`
+	Humidity     float64   `json:"humidity,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+// MAVLinkTelemetry represents a parsed MAVLink message
+type MAVLinkTelemetry struct {
+	MessageID   uint32                 `json:"message_id"`
+	MessageType string                 `json:"message_type"`
+	SystemID    uint8                  `json:"system_id"`
+	ComponentID uint8                  `json:"component_id"`
+	Data        map[string]interface{} `json:"data"`
+	Timestamp   time.Time              `json:"timestamp"`
+}
+
 // Constants
 const (
 	// Entity Types

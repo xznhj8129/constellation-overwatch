@@ -60,12 +60,15 @@ const (
 
 // KV Key patterns for global state
 const (
+	KVKeyEntity      = "entity:%s"         // entity_id -> full entity state
 	KVKeyFleet       = "fleet:%s"          // fleet_id
 	KVKeySwarm       = "swarm:%s"          // swarm_id
+	KVKeyEntityList  = "entities:list"     // List of all entity IDs
 	KVKeyFleetList   = "fleets:list"       // List of all fleet IDs
 	KVKeySwarmList   = "swarms:list"       // List of all swarm IDs
 	KVKeyFleetSwarms = "fleet:%s:swarms"   // fleet_id -> list of swarm IDs
 	KVKeySwarmFleet  = "swarm:%s:fleet"    // swarm_id -> fleet_id
+	KVKeyOrgEntities = "org:%s:entities"   // org_id -> list of entity IDs
 )
 
 // Helper functions to generate subjects
@@ -102,6 +105,10 @@ func CommandBroadcastSubject(orgID string) string {
 }
 
 // Helper functions to generate KV keys
+func EntityKey(entityID string) string {
+	return fmt.Sprintf(KVKeyEntity, entityID)
+}
+
 func FleetKey(fleetID string) string {
 	return fmt.Sprintf(KVKeyFleet, fleetID)
 }
@@ -116,4 +123,8 @@ func FleetSwarmsKey(fleetID string) string {
 
 func SwarmFleetKey(swarmID string) string {
 	return fmt.Sprintf(KVKeySwarmFleet, swarmID)
+}
+
+func OrgEntitiesKey(orgID string) string {
+	return fmt.Sprintf(KVKeyOrgEntities, orgID)
 }
