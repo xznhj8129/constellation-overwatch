@@ -471,3 +471,33 @@ func (en *EmbeddedNATS) GetAllKVEntries() ([]nats.KeyValueEntry, error) {
 
 	return entries, nil
 }
+
+// UpdateKVWithRevision performs an optimistic lock update on a KV entry
+// Returns the new revision number or error if the revision has changed
+func (en *EmbeddedNATS) UpdateKVWithRevision(key string, data []byte, expectedRevision uint64) (uint64, error) {
+	if en.kv == nil {
+		return 0, fmt.Errorf("KV store not initialized")
+	}
+
+	// Use the Update method which checks the revision
+	newRevision, err := en.kv.Update(key, data, expectedRevision)
+	if err != nil {
+		return 0, fmt.Errorf("failed to update key %s at revision %d: %w", key, expectedRevision, err)
+	}
+
+	return newRevision, nil
+}
+
+// GetKVEntry retrieves a single KV entry with its revision
+func (en *EmbeddedNATS) GetKVEntry(key string) (nats.KeyValueEntry, error) {
+	if en.kv == nil {
+		return nil, fmt.Errorf("KV store not initialized")
+	}
+
+	entry, err := en.kv.Get(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key %s: %w", key, err)
+	}
+
+	return entry, nil
+}

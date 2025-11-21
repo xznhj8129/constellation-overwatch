@@ -122,6 +122,21 @@ type EntityState struct {
 	// Environmental
 	Environment *EnvironmentState `json:"environment,omitempty"`
 
+	// C4ISR & Analytics
+	Analytics   *AnalyticsState   `json:"analytics,omitempty"`
+	Detections  *DetectionState   `json:"detections,omitempty"`
+	ThreatIntel *ThreatIntelState `json:"threat_intel,omitempty"`
+
+	// Device Identity (MAVLink/Legacy)
+	SystemID      uint8     `json:"system_id,omitempty"`
+	ComponentID   uint8     `json:"component_id,omitempty"`
+	DeviceID      string    `json:"device_id,omitempty"`
+	StreamPort    string    `json:"stream_port,omitempty"`
+	Subject       string    `json:"subject,omitempty"`
+	FirstSeen     time.Time `json:"first_seen,omitempty"`
+	LastSeen      time.Time `json:"last_seen,omitempty"`
+	Fingerprinted bool      `json:"fingerprinted,omitempty"`
+
 	// Database Fields
 	Components     map[string]interface{} `json:"components"`
 	Aliases        map[string]string      `json:"aliases"`
@@ -255,6 +270,65 @@ type EnvironmentState struct {
 	Temperature  int16     `json:"temperature"`
 	Humidity     float64   `json:"humidity,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
+}
+
+// AnalyticsState contains analytics summary data
+type AnalyticsState struct {
+	TotalUniqueObjects   int                    `json:"total_unique_objects"`
+	TotalFramesProcessed int                    `json:"total_frames_processed"`
+	ActiveObjectsCount   int                    `json:"active_objects_count"`
+	TrackedObjectsCount  int                    `json:"tracked_objects_count"`
+	LabelDistribution    map[string]int         `json:"label_distribution"`
+	ThreatDistribution   map[string]int         `json:"threat_distribution"`
+	ActiveThreatCount    int                    `json:"active_threat_count"`
+	ActiveTrackIDs       []string               `json:"active_track_ids"`
+	ThreatAlerts         []interface{}          `json:"threat_alerts"`
+	Timestamp            time.Time              `json:"timestamp"`
+}
+
+// DetectionState contains object detection and tracking data
+type DetectionState struct {
+	TrackedObjects map[string]TrackedObject `json:"tracked_objects"`
+	Timestamp      time.Time                `json:"timestamp"`
+}
+
+// TrackedObject represents a single tracked object
+type TrackedObject struct {
+	TrackID              string      `json:"track_id"`
+	Label                string      `json:"label"`
+	FirstSeen            time.Time   `json:"first_seen"`
+	LastSeen             time.Time   `json:"last_seen"`
+	FrameCount           int         `json:"frame_count"`
+	AvgConfidence        float64     `json:"avg_confidence"`
+	IsActive             bool        `json:"is_active"`
+	ThreatLevel          string      `json:"threat_level"`
+	SuspiciousIndicators []string    `json:"suspicious_indicators"`
+	Area                 *float64    `json:"area,omitempty"`
+	CurrentBBox          *BoundingBox `json:"current_bbox,omitempty"`
+}
+
+// BoundingBox represents object bounding box coordinates
+type BoundingBox struct {
+	XMin float64 `json:"x_min"`
+	YMin float64 `json:"y_min"`
+	XMax float64 `json:"x_max"`
+	YMax float64 `json:"y_max"`
+}
+
+// ThreatIntelState contains threat intelligence data
+type ThreatIntelState struct {
+	Mission        string                 `json:"mission"`
+	Analytics      *AnalyticsState        `json:"analytics,omitempty"`
+	ThreatSummary  *ThreatSummary         `json:"threat_summary,omitempty"`
+	ThreatAlerts   []interface{}          `json:"threat_alerts"`
+	Timestamp      time.Time              `json:"timestamp"`
+}
+
+// ThreatSummary contains aggregated threat information
+type ThreatSummary struct {
+	TotalThreats       int            `json:"total_threats"`
+	ThreatDistribution map[string]int `json:"threat_distribution"`
+	AlertLevel         string         `json:"alert_level"`
 }
 
 // MAVLinkTelemetry represents a parsed MAVLink message

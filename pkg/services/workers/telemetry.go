@@ -312,30 +312,127 @@ func (w *TelemetryWorker) loadEntityState(entityID string) (*shared.EntityState,
 	return &state, nil
 }
 
-// saveEntityState saves entity state to KV store
+// saveEntityState saves entity state to KV store with merge support
+// This uses Read-Modify-Write with optimistic locking to preserve data from other publishers
 func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 	if state.EntityID == "" {
 		return fmt.Errorf("entity_id is empty, cannot create KV key")
 	}
 
 	key := shared.EntityKey(state.EntityID)
-	log.Printf("[%s] Saving entity state with key: '%s' (entity_id: '%s')", w.Name(), key, state.EntityID)
+	maxRetries := 3
 
-	data, err := json.Marshal(state)
-	if err != nil {
-		return fmt.Errorf("failed to marshal entity state: %w", err)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Try to get existing entry with revision
+		existingEntry, err := w.kv.Get(key)
+
+		if err != nil {
+			if err == nats.ErrKeyNotFound {
+				// Key doesn't exist yet, create it
+				data, err := json.Marshal(state)
+				if err != nil {
+					return fmt.Errorf("failed to marshal entity state: %w", err)
+				}
+
+				if _, err := w.kv.Create(key, data); err != nil {
+					if err == nats.ErrKeyExists {
+						// Race condition: key was created between check and create, retry
+						log.Printf("[%s] Race condition creating key %s, retrying...", w.Name(), key)
+						continue
+					}
+					return fmt.Errorf("failed to create entity state (key='%s'): %w", key, err)
+				}
+
+				log.Printf("[%s] Created new entity state for %s", w.Name(), state.EntityID)
+				w.updateCache(state)
+				return nil
+			}
+			return fmt.Errorf("failed to get existing state for merge: %w", err)
+		}
+
+		// Key exists - merge with existing data
+		var existingState shared.EntityState
+		if err := json.Unmarshal(existingEntry.Value(), &existingState); err != nil {
+			log.Printf("[%s] Warning: failed to unmarshal existing state, will overwrite: %v", w.Name(), err)
+			// Fall through to just write new state
+		} else {
+			// Merge: preserve C4ISR data from Python service, update telemetry from this worker
+			state = w.mergeTelemetryWithDetections(&existingState, state)
+		}
+
+		// Marshal merged state
+		data, err := json.Marshal(state)
+		if err != nil {
+			return fmt.Errorf("failed to marshal merged entity state: %w", err)
+		}
+
+		// Try to update with revision check (optimistic locking)
+		if _, err := w.kv.Update(key, data, existingEntry.Revision()); err != nil {
+			if err.Error() == "nats: wrong last sequence" || err.Error() == "wrong last sequence" {
+				// Revision mismatch - someone else updated between our read and write
+				log.Printf("[%s] Revision mismatch on key %s (attempt %d/%d), retrying...",
+					w.Name(), key, attempt+1, maxRetries)
+				continue
+			}
+			return fmt.Errorf("failed to update entity state (key='%s'): %w", key, err)
+		}
+
+		log.Printf("[%s] Updated entity state for %s (merged with existing data)", w.Name(), state.EntityID)
+		w.updateCache(state)
+		return nil
 	}
 
-	if _, err := w.kv.Put(key, data); err != nil {
-		return fmt.Errorf("failed to put entity state (key='%s'): %w", key, err)
+	return fmt.Errorf("failed to save entity state after %d attempts (revision conflicts)", maxRetries)
+}
+
+// mergeTelemetryWithDetections merges telemetry data with existing detection/analytics data
+// Telemetry fields (from this worker): Position, Attitude, Power, VFR, VehicleStatus, Mission, Actuators, Environment
+// Detection fields (from Python): Analytics, Detections, ThreatIntel
+func (w *TelemetryWorker) mergeTelemetryWithDetections(existing, telemetry *shared.EntityState) *shared.EntityState {
+	// Start with existing state to preserve all fields
+	merged := *existing
+
+	// Update telemetry-specific fields from new data
+	if telemetry.Position != nil {
+		merged.Position = telemetry.Position
+	}
+	if telemetry.Attitude != nil {
+		merged.Attitude = telemetry.Attitude
+	}
+	if telemetry.Power != nil {
+		merged.Power = telemetry.Power
+	}
+	if telemetry.VFR != nil {
+		merged.VFR = telemetry.VFR
+	}
+	if telemetry.VehicleStatus != nil {
+		merged.VehicleStatus = telemetry.VehicleStatus
+	}
+	if telemetry.Mission != nil {
+		merged.Mission = telemetry.Mission
+	}
+	if telemetry.Actuators != nil {
+		merged.Actuators = telemetry.Actuators
+	}
+	if telemetry.Environment != nil {
+		merged.Environment = telemetry.Environment
 	}
 
-	// Update cache
+	// Update core entity metadata
+	merged.UpdatedAt = telemetry.UpdatedAt
+	merged.IsLive = telemetry.IsLive
+
+	// Preserve detection/analytics fields from existing state (Python service owns these)
+	// No need to explicitly copy since we started with existing state
+
+	return &merged
+}
+
+// updateCache updates the in-memory cache
+func (w *TelemetryWorker) updateCache(state *shared.EntityState) {
 	w.cacheMutex.Lock()
 	w.entityCache[state.EntityID] = state
 	w.cacheMutex.Unlock()
-
-	return nil
 }
 
 // updateEntityState updates entity state based on MAVLink message type

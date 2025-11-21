@@ -106,7 +106,8 @@ func CommandBroadcastSubject(orgID string) string {
 
 // Helper functions to generate KV keys
 func EntityKey(entityID string) string {
-	return fmt.Sprintf(KVKeyEntity, entityID)
+	// Return just the entity_id as the key (not "entity:{id}" format)
+	return entityID
 }
 
 func FleetKey(fleetID string) string {

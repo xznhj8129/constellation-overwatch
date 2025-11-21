@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/fleet/", s.handleAPIFleetEntity)       // Delete fleet entity
 	s.mux.HandleFunc("/api/overwatch/kv", s.handleAPIOverwatchKV)
 	s.mux.HandleFunc("/api/overwatch/kv/watch", s.handleAPIOverwatchKVWatch)
+	s.mux.HandleFunc("/api/overwatch/kv/debug", s.handleAPIOverwatchKVDebug)
 
 	// SSE endpoint for streams
 	s.mux.HandleFunc("/api/streams/sse", s.handleStreamSSE)
@@ -1343,17 +1344,34 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// parseKVEntriesToEntityStates parses KV entries into EntityState objects organized by org
+// parseKVEntriesToEntityStates parses KV entries and aggregates them by entity_id
 func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[string][]shared.EntityState {
-	entityStatesByOrg := make(map[string][]shared.EntityState)
+	// First, group entries by entity_id
+	entitiesByID := make(map[string]map[string][]byte)
 
 	for _, entry := range entries {
-		// Try to parse as EntityState
-		var entityState shared.EntityState
-		if err := json.Unmarshal(entry.Value(), &entityState); err != nil {
-			log.Printf("[Overwatch] Failed to parse KV entry %s as EntityState: %v", entry.Key(), err)
-			continue
+		key := entry.Key()
+
+		// Extract entity_id from key (before first dot or entire key if no dot)
+		parts := strings.Split(key, ".")
+		entityID := parts[0]
+
+		if entitiesByID[entityID] == nil {
+			entitiesByID[entityID] = make(map[string][]byte)
 		}
+
+		// Store raw data keyed by full key for later processing
+		entitiesByID[entityID][key] = entry.Value()
+	}
+
+	// Now build consolidated EntityState objects
+	entityStatesByOrg := make(map[string][]shared.EntityState)
+
+	log.Printf("[Overwatch] Aggregating %d entities from %d KV entries", len(entitiesByID), len(entries))
+
+	for entityID, dataMap := range entitiesByID {
+		log.Printf("[Overwatch] Processing entity %s with %d KV entries", entityID, len(dataMap))
+		entityState := s.mergeEntityData(entityID, dataMap)
 
 		// Group by org_id
 		orgID := entityState.OrgID
@@ -1364,7 +1382,273 @@ func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[
 		entityStatesByOrg[orgID] = append(entityStatesByOrg[orgID], entityState)
 	}
 
+	log.Printf("[Overwatch] Built %d entities across %d orgs", len(entitiesByID), len(entityStatesByOrg))
 	return entityStatesByOrg
+}
+
+// mergeEntityData merges separate KV entries into a single EntityState
+func (s *Server) mergeEntityData(entityID string, dataMap map[string][]byte) shared.EntityState {
+	state := shared.EntityState{
+		EntityID:   entityID,
+		EntityType: "sensor", // Default type for detection entities
+		Status:     "active",
+		Priority:   "normal",
+		IsLive:     true,
+		Components: make(map[string]interface{}),
+		Aliases:    make(map[string]string),
+		Tags:       []string{},
+		Metadata:   make(map[string]interface{}),
+		UpdatedAt:  time.Now(),
+	}
+
+	// Process each key and merge data
+	for key, data := range dataMap {
+		// Skip empty data
+		if len(data) == 0 {
+			log.Printf("[Overwatch] Skipping empty data for key %s", key)
+			continue
+		}
+
+		// Log raw data preview for debugging
+		preview := string(data)
+		if len(preview) > 300 {
+			preview = preview[:300] + "..."
+		}
+		log.Printf("[Overwatch] Key '%s' data preview: %s", key, preview)
+
+		var rawData map[string]interface{}
+		if err := json.Unmarshal(data, &rawData); err != nil {
+			log.Printf("[Overwatch] Failed to unmarshal key %s: %v", key, err)
+			continue
+		}
+
+		// Extract org_id (check both org_id and organization_id)
+		if orgID, ok := rawData["org_id"].(string); ok && orgID != "" {
+			state.OrgID = orgID
+			log.Printf("[Overwatch] Found org_id='%s' in key '%s'", orgID, key)
+		}
+		if orgID, ok := rawData["organization_id"].(string); ok && orgID != "" {
+			state.OrgID = orgID
+			log.Printf("[Overwatch] Found organization_id='%s' in key '%s'", orgID, key)
+		}
+		// Log if neither was found
+		if state.OrgID == "" {
+			log.Printf("[Overwatch] WARNING: No org_id or organization_id found in key '%s'", key)
+		}
+
+		// Extract device_id if present
+		if deviceID, ok := rawData["device_id"].(string); ok && deviceID != "" {
+			state.DeviceID = deviceID
+		}
+
+		// Debug: Check what top-level fields exist
+		hasAnalytics := rawData["analytics"] != nil
+		hasDetections := rawData["detections"] != nil
+		hasThreatIntel := rawData["threat_intelligence"] != nil || rawData["threat_intel"] != nil
+		log.Printf("[Overwatch] Key '%s' has: analytics=%v, detections=%v, threat_intel=%v",
+			key, hasAnalytics, hasDetections, hasThreatIntel)
+
+		// Determine data type from key suffix and merge accordingly
+		if strings.Contains(key, ".detections.objects") {
+			s.mergeDetections(&state, rawData)
+		} else if strings.Contains(key, ".analytics.summary") || strings.Contains(key, ".analytics.c4isr_summary") {
+			s.mergeAnalytics(&state, rawData)
+		} else if strings.Contains(key, ".c4isr.threat_intelligence") {
+			s.mergeThreatIntel(&state, rawData)
+		} else if !strings.Contains(key, ".") {
+			// Single-key entity state (like device.1.1 or full EntityState)
+			s.mergeFullState(&state, rawData)
+		}
+	}
+
+	return state
+}
+
+// mergeDetections merges detection data into EntityState
+func (s *Server) mergeDetections(state *shared.EntityState, data map[string]interface{}) {
+	if trackedObjects, ok := data["tracked_objects"].(map[string]interface{}); ok {
+		detectionState := &shared.DetectionState{
+			TrackedObjects: make(map[string]shared.TrackedObject),
+			Timestamp:      time.Now(),
+		}
+
+		for trackID, objData := range trackedObjects {
+			if objMap, ok := objData.(map[string]interface{}); ok {
+				trackedObj := shared.TrackedObject{
+					TrackID:   trackID,
+					IsActive:  false,
+				}
+
+				if label, ok := objMap["label"].(string); ok {
+					trackedObj.Label = label
+				}
+				if conf, ok := objMap["avg_confidence"].(float64); ok {
+					trackedObj.AvgConfidence = conf
+				}
+				if active, ok := objMap["is_active"].(bool); ok {
+					trackedObj.IsActive = active
+				}
+				if threat, ok := objMap["threat_level"].(string); ok {
+					trackedObj.ThreatLevel = threat
+				}
+				if frames, ok := objMap["frame_count"].(float64); ok {
+					trackedObj.FrameCount = int(frames)
+				}
+
+				detectionState.TrackedObjects[trackID] = trackedObj
+			}
+		}
+
+		state.Detections = detectionState
+	}
+}
+
+// mergeAnalytics merges analytics data into EntityState
+func (s *Server) mergeAnalytics(state *shared.EntityState, data map[string]interface{}) {
+	analyticsState := &shared.AnalyticsState{
+		Timestamp: time.Now(),
+	}
+
+	if val, ok := data["total_unique_objects"].(float64); ok {
+		analyticsState.TotalUniqueObjects = int(val)
+	}
+	if val, ok := data["total_frames_processed"].(float64); ok {
+		analyticsState.TotalFramesProcessed = int(val)
+	}
+	if val, ok := data["active_objects_count"].(float64); ok {
+		analyticsState.ActiveObjectsCount = int(val)
+	}
+	if val, ok := data["tracked_objects_count"].(float64); ok {
+		analyticsState.TrackedObjectsCount = int(val)
+	}
+	if val, ok := data["active_threat_count"].(float64); ok {
+		analyticsState.ActiveThreatCount = int(val)
+	}
+	if labels, ok := data["label_distribution"].(map[string]interface{}); ok {
+		analyticsState.LabelDistribution = make(map[string]int)
+		for k, v := range labels {
+			if num, ok := v.(float64); ok {
+				analyticsState.LabelDistribution[k] = int(num)
+			}
+		}
+	}
+	if threats, ok := data["threat_distribution"].(map[string]interface{}); ok {
+		analyticsState.ThreatDistribution = make(map[string]int)
+		for k, v := range threats {
+			if num, ok := v.(float64); ok {
+				analyticsState.ThreatDistribution[k] = int(num)
+			}
+		}
+	}
+	if ids, ok := data["active_track_ids"].([]interface{}); ok {
+		for _, id := range ids {
+			if str, ok := id.(string); ok {
+				analyticsState.ActiveTrackIDs = append(analyticsState.ActiveTrackIDs, str)
+			}
+		}
+	}
+
+	state.Analytics = analyticsState
+}
+
+// mergeThreatIntel merges threat intelligence data into EntityState
+func (s *Server) mergeThreatIntel(state *shared.EntityState, data map[string]interface{}) {
+	threatIntel := &shared.ThreatIntelState{
+		Timestamp: time.Now(),
+	}
+
+	if mission, ok := data["mission"].(string); ok {
+		threatIntel.Mission = mission
+	}
+
+	if summary, ok := data["threat_summary"].(map[string]interface{}); ok {
+		threatSummary := &shared.ThreatSummary{}
+
+		if total, ok := summary["total_threats"].(float64); ok {
+			threatSummary.TotalThreats = int(total)
+		}
+		if alert, ok := summary["alert_level"].(string); ok {
+			threatSummary.AlertLevel = alert
+		}
+		if dist, ok := summary["threat_distribution"].(map[string]interface{}); ok {
+			threatSummary.ThreatDistribution = make(map[string]int)
+			for k, v := range dist {
+				if num, ok := v.(float64); ok {
+					threatSummary.ThreatDistribution[k] = int(num)
+				}
+			}
+		}
+
+		threatIntel.ThreatSummary = threatSummary
+	}
+
+	state.ThreatIntel = threatIntel
+}
+
+// mergeFullState merges full entity state data (Python + TelemetryWorker consolidated format)
+func (s *Server) mergeFullState(state *shared.EntityState, data map[string]interface{}) {
+	// Extract core fields (check both org_id and organization_id)
+	if orgID, ok := data["org_id"].(string); ok && orgID != "" {
+		state.OrgID = orgID
+		log.Printf("[Overwatch] mergeFullState: Found org_id='%s'", orgID)
+	}
+	if orgID, ok := data["organization_id"].(string); ok && orgID != "" {
+		state.OrgID = orgID
+		log.Printf("[Overwatch] mergeFullState: Found organization_id='%s'", orgID)
+	}
+	if state.OrgID == "" {
+		log.Printf("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
+	}
+
+	// Python detection service format: detections.objects
+	if detectionsData, ok := data["detections"].(map[string]interface{}); ok {
+		if objectsData, ok := detectionsData["objects"].(map[string]interface{}); ok {
+			// Convert Python format to Go format (objects -> tracked_objects)
+			s.mergeDetections(state, map[string]interface{}{"tracked_objects": objectsData})
+			log.Printf("[Overwatch] Merged detections.objects with %d tracked objects", len(objectsData))
+		}
+	}
+
+	// Python analytics format: analytics.summary + analytics.c4isr_summary
+	if analyticsData, ok := data["analytics"].(map[string]interface{}); ok {
+		if summaryData, ok := analyticsData["summary"].(map[string]interface{}); ok {
+			s.mergeAnalytics(state, summaryData)
+			log.Printf("[Overwatch] Merged analytics.summary")
+		}
+	}
+
+	// Python C4ISR format: c4isr.threat_intelligence
+	if c4isrData, ok := data["c4isr"].(map[string]interface{}); ok {
+		if threatData, ok := c4isrData["threat_intelligence"].(map[string]interface{}); ok {
+			s.mergeThreatIntel(state, threatData)
+			log.Printf("[Overwatch] Merged c4isr.threat_intelligence")
+		}
+	}
+
+	// Try to unmarshal entire object for telemetry fields (from TelemetryWorker)
+	jsonData, _ := json.Marshal(data)
+	var fullState shared.EntityState
+	if err := json.Unmarshal(jsonData, &fullState); err == nil {
+		// Merge telemetry fields
+		if fullState.Position != nil {
+			state.Position = fullState.Position
+		}
+		if fullState.Attitude != nil {
+			state.Attitude = fullState.Attitude
+		}
+		if fullState.Power != nil {
+			state.Power = fullState.Power
+		}
+		if fullState.VFR != nil {
+			state.VFR = fullState.VFR
+		}
+		if fullState.VehicleStatus != nil {
+			state.VehicleStatus = fullState.VehicleStatus
+		}
+		if fullState.Mission != nil {
+			state.Mission = fullState.Mission
+		}
+	}
 }
 
 // sendEntityStatesUpdate sends an SSE update with entity states
@@ -1372,13 +1656,81 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 	// Create a map of signals to update
 	signals := make(map[string]interface{})
 
-	// Add entity states by org
+	// Add entity states by org (original format)
 	signals["entityStatesByOrg"] = entityStatesByOrg
+
+	// ALSO add a flattened array for easier iteration in Datastar
+	flatEntities := []shared.EntityState{}
+	for orgID, entities := range entityStatesByOrg {
+		for _, entity := range entities {
+			// Ensure orgID is set
+			if entity.OrgID == "" {
+				entity.OrgID = orgID
+			}
+			flatEntities = append(flatEntities, entity)
+		}
+	}
+	signals["entities"] = flatEntities
+
 	signals["lastUpdate"] = time.Now().Format("15:04:05")
 	signals["_isConnected"] = true // Indicate SSE connection is active
 
+	// Debug: Log what we're sending
+	totalEntities := 0
+	for orgID, entities := range entityStatesByOrg {
+		totalEntities += len(entities)
+		log.Printf("[Overwatch] Sending SSE update for org '%s' with %d entities", orgID, len(entities))
+		for _, entity := range entities {
+			log.Printf("[Overwatch]   - Entity: %s (type: %s, has_analytics: %v, has_detections: %v, has_threat_intel: %v)",
+				entity.EntityID, entity.EntityType,
+				entity.Analytics != nil, entity.Detections != nil, entity.ThreatIntel != nil)
+		}
+	}
+	log.Printf("[Overwatch] Total entities in SSE update: %d across %d orgs", totalEntities, len(entityStatesByOrg))
+
 	// Send the signal update
 	return sse.PatchSignals(signals)
+}
+
+// API handler for debugging KV data structure
+func (s *Server) handleAPIOverwatchKVDebug(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get all KV entries
+	entries, err := s.natsEmbedded.GetAllKVEntries()
+	if err != nil {
+		log.Printf("[Overwatch Debug] Error fetching KV entries: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Parse into entity states
+	entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
+
+	// Create the same structure we send via SSE
+	response := map[string]interface{}{
+		"entityStatesByOrg": entityStatesByOrg,
+		"lastUpdate":        time.Now().Format("15:04:05"),
+		"_isConnected":      true,
+		"totalOrgs":         len(entityStatesByOrg),
+		"totalEntities":     0,
+	}
+
+	for _, entities := range entityStatesByOrg {
+		response["totalEntities"] = response["totalEntities"].(int) + len(entities)
+	}
+
+	// Return as JSON
+	w.Header().Set("Content-Type", "application/json")
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(response); err != nil {
+		log.Printf("[Overwatch Debug] Error encoding JSON: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // REST API v1 handlers (with authentication)
