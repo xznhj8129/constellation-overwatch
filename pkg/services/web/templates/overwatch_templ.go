@@ -8,7 +8,6 @@ package templates
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-
 func OverwatchPage() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -54,7 +53,7 @@ func OverwatchPage() templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\" data-signals=\"{entityStatesByOrg: {}, lastUpdate: '', _isConnected: false}\" data-on:load=\"@get('/api/overwatch/kv/watch')\" data-indicator:_isConnected>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -103,7 +102,7 @@ func OverwatchPanel() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- This will be populated by Datastar based on entityStatesByOrg signal --><div data-show=\"Object.keys($entityStatesByOrg).length === 0\" class=\"empty-state\"><p>No entity states in global store. Waiting for telemetry data...</p></div><div data-show=\"Object.keys($entityStatesByOrg).length > 0\"><!-- Render organizations dynamically --><template data-for=\"(entities, orgId) in $entityStatesByOrg\"><div class=\"org-section\" data-bind:id=\"'org-' + orgId\"><h3 class=\"org-header\" data-text=\"orgId + ' (' + entities.length + ' entities)'\"></h3><div class=\"entities-grid\"><!-- Render entities for this org --><template data-for=\"entity in entities\"><div class=\"entity-card\" data-bind:id=\"'entity-card-' + entity.entity_id\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\" data-signals=\"{entityStatesByOrg: {}, lastUpdate: '', _isConnected: false}\" data-init=\"@get('/api/overwatch/kv/watch')\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- This will be populated by Datastar based on entityStatesByOrg signal --><div data-show=\"Object.keys($entityStatesByOrg).length === 0\" class=\"empty-state\"><p>No entity states in global store. Waiting for telemetry data...</p></div><div data-show=\"Object.keys($entityStatesByOrg).length > 0\"><!-- Render organizations dynamically --><template data-for=\"(entities, orgId) in $entityStatesByOrg\"><div class=\"org-section\" data-bind:id=\"'org-' + orgId\"><h3 class=\"org-header\" data-text=\"orgId + ' (' + entities.length + ' entities)'\"></h3><div class=\"entities-grid\"><!-- Render entities for this org --><template data-for=\"entity in entities\"><div class=\"entity-card\" data-bind:id=\"'entity-card-' + entity.entity_id\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

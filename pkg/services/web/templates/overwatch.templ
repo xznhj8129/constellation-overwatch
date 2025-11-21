@@ -1,14 +1,9 @@
 package templates
 
-import "constellation-overwatch/pkg/shared"
-
 templ OverwatchPage() {
 	@Layout("Overwatch") {
 		@Navigation("overwatch") {
-			<div class="tab-content"
-				data-signals="{entityStatesByOrg: {}, lastUpdate: '', _isConnected: false}"
-				data-on:load="@get('/api/overwatch/kv/watch')"
-				data-indicator:_isConnected>
+			<div class="tab-content">
 				@OverwatchPanel()
 			</div>
 		}
@@ -16,7 +11,10 @@ templ OverwatchPage() {
 }
 
 templ OverwatchPanel() {
-	<div id="overwatch-panel" class="panel">
+	<div id="overwatch-panel"
+		class="panel"
+		data-signals="{entityStatesByOrg: {}, lastUpdate: '', _isConnected: false}"
+		data-init="@get('/api/overwatch/kv/watch')">
 		<div class="panel-header">
 			<h2>Global State Monitor</h2>
 			<div class="status-bar">

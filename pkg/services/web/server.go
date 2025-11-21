@@ -1308,21 +1308,39 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Start watching for changes
+	// Start watching for changes in a goroutine
 	ctx := r.Context()
-	watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
-		// Parse the updated entry
-		updatedStates := s.parseKVEntriesToEntityStates([]nats.KeyValueEntry{entry})
+	go func() {
+		watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
+			// Parse the updated entry
+			updatedStates := s.parseKVEntriesToEntityStates([]nats.KeyValueEntry{entry})
 
-		// Send the update
-		return s.sendEntityStatesUpdate(sse, updatedStates)
-	})
+			// Send the update
+			return s.sendEntityStatesUpdate(sse, updatedStates)
+		})
 
-	if watchErr != nil && watchErr != context.Canceled {
-		log.Printf("[Overwatch] Error watching KV: %v", watchErr)
+		if watchErr != nil && watchErr != context.Canceled {
+			log.Printf("[Overwatch] Error watching KV: %v", watchErr)
+		}
+	}()
+
+	// Keep the connection alive with heartbeats (CRITICAL!)
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("[Overwatch] Client disconnected from %s", r.RemoteAddr)
+			return
+		case <-ticker.C:
+			// Send heartbeat to keep connection alive
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
 	}
-
-	log.Printf("[Overwatch] Client disconnected from %s", r.RemoteAddr)
 }
 
 // parseKVEntriesToEntityStates parses KV entries into EntityState objects organized by org
@@ -1357,6 +1375,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 	// Add entity states by org
 	signals["entityStatesByOrg"] = entityStatesByOrg
 	signals["lastUpdate"] = time.Now().Format("15:04:05")
+	signals["_isConnected"] = true // Indicate SSE connection is active
 
 	// Send the signal update
 	return sse.PatchSignals(signals)
