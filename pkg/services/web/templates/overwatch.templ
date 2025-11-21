@@ -43,193 +43,60 @@ templ OverwatchPanel() {
 				<p>No entity states in global store. Waiting for telemetry data...</p>
 			</div>
 			<div data-show="$entities.length > 0" style="padding: 20px;">
-				<div style="background: #2a2; padding: 10px; margin-bottom: 10px; color: #000; font-weight: bold;">
-					ENTITIES FOUND! Rendering below...
-				</div>
-				<!-- TEST: Simple iteration over flat entities array -->
-				<div style="color: #fff; font-size: 16px; margin: 10px 0;" data-text="'Total entities: ' + $entities.length"></div>
 				<!-- Render entities using flat array -->
 				<div class="entities-grid">
-					<!-- Use div instead of template for Datastar compatibility -->
-					<div data-for="entity in $entities">
+					<div data-for="entity, index in $entities">
 						<div class="entity-card" style="border: 2px solid #f0f; margin: 5px; padding: 10px;" data-bind:id="'entity-card-' + entity.entity_id">
-									<div class="entity-card-inner">
-										<div class="entity-header">
-											<span class="entity-id" data-text="entity.entity_id"></span>
-											<span class="entity-type" data-text="entity.entity_type"></span>
+								<!-- DEBUG: Dump entity JSON -->
+								<div style="background: #222; color: #0f0; padding: 10px; margin-bottom: 10px; font-family: monospace; font-size: 10px; white-space: pre-wrap; border: 1px solid #444;" data-text="JSON.stringify(entity, null, 2)"></div>
+								<div class="entity-card-inner">
+									<!-- Header -->
+									<div class="entity-header">
+										<div style="color: #0ff; font-size: 18px; font-weight: bold;" data-text="entity.entity_id"></div>
+										<div style="color: #888; font-size: 12px;">Device: <span data-text="entity.device_id"></span></div>
+										<div style="color: #888; font-size: 12px;">Status: <span data-text="entity.status"></span></div>
+									</div>
+
+									<!-- Analytics -->
+									<div data-show="entity.analytics" class="entity-section" style="margin-top: 15px;">
+										<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px;">Analytics</h4>
+										<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px;">
+											<div><span style="color: #888;">Tracked:</span> <span style="color: #fff;" data-text="entity.analytics.tracked_objects_count"></span></div>
+											<div><span style="color: #888;">Active:</span> <span style="color: #fff;" data-text="entity.analytics.active_objects_count"></span></div>
+											<div><span style="color: #888;">Frames:</span> <span style="color: #fff;" data-text="entity.analytics.total_frames_processed"></span></div>
+											<div><span style="color: #888;">Threats:</span> <span style="color: #fff;" data-text="entity.analytics.active_threat_count"></span></div>
 										</div>
-										<div class="entity-status-row">
-											<span class="badge" data-class="'badge-' + entity.status" data-text="entity.status"></span>
-											<span class="badge" data-class="'badge-priority-' + entity.priority" data-text="entity.priority"></span>
-											<span class="badge" data-show="entity.is_live" data-class="entity.is_live ? 'badge-live' : 'badge-offline'">
-												<span data-text="entity.is_live ? 'LIVE' : 'OFFLINE'"></span>
-											</span>
-										</div>
-										<!-- Position Data -->
-										<div data-show="entity.position && entity.position.global" class="entity-section">
-											<h4>Position</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Lat:</span>
-													<span class="value" data-text="entity.position.global.latitude?.toFixed(6)"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Lon:</span>
-													<span class="value" data-text="entity.position.global.longitude?.toFixed(6)"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Alt MSL:</span>
-													<span class="value" data-text="entity.position.global.altitude_msl?.toFixed(1) + 'm'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Alt Rel:</span>
-													<span class="value" data-text="entity.position.global.altitude_relative?.toFixed(1) + 'm'"></span>
+									</div>
+
+									<!-- Tracked Objects -->
+									<div data-show="entity.detections && entity.detections.tracked_objects" class="entity-section" style="margin-top: 15px;">
+										<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px;">Tracked Objects</h4>
+										<div class="tracked-objects" style="margin-top: 10px;">
+											<div data-for="obj, trackId in entity.detections.tracked_objects">
+												<div data-show="obj.is_active" style="background: #1a1a1a; padding: 8px; margin: 5px 0; border-left: 3px solid #0f0;">
+													<span style="color: #fff; font-weight: bold;" data-text="obj.label"></span>
+													<span style="color: #0f0; margin-left: 10px;" data-text="(obj.avg_confidence * 100).toFixed(1) + '%'"></span>
+													<span style="color: #ff0; margin-left: 10px;" data-text="obj.threat_level"></span>
 												</div>
 											</div>
 										</div>
-										<!-- Attitude Data -->
-										<div data-show="entity.attitude && entity.attitude.euler" class="entity-section">
-											<h4>Attitude</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Roll:</span>
-													<span class="value" data-text="entity.attitude.euler.roll?.toFixed(2) + '°'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Pitch:</span>
-													<span class="value" data-text="entity.attitude.euler.pitch?.toFixed(2) + '°'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Yaw:</span>
-													<span class="value" data-text="entity.attitude.euler.yaw?.toFixed(2) + '°'"></span>
-												</div>
+									</div>
+
+									<!-- Threat Intelligence -->
+									<div data-show="entity.threat_intel && entity.threat_intel.threat_summary" class="entity-section" style="margin-top: 15px;">
+										<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px;">Threat Intelligence</h4>
+										<div style="margin-top: 10px;">
+											<div style="background: #1a1a1a; padding: 10px;">
+												<div><span style="color: #888;">Alert Level:</span> <span style="color: #ff0; font-weight: bold;" data-text="entity.threat_intel.threat_summary.alert_level"></span></div>
+												<div style="margin-top: 5px;"><span style="color: #888;">Total Threats:</span> <span style="color: #fff;" data-text="entity.threat_intel.threat_summary.total_threats"></span></div>
 											</div>
 										</div>
-										<!-- VFR Data -->
-										<div data-show="entity.vfr" class="entity-section">
-											<h4>Flight Performance</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Airspeed:</span>
-													<span class="value" data-text="entity.vfr.airspeed?.toFixed(1) + ' m/s'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Groundspeed:</span>
-													<span class="value" data-text="entity.vfr.groundspeed?.toFixed(1) + ' m/s'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Heading:</span>
-													<span class="value" data-text="entity.vfr.heading + '°'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Climb Rate:</span>
-													<span class="value" data-text="entity.vfr.climb_rate?.toFixed(1) + ' m/s'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Throttle:</span>
-													<span class="value" data-text="entity.vfr.throttle + '%'"></span>
-												</div>
-											</div>
-										</div>
-										<!-- Power Data -->
-										<div data-show="entity.power" class="entity-section">
-											<h4>Power System</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Voltage:</span>
-													<span class="value" data-text="entity.power.voltage?.toFixed(2) + 'V'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Current:</span>
-													<span class="value" data-text="entity.power.current?.toFixed(2) + 'A'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Battery:</span>
-													<span class="value" data-text="entity.power.battery_remaining + '%'"></span>
-												</div>
-											</div>
-										</div>
-										<!-- Vehicle Status -->
-										<div data-show="entity.vehicle_status" class="entity-section">
-											<h4>Vehicle Status</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Armed:</span>
-													<span class="value" data-text="entity.vehicle_status.armed ? 'YES' : 'NO'"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Mode:</span>
-													<span class="value" data-text="entity.vehicle_status.mode"></span>
-												</div>
-											</div>
-										</div>
-										<!-- Mission State -->
-										<div data-show="entity.mission" class="entity-section">
-											<h4>Mission</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Waypoint:</span>
-													<span class="value" data-text="entity.mission.current_waypoint + ' / ' + entity.mission.total_waypoints"></span>
-												</div>
-											</div>
-										</div>
-										<!-- Analytics -->
-										<div data-show="entity.analytics" class="entity-section">
-											<h4>Analytics</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Tracked Objects:</span>
-													<span class="value" data-text="entity.analytics.tracked_objects_count"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Active Objects:</span>
-													<span class="value" data-text="entity.analytics.active_objects_count"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Frames Processed:</span>
-													<span class="value" data-text="entity.analytics.total_frames_processed"></span>
-												</div>
-												<div class="data-item">
-													<span class="label">Active Threats:</span>
-													<span class="value" data-text="entity.analytics.active_threat_count"></span>
-												</div>
-											</div>
-										</div>
-										<!-- Threat Intelligence -->
-										<div data-show="entity.threat_intel" class="entity-section">
-											<h4>Threat Intelligence</h4>
-											<div class="data-grid">
-												<div class="data-item">
-													<span class="label">Mission:</span>
-													<span class="value" data-text="entity.threat_intel.mission"></span>
-												</div>
-												<div class="data-item" data-show="entity.threat_intel.threat_summary">
-													<span class="label">Alert Level:</span>
-													<span class="value badge" data-class="'badge-threat-' + entity.threat_intel.threat_summary.alert_level.toLowerCase()" data-text="entity.threat_intel.threat_summary.alert_level"></span>
-												</div>
-												<div class="data-item" data-show="entity.threat_intel.threat_summary">
-													<span class="label">Total Threats:</span>
-													<span class="value" data-text="entity.threat_intel.threat_summary.total_threats"></span>
-												</div>
-											</div>
-										</div>
-										<!-- Detections -->
-										<div data-show="entity.detections && entity.detections.tracked_objects" class="entity-section">
-											<h4>Tracked Objects</h4>
-											<div class="tracked-objects">
-												<div data-for="obj, trackId in entity.detections.tracked_objects">
-													<div class="tracked-object" data-show="obj.is_active">
-														<span class="track-label" data-text="obj.label"></span>
-														<span class="track-confidence" data-text="(obj.avg_confidence * 100).toFixed(1) + '%'"></span>
-														<span class="track-threat badge" data-class="'badge-threat-' + obj.threat_level.toLowerCase()" data-text="obj.threat_level"></span>
-													</div>
-												</div>
-											</div>
-										</div>
-										<!-- Timestamps -->
-										<div class="entity-footer">
-											<span class="timestamp" data-text="'Updated: ' + new Date(entity.updated_at).toLocaleTimeString()"></span>
-										</div>
+									</div>
+
+									<!-- Footer -->
+									<div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #444; color: #666; font-size: 11px;">
+										<span data-text="'Updated: ' + new Date(entity.updated_at).toLocaleTimeString()"></span>
+									</div>
 									</div>
 						</div>
 					</div>

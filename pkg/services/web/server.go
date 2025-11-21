@@ -1313,11 +1313,21 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	go func() {
 		watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
-			// Parse the updated entry
-			updatedStates := s.parseKVEntriesToEntityStates([]nats.KeyValueEntry{entry})
+			log.Printf("[Overwatch KV Watch] Change detected for key: %s, operation: %s", key, entry.Operation())
 
-			// Send the update
-			return s.sendEntityStatesUpdate(sse, updatedStates)
+			// On ANY change, refetch the complete global state from NATS KV
+			entries, err := s.natsEmbedded.GetAllKVEntries()
+			if err != nil {
+				log.Printf("[Overwatch KV Watch] Error refetching global state: %v", err)
+				return err
+			}
+
+			// Parse complete global state
+			entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
+
+			// Send complete global state to client
+			log.Printf("[Overwatch KV Watch] Sending complete global state update")
+			return s.sendEntityStatesUpdate(sse, entityStatesByOrg)
 		})
 
 		if watchErr != nil && watchErr != context.Canceled {
@@ -1600,16 +1610,26 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 		log.Printf("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
 	}
 
-	// Python detection service format: detections.objects
+	// Python detection service format (NEW): detections.tracked_objects
 	if detectionsData, ok := data["detections"].(map[string]interface{}); ok {
-		if objectsData, ok := detectionsData["objects"].(map[string]interface{}); ok {
-			// Convert Python format to Go format (objects -> tracked_objects)
+		// Check for tracked_objects (new format)
+		if trackedObjects, ok := detectionsData["tracked_objects"].(map[string]interface{}); ok {
+			s.mergeDetections(state, map[string]interface{}{"tracked_objects": trackedObjects})
+			log.Printf("[Overwatch] Merged detections.tracked_objects with %d tracked objects", len(trackedObjects))
+		} else if objectsData, ok := detectionsData["objects"].(map[string]interface{}); ok {
+			// Fallback to old format: detections.objects
 			s.mergeDetections(state, map[string]interface{}{"tracked_objects": objectsData})
 			log.Printf("[Overwatch] Merged detections.objects with %d tracked objects", len(objectsData))
 		}
+
+		// Check for analytics nested inside detections (new format)
+		if analyticsData, ok := detectionsData["analytics"].(map[string]interface{}); ok {
+			s.mergeAnalytics(state, analyticsData)
+			log.Printf("[Overwatch] Merged detections.analytics")
+		}
 	}
 
-	// Python analytics format: analytics.summary + analytics.c4isr_summary
+	// Python analytics format (OLD): top-level analytics.summary
 	if analyticsData, ok := data["analytics"].(map[string]interface{}); ok {
 		if summaryData, ok := analyticsData["summary"].(map[string]interface{}); ok {
 			s.mergeAnalytics(state, summaryData)
@@ -1617,7 +1637,13 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 		}
 	}
 
-	// Python C4ISR format: c4isr.threat_intelligence
+	// Python threat intelligence format (NEW): top-level threat_intelligence
+	if threatData, ok := data["threat_intelligence"].(map[string]interface{}); ok {
+		s.mergeThreatIntel(state, threatData)
+		log.Printf("[Overwatch] Merged threat_intelligence")
+	}
+
+	// Python C4ISR format (OLD): c4isr.threat_intelligence
 	if c4isrData, ok := data["c4isr"].(map[string]interface{}); ok {
 		if threatData, ok := c4isrData["threat_intelligence"].(map[string]interface{}); ok {
 			s.mergeThreatIntel(state, threatData)
@@ -1687,6 +1713,13 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 		}
 	}
 	log.Printf("[Overwatch] Total entities in SSE update: %d across %d orgs", totalEntities, len(entityStatesByOrg))
+
+	// Debug: Dump first entity as JSON to see what we're actually sending
+	if len(flatEntities) > 0 {
+		if jsonData, err := json.MarshalIndent(flatEntities[0], "", "  "); err == nil {
+			log.Printf("[Overwatch] First entity JSON being sent via SSE:\n%s", string(jsonData))
+		}
+	}
 
 	// Send the signal update
 	return sse.PatchSignals(signals)
