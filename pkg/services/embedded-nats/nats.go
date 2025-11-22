@@ -128,6 +128,11 @@ func (en *EmbeddedNATS) Stop(ctx context.Context) error {
 }
 
 func (en *EmbeddedNATS) StartEmbedded() error {
+	// Ensure the data directory exists before starting NATS
+	if err := os.MkdirAll(en.config.DataDir, 0755); err != nil {
+		return fmt.Errorf("failed to create NATS data directory %s: %w", en.config.DataDir, err)
+	}
+
 	opts := &server.Options{
 		Host:      en.config.Host,
 		Port:      en.config.Port,
