@@ -2,9 +2,13 @@ package workers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"sync"
+	"time"
 
 	"constellation-overwatch/pkg/services/logger"
+	"constellation-overwatch/pkg/shared"
+	"github.com/nats-io/nats.go"
 )
 
 // EntityRegistry maintains an in-memory set of registered entity IDs
@@ -96,4 +100,91 @@ func (r *EntityRegistry) GetAll() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// InitializeKVStoreFromDB ensures all entities in the database have a corresponding KV entry
+// This is called on boot to populate the KV store with initial entity states
+func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
+	logger.Infow("🔧 Initializing KV store from database entities", "component", "EntityRegistry")
+
+	// First, count how many entities exist in the registry
+	entityCount := r.Count()
+	logger.Infow("📊 Entity registry status", "component", "EntityRegistry", "registered_entities", entityCount)
+
+	// Query all entities from the database - keep it simple, just essential info
+	// Publishers (telemetry, detection workers) will fill in the rest
+	query := `
+		SELECT e.entity_id, e.org_id, o.name as org_name, e.entity_type
+		FROM entities e
+		LEFT JOIN organizations o ON e.org_id = o.org_id`
+
+	logger.Infow("🔍 Querying database for entities", "component", "EntityRegistry")
+	rows, err := r.db.Query(query)
+	if err != nil {
+		logger.Errorw("❌ Failed to query entities from database", "component", "EntityRegistry", "error", err)
+		return err
+	}
+	defer rows.Close()
+
+	initialized := 0
+	skipped := 0
+
+	for rows.Next() {
+		var entityID, orgID, orgName, entityType string
+
+		if err := rows.Scan(&entityID, &orgID, &orgName, &entityType); err != nil {
+			logger.Errorw("Error scanning entity row", "component", "EntityRegistry", "error", err)
+			continue
+		}
+
+		// Check if KV entry already exists
+		kvKey := shared.EntityKey(entityID)
+		_, err := kv.Get(kvKey)
+		if err == nil {
+			// Entry already exists, skip
+			skipped++
+			continue
+		}
+
+		// Create minimal initial EntityState - just enough for the UI to display
+		// Telemetry and detection workers will populate the rest
+		state := shared.EntityState{
+			EntityID:   entityID,
+			OrgID:      orgID,
+			OrgName:    orgName,
+			EntityType: entityType,
+			Status:     "unknown",    // Will be updated by telemetry
+			Priority:   "normal",     // Default
+			IsLive:     false,        // Will be set true when telemetry arrives
+			Components: make(map[string]interface{}),
+			Aliases:    make(map[string]string),
+			Tags:       []string{},
+			Metadata:   make(map[string]interface{}),
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+
+		// Marshal and store in KV
+		data, err := json.Marshal(state)
+		if err != nil {
+			logger.Errorw("Failed to marshal entity state", "component", "EntityRegistry", "entity_id", entityID, "error", err)
+			continue
+		}
+
+		if _, err := kv.Create(kvKey, data); err != nil {
+			logger.Errorw("Failed to create KV entry", "component", "EntityRegistry", "entity_id", entityID, "error", err)
+			continue
+		}
+
+		initialized++
+		logger.Infow("✅ Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "kv_key", kvKey)
+	}
+
+	logger.Infow("🎉 KV store initialization complete", "component", "EntityRegistry", "initialized", initialized, "skipped", skipped, "total_processed", initialized+skipped)
+
+	if initialized == 0 && skipped == 0 {
+		logger.Warnw("⚠️  No entities were processed - database might be empty", "component", "EntityRegistry")
+	}
+
+	return rows.Err()
 }

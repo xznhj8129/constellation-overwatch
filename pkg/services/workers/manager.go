@@ -47,6 +47,13 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 		return nil, fmt.Errorf("failed to create entity registry: %w", err)
 	}
 
+	// Initialize KV store with all entities from database
+	// This ensures entities have KV entries even before receiving telemetry
+	if err := registry.InitializeKVStoreFromDB(kv); err != nil {
+		logger.Errorw("Failed to initialize KV store from DB (non-fatal, will continue)", "error", err)
+		// Don't return error - this is not critical, entities will be created when telemetry arrives
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Manager{

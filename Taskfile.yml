@@ -70,22 +70,73 @@ tasks:
     desc: Start development mode with templ generation and server
     deps: [templ-generate]
     cmds:
-      - echo "Starting development mode with templ generation and server..."
-      - task: dev:parallel
-
-  dev:parallel:
-    internal: true
-    cmds:
       - |
+        set -e
+        echo "Starting development mode with templ generation and server..."
+        echo "Press Ctrl+C to stop all services"
+        echo ""
+
+        # PIDs storage
+        TEMPL_PID=""
+        SERVER_PID=""
+
+        # Cleanup function
         cleanup() {
-          echo "Shutting down..."
-          jobs -p | xargs kill 2>/dev/null
+          local exit_code=$?
+          echo ""
+          echo "Shutting down services..."
+
+          # Send SIGTERM to child processes
+          if [ -n "$TEMPL_PID" ]; then
+            echo "Stopping templ watcher (PID: $TEMPL_PID)..."
+            kill -TERM $TEMPL_PID 2>/dev/null || true
+          fi
+
+          if [ -n "$SERVER_PID" ]; then
+            echo "Stopping server (PID: $SERVER_PID)..."
+            # Server has graceful shutdown built-in for NATS
+            kill -TERM $SERVER_PID 2>/dev/null || true
+          fi
+
+          # Wait for processes to terminate gracefully
+          sleep 1
+
+          # Force cleanup any stragglers
+          pkill -f "templ.*generate.*watch" 2>/dev/null || true
+          pkill -f "bin/overwatch" 2>/dev/null || true
+
+          # Additional NATS cleanup if needed
+          pkill -f "nats-server" 2>/dev/null || true
+
+          echo "All services stopped"
+          exit $exit_code
         }
-        trap cleanup EXIT
-        task templ-watch &
+
+        # Trap signals for cleanup
+        trap cleanup INT TERM EXIT
+
+        # Start templ watcher in background
+        go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false &
+        TEMPL_PID=$!
+        echo "Started templ watcher (PID: $TEMPL_PID)"
+
+        # Give templ time to initialize
         sleep 2
-        task run &
-        wait
+
+        # Build and start server in background
+        go build -o bin/{{.BINARY_NAME}} ./cmd/microlith
+        ./bin/{{.BINARY_NAME}} &
+        SERVER_PID=$!
+        echo "Started server (PID: $SERVER_PID)"
+        echo ""
+        echo "Development mode running. Watching for changes..."
+        echo ""
+
+        # Wait for any process to exit
+        wait -n
+
+        # If we get here, one process died, so cleanup
+        exit 1
 
   default:
     desc: Show available tasks

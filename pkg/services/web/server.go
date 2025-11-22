@@ -1364,7 +1364,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	logger.Infow("[Overwatch] ✓ SSE headers set, establishing connection from %s", r.RemoteAddr)
+	logger.Infow("[Overwatch] ✓ SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
 
 	// Create SSE generator AFTER setting headers
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -1383,20 +1383,26 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	entries, err := s.natsEmbedded.GetAllKVEntries()
 	if err != nil {
 		logger.Infow("[Overwatch] Error fetching initial KV entries: %v", err)
-		// Can't use http.Error after SSE headers are sent
-		writeMutex.Lock()
-		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
-		flusher.Flush()
-		writeMutex.Unlock()
-		return
+		// If no keys found, send empty state instead of error (this is normal on first boot)
+		if err.Error() == "failed to get keys: nats: no keys found" || strings.Contains(err.Error(), "no keys found") {
+			logger.Infow("[Overwatch] No KV entries found yet - sending empty initial state")
+			entries = []nats.KeyValueEntry{} // Empty slice, will render empty state
+		} else {
+			// Can't use http.Error after SSE headers are sent
+			writeMutex.Lock()
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+			flusher.Flush()
+			writeMutex.Unlock()
+			return
+		}
 	}
 
 	// Parse entries into entity states organized by org
 	entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
 
-	logger.Infow("[Overwatch] Sending initial state with %d orgs containing entities", len(entityStatesByOrg))
+	logger.Infow("[Overwatch] Sending initial state", "org_count", len(entityStatesByOrg))
 	for orgID, entities := range entityStatesByOrg {
-		logger.Infow("[Overwatch]   Org '%s': %d entities", orgID, len(entities))
+		logger.Infow("[Overwatch] Org entities", "org_id", orgID, "entity_count", len(entities))
 	}
 
 	// Send initial state (synchronized)
@@ -1419,7 +1425,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 		logger.Infow("[Overwatch] KV watcher goroutine started, waiting for changes...")
 		watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
 			timestamp := time.Now().Format("15:04:05.000")
-			logger.Infow("[Overwatch KV Watch] ⚡⚡⚡ Change detected at %s for key: %s, operation: %s", timestamp, key, entry.Operation())
+			logger.Infow("[Overwatch KV Watch] ⚡⚡⚡ Change detected", "timestamp", timestamp, "key", key, "operation", entry.Operation())
 
 			// On ANY change, refetch the complete global state from NATS KV
 			entries, err := s.natsEmbedded.GetAllKVEntries()
@@ -1437,11 +1443,11 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 			}
 
 			// Send complete global state to client (synchronized)
-			logger.Infow("[Overwatch KV Watch] Sending SSE update: %d orgs, %d total entities", len(entityStatesByOrg), totalEntities)
+			logger.Infow("[Overwatch KV Watch] Sending SSE update", "org_count", len(entityStatesByOrg), "total_entities", totalEntities)
 
 			writeMutex.Lock()
 			if err := s.sendEntityStatesUpdate(sse, entityStatesByOrg); err != nil {
-				logger.Infow("[Overwatch KV Watch] ❌ ERROR sending update: %v", err)
+				logger.Infow("[Overwatch KV Watch] ❌ ERROR sending update", "error", err)
 				writeMutex.Unlock()
 				// Don't return error - continue watching
 				return nil
@@ -1450,7 +1456,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 			flusher.Flush()
 			writeMutex.Unlock()
 
-			logger.Infow("[Overwatch KV Watch] ✓✓✓ Update flushed to client at %s, continuing to watch...", time.Now().Format("15:04:05.000"))
+			logger.Infow("[Overwatch KV Watch] ✓✓✓ Update flushed to client, continuing to watch...", "timestamp", time.Now().Format("15:04:05.000"))
 
 			return nil
 		})
@@ -1474,7 +1480,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infow("[Overwatch] Client disconnected from %s", r.RemoteAddr)
+			logger.Infow("[Overwatch] Client disconnected", "remote_addr", r.RemoteAddr)
 			return
 		case <-ticker.C:
 			// Send heartbeat to keep connection alive (synchronized)
@@ -1509,10 +1515,10 @@ func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[
 	// Now build consolidated EntityState objects
 	entityStatesByOrg := make(map[string][]shared.EntityState)
 
-	logger.Infow("[Overwatch] Aggregating %d entities from %d KV entries", len(entitiesByID), len(entries))
+	logger.Infow("[Overwatch] Aggregating entities from KV entries", "entity_count", len(entitiesByID), "kv_entry_count", len(entries))
 
 	for entityID, dataMap := range entitiesByID {
-		logger.Infow("[Overwatch] Processing entity %s with %d KV entries", entityID, len(dataMap))
+		logger.Infow("[Overwatch] Processing entity", "entity_id", entityID, "kv_entry_count", len(dataMap))
 		entityState := s.mergeEntityData(entityID, dataMap)
 
 		// Group by org_id
@@ -1524,7 +1530,7 @@ func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[
 		entityStatesByOrg[orgID] = append(entityStatesByOrg[orgID], entityState)
 	}
 
-	logger.Infow("[Overwatch] Built %d entities across %d orgs", len(entitiesByID), len(entityStatesByOrg))
+	logger.Infow("[Overwatch] Built entities", "total_entities", len(entitiesByID), "org_count", len(entityStatesByOrg))
 	return entityStatesByOrg
 }
 
@@ -1818,7 +1824,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 		totalEntities += len(entities)
 	}
 
-	logger.Infow("[Overwatch] Total: %d entities across %d orgs", totalEntities, totalOrgs)
+	logger.Infow("[Overwatch] Total entities", "total_entities", totalEntities, "total_orgs", totalOrgs)
 
 	// STEP 1: Send metadata as signals (for stats display and debugging)
 	signals := map[string]interface{}{
@@ -1830,15 +1836,15 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 	}
 
 	// Log signal structure before sending (for debugging)
-	logger.Infow("[Overwatch] Patching signals: totalOrgs=%d, totalEntities=%d, lastUpdate=%s", totalOrgs, totalEntities, signals["lastUpdate"])
+	logger.Infow("[Overwatch] Patching signals", "totalOrgs", totalOrgs, "totalEntities", totalEntities, "lastUpdate", signals["lastUpdate"])
 
 	// Verify entityStatesByOrg structure
 	for orgID, entities := range entityStatesByOrg {
-		logger.Infow("[Overwatch]   Signal data - Org '%s': %d entities", orgID, len(entities))
+		logger.Infow("[Overwatch] Signal data", "org_id", orgID, "entity_count", len(entities))
 	}
 
 	if err := sse.PatchSignals(signals); err != nil {
-		logger.Infow("[Overwatch] ERROR in PatchSignals: %v", err)
+		logger.Infow("[Overwatch] ERROR in PatchSignals", "error", err)
 		return err
 	}
 
@@ -1885,7 +1891,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 	}
 
 	html := htmlBuilder.String()
-	logger.Infow("[Overwatch] Rendered HTML: %d bytes for %d entities", len(html), totalEntities)
+	logger.Infow("[Overwatch] Rendered HTML", "bytes", len(html), "totalEntities", totalEntities)
 
 	// STEP 3: Patch the entire entities container with inner mode
 	err := sse.PatchElements(html,
@@ -1893,7 +1899,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 		datastar.WithMode(datastar.ElementPatchModeInner))
 
 	if err != nil {
-		logger.Infow("[Overwatch] ERROR in PatchElements: %v", err)
+		logger.Infow("[Overwatch] ERROR in PatchElements", "error", err)
 		return err
 	}
 
