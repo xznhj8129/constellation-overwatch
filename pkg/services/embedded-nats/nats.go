@@ -542,32 +542,37 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 		return fmt.Errorf("KV store not initialized")
 	}
 
-	// Create a watcher for all keys
-	watcher, err := en.kv.WatchAll(nats.Context(ctx))
+	// Use a separate context for the watcher to isolate it from the HTTP request context's quirks
+	// We will manually stop the watcher when the passed ctx is Done.
+	watcher, err := en.kv.WatchAll()
 	if err != nil {
-		return fmt.Errorf("failed to create KV watcher: %w", err)
+		return fmt.Errorf("failed to watch KV: %w", err)
 	}
-	defer watcher.Stop()
+	defer func() {
+		// Ensure we stop the watcher to free resources
+		if err := watcher.Stop(); err != nil {
+			logger.Warnw("Failed to stop watcher", "error", err)
+		}
+	}()
 
-	logger.Debug("KV watcher started")
+	logger.Infow("KV Watcher started", "bucket", "CONSTELLATION_GLOBAL_STATE")
 
-	// Process updates
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case entry := <-watcher.Updates():
-			if entry == nil {
-				// Channel closed. Check if it was due to context cancellation.
+		case entry, ok := <-watcher.Updates():
+			if !ok {
+				// Channel closed
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				// Channel closed unexpectedly
 				logger.Warn("KV watcher channel closed unexpectedly")
 				return nil
 			}
 
-			// Call the callback with the entry
+			if entry == nil {
+				continue
+			}
+
 			if err := callback(entry.Key(), entry); err != nil {
 				logger.Error("Error in KV watch callback",
 					zap.String("key", entry.Key()),

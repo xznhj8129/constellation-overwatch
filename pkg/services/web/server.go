@@ -1388,9 +1388,20 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	knownEntities := make(map[string]bool)
 	knownOrgs := make(map[string]bool)
 
+	// Struct to pass data to renderer
+	type RenderPayload struct {
+		Snapshot      []shared.EntityState
+		TotalEntities int
+	}
+
 	// Channel to buffer updates from NATS to SSE
 	// Increased buffer size to handle initial state dump and high throughput
 	updateChan := make(chan nats.KeyValueEntry, 10000)
+
+	// Channel to send snapshots to the renderer
+	// Buffer of 1 allows us to have one snapshot pending while the renderer is busy.
+	// If the renderer is too slow, we drop intermediate snapshots (conflation).
+	renderChan := make(chan RenderPayload, 1)
 
 	// Start watching for changes in a goroutine
 	ctx := r.Context()
@@ -1399,17 +1410,12 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 
 		// Retry loop for the watcher
 		for {
-			// Check if context is already done before starting
 			if ctx.Err() != nil {
-				logger.Infow("[Overwatch] KV watcher stopped: HTTP client disconnected")
 				return
 			}
 
 			logger.Infow("[Overwatch] KV watcher goroutine started, waiting for changes...")
 
-			// We use a separate context for the watcher so we can cancel it if needed,
-			// but here we just pass the main context.
-			// If WatchKV returns, it means the watcher stopped.
 			watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
 				select {
 				case updateChan <- entry:
@@ -1419,21 +1425,16 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 				}
 			})
 
-			// If context is done, we're done
 			if ctx.Err() != nil {
-				logger.Infow("[Overwatch] KV watcher stopped: HTTP client disconnected")
 				return
 			}
 
-			// Otherwise, it stopped unexpectedly (e.g. slow consumer, connection drop)
-			// We log it and retry
 			if watchErr != nil {
 				logger.Warnw("[Overwatch] KV watcher stopped unexpectedly, restarting...", "error", watchErr)
 			} else {
 				logger.Warnw("[Overwatch] KV watcher channel closed unexpectedly, restarting...")
 			}
 
-			// Wait a bit before restarting to avoid tight loops
 			select {
 			case <-time.After(1 * time.Second):
 				continue
@@ -1443,19 +1444,36 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 		}
 	}()
 
+	// Start Renderer Goroutine
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case payload, ok := <-renderChan:
+				if !ok {
+					return
+				}
+
+				// Render and Flush
+				s.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.TotalEntities, knownEntities, knownOrgs)
+			}
+		}
+	}()
+
 	// Keep the connection alive with heartbeats
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
-	// Batching configuration
-	const maxBatchSize = 100
-	const flushInterval = 50 * time.Millisecond
-	flushTicker := time.NewTicker(flushInterval)
+	// Flush ticker for batching
+	flushTicker := time.NewTicker(50 * time.Millisecond)
 	defer flushTicker.Stop()
 
 	dirtyEntities := make(map[string]bool)
 
-	// Main loop
+	// State Manager Loop (Main Goroutine)
+	// This loop MUST be fast to keep up with NATS.
+	// It does NO rendering.
 	for {
 		select {
 		case <-ctx.Done():
@@ -1469,11 +1487,35 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 			writeMutex.Unlock()
 
 		case <-flushTicker.C:
-			// Periodic flush of any pending dirty entities
+			// Periodic flush of dirty entities
 			if len(dirtyEntities) > 0 {
-				s.processDirtyEntities(w, flusher, &writeMutex, sse, dirtyEntities, localEntityCache, knownEntities, knownOrgs)
-				// Reset dirty set
-				dirtyEntities = make(map[string]bool)
+				// Create snapshot
+				var snapshot []shared.EntityState
+				for entityID := range dirtyEntities {
+					entityData, exists := localEntityCache[entityID]
+					if !exists {
+						continue
+					}
+					// Reconstruct state (fast, just map lookups and struct creation)
+					entityState := s.mergeEntityData(entityID, entityData)
+					snapshot = append(snapshot, entityState)
+				}
+
+				// Try to send to renderer (non-blocking)
+				payload := RenderPayload{
+					Snapshot:      snapshot,
+					TotalEntities: len(localEntityCache),
+				}
+
+				select {
+				case renderChan <- payload:
+					// Success, renderer will handle it
+					dirtyEntities = make(map[string]bool)
+				default:
+					// Renderer is busy, skip this frame (conflation)
+					// We keep the entities dirty so they are included in the next snapshot
+					logger.Debugw("[Overwatch] Renderer busy, skipping frame (conflation)", "pending_entities", len(dirtyEntities))
+				}
 			}
 
 		case entry, ok := <-updateChan:
@@ -1482,7 +1524,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 				return
 			}
 
-			// Process the entry (update cache)
+			// Update Cache
 			key := entry.Key()
 			parts := strings.Split(key, ".")
 			entityID := parts[0]
@@ -1495,40 +1537,25 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 				delete(localEntityCache[entityID], key)
 				if len(localEntityCache[entityID]) == 0 {
 					delete(localEntityCache, entityID)
-					// TODO: Handle removal
 				}
 			} else {
 				localEntityCache[entityID][key] = entry.Value()
 			}
 
-			// Mark as dirty
+			// Mark dirty
 			dirtyEntities[entityID] = true
-
-			// If we have enough updates, process them immediately
-			if len(dirtyEntities) >= maxBatchSize {
-				s.processDirtyEntities(w, flusher, &writeMutex, sse, dirtyEntities, localEntityCache, knownEntities, knownOrgs)
-				dirtyEntities = make(map[string]bool)
-			}
 		}
 	}
 }
 
-// Helper to process a batch of dirty entities
-func (s *Server) processDirtyEntities(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, dirtyEntities map[string]bool, localEntityCache map[string]map[string][]byte, knownEntities map[string]bool, knownOrgs map[string]bool) {
+// Helper to render and flush a snapshot
+func (s *Server) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, totalEntities int, knownEntities map[string]bool, knownOrgs map[string]bool) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	totalEntities := len(localEntityCache)
 	updatesSent := 0
 
-	for entityID := range dirtyEntities {
-		// Reconstruct state
-		entityData, exists := localEntityCache[entityID]
-		if !exists {
-			continue // Was deleted
-		}
-		entityState := s.mergeEntityData(entityID, entityData)
-
+	for _, entityState := range snapshot {
 		// Render card
 		var cardHTML strings.Builder
 		if err := templates.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
@@ -1539,13 +1566,12 @@ func (s *Server) processDirtyEntities(w http.ResponseWriter, flusher http.Flushe
 		// Determine patch mode
 		var patchMode datastar.PatchElementMode
 		var selector string
+		entityID := entityState.EntityID
 
 		if !knownEntities[entityID] {
 			// New entity
 			if !knownOrgs[entityState.OrgID] {
 				// Create Org Container
-				// (Simplified for brevity, same logic as before)
-				// Remove empty state
 				if len(knownOrgs) == 0 {
 					sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))
 				}
@@ -1556,7 +1582,7 @@ func (s *Server) processDirtyEntities(w http.ResponseWriter, flusher http.Flushe
 				sse.PatchElements(orgHTML.String(), datastar.WithSelector("#entities-container"), datastar.WithMode(datastar.ElementPatchModeAppend))
 				knownOrgs[entityState.OrgID] = true
 
-				// Initialize signal for this org to ensure deep patching works
+				// Initialize signal
 				sse.PatchSignals(map[string]interface{}{
 					fmt.Sprintf("entityStatesByOrg.%s", entityState.OrgID): map[string]interface{}{},
 				})
@@ -1575,7 +1601,7 @@ func (s *Server) processDirtyEntities(w http.ResponseWriter, flusher http.Flushe
 			logger.Debugw("Failed to patch entity", "entity_id", entityID, "error", err)
 		}
 
-		// Patch Signal (Granular)
+		// Patch Signal
 		sse.PatchSignals(map[string]interface{}{
 			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entityState,
 		})
@@ -1583,11 +1609,11 @@ func (s *Server) processDirtyEntities(w http.ResponseWriter, flusher http.Flushe
 		updatesSent++
 	}
 
-	// Update global stats signal once per batch
 	if updatesSent > 0 {
 		sse.PatchSignals(map[string]interface{}{
 			"lastUpdate":    time.Now().Format("15:04:05"),
 			"totalEntities": totalEntities,
+			"_isConnected":  true,
 		})
 		flusher.Flush()
 	}
@@ -1654,48 +1680,27 @@ func (s *Server) mergeEntityData(entityID string, dataMap map[string][]byte) sha
 	for key, data := range dataMap {
 		// Skip empty data
 		if len(data) == 0 {
-			logger.Infof("[Overwatch] Skipping empty data for key %s", key)
 			continue
 		}
 
-		// Log raw data preview for debugging
-		preview := string(data)
-		if len(preview) > 300 {
-			preview = preview[:300] + "..."
-		}
-		logger.Infof("[Overwatch] Key '%s' data preview: %s", key, preview)
-
 		var rawData map[string]interface{}
 		if err := json.Unmarshal(data, &rawData); err != nil {
-			logger.Infof("[Overwatch] Failed to unmarshal key %s: %v", key, err)
+			logger.Warnf("[Overwatch] Failed to unmarshal key %s: %v", key, err)
 			continue
 		}
 
 		// Extract org_id (check both org_id and organization_id)
 		if orgID, ok := rawData["org_id"].(string); ok && orgID != "" {
 			state.OrgID = orgID
-			logger.Infof("[Overwatch] Found org_id='%s' in key '%s'", orgID, key)
 		}
 		if orgID, ok := rawData["organization_id"].(string); ok && orgID != "" {
 			state.OrgID = orgID
-			logger.Infof("[Overwatch] Found organization_id='%s' in key '%s'", orgID, key)
-		}
-		// Log if neither was found
-		if state.OrgID == "" {
-			logger.Infof("[Overwatch] WARNING: No org_id or organization_id found in key '%s'", key)
 		}
 
 		// Extract device_id if present
 		if deviceID, ok := rawData["device_id"].(string); ok && deviceID != "" {
 			state.DeviceID = deviceID
 		}
-
-		// Debug: Check what top-level fields exist
-		hasAnalytics := rawData["analytics"] != nil
-		hasDetections := rawData["detections"] != nil
-		hasThreatIntel := rawData["threat_intelligence"] != nil || rawData["threat_intel"] != nil
-		logger.Infof("[Overwatch] Key '%s' has: analytics=%v, detections=%v, threat_intel=%v",
-			key, hasAnalytics, hasDetections, hasThreatIntel)
 
 		// Determine data type from key suffix and merge accordingly
 		if strings.Contains(key, ".detections.objects") {
