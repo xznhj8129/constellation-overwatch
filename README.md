@@ -17,6 +17,18 @@ Constellation Overwatch provides a distributed, event-driven architecture for ma
 - **Real-time Web UI** - Server-sent events (SSE) powered dashboard with Datastar framework
 - **Templ Templates** - Type-safe Go templates for reactive web components
 
+### TODO:
+- SSE PatchElements + PatchSignal for Kvwatcher on `/overwatch` and correpsponding templ components
+- Mapbox or MapLibre webComponents tied with same global kvwatcher
+- 1:n Video stream to webui
+- Standardize data publishing to our constellation global kvwatcher from publishers for + cleanup noisy streams of publishers for only SIGINT emission
+- add a logging stream page to webui
+- Implement enhanced tls1.3 encryption for NATS
+- Refactor and consolidate `/api/` and `/pkg/services/web/server` on sse and unified REST API + SSE layer
+- refactor `/pkg/services/web/server` to be more simpler and modular to its supporting templ templates and handlers
+
+- evaluate more enhanced goilerplating for productization
+
 ## Architecture
 
 ### API Service Diagram
