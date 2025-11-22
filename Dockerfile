@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y ca-certificates tzdata && rm -rf /var/l
 RUN groupadd -r constellation && useradd -r -g constellation constellation
 
 # Create necessary directories with correct permissions
-RUN mkdir -p /data/nats /data/logs /data/certs /app && \
+RUN mkdir -p /data /app && \
     chown -R constellation:constellation /data /app
 
 # Copy binary from builder
