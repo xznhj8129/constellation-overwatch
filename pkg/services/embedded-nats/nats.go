@@ -3,15 +3,16 @@ package embeddednats
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
 
+	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -205,7 +206,9 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		return fmt.Errorf("failed to initialize streams and consumers: %w", err)
 	}
 
-	log.Printf("Embedded NATS server started on %s:%d", en.config.Host, en.config.Port)
+	logger.Info("Embedded NATS server started",
+		zap.String("host", en.config.Host),
+		zap.Int("port", en.config.Port))
 	return nil
 }
 
@@ -252,15 +255,15 @@ func (en *EmbeddedNATS) connect() error {
 		nats.MaxPingsOutstanding(5),
 		nats.Timeout(5 * time.Second),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			log.Printf("NATS error: %v", err)
+			logger.Error("NATS error", zap.Error(err))
 		}),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			if err != nil {
-				log.Printf("NATS disconnected: %v", err)
+				logger.Warn("NATS disconnected", zap.Error(err))
 			}
 		}),
 		nats.ReconnectHandler(func(_ *nats.Conn) {
-			log.Printf("NATS reconnected")
+			logger.Info("NATS reconnected")
 		}),
 	}
 
@@ -316,18 +319,20 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 		if err != nil {
 			return fmt.Errorf("failed to update stream %s: %w", streamConfig.Name, err)
 		}
-		log.Printf("Updated existing stream: %s", streamConfig.Name)
+		logger.Info("Updated existing stream", zap.String("stream", streamConfig.Name))
 	} else {
 		// Stream doesn't exist, create it
 		stream, err = en.js.AddStream(config)
 		if err != nil {
 			return fmt.Errorf("failed to add stream %s: %w", streamConfig.Name, err)
 		}
-		log.Printf("Created new stream: %s", streamConfig.Name)
+		logger.Info("Created new stream", zap.String("stream", streamConfig.Name))
 	}
 
 	en.streams[streamConfig.Name] = streamConfig
-	log.Printf("Created stream: %s with subjects: %v", stream.Config.Name, stream.Config.Subjects)
+	logger.Info("Stream configured",
+		zap.String("stream", stream.Config.Name),
+		zap.Strings("subjects", stream.Config.Subjects))
 
 	return nil
 }
@@ -425,9 +430,9 @@ func (en *EmbeddedNATS) CreateGlobalStateKV(bucketName string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create KV bucket %s: %w", bucketName, err)
 		}
-		log.Printf("Created KV bucket: %s", bucketName)
+		logger.Info("Created KV bucket", zap.String("bucket", bucketName))
 	} else {
-		log.Printf("Using existing KV bucket: %s", bucketName)
+		logger.Info("Using existing KV bucket", zap.String("bucket", bucketName))
 	}
 
 	en.kv = kv
@@ -463,7 +468,9 @@ func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, f
 	_, err := en.js.ConsumerInfo(streamName, consumerName)
 	if err == nil {
 		// Consumer exists
-		log.Printf("Durable consumer already exists: %s on stream: %s", consumerName, streamName)
+		logger.Debug("Durable consumer already exists",
+			zap.String("consumer", consumerName),
+			zap.String("stream", streamName))
 		return nil
 	}
 
@@ -473,7 +480,9 @@ func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, f
 		return fmt.Errorf("failed to create consumer %s: %w", consumerName, err)
 	}
 
-	log.Printf("Created durable consumer: %s on stream: %s", consumerName, streamName)
+	logger.Info("Created durable consumer",
+		zap.String("consumer", consumerName),
+		zap.String("stream", streamName))
 	return nil
 }
 
@@ -547,7 +556,9 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 
 			// Call the callback with the entry
 			if err := callback(entry.Key(), entry); err != nil {
-				log.Printf("Error in KV watch callback: %v", err)
+				logger.Error("Error in KV watch callback",
+					zap.String("key", entry.Key()),
+					zap.Error(err))
 				// Continue watching despite callback errors
 			}
 		}
@@ -569,7 +580,9 @@ func (en *EmbeddedNATS) GetAllKVEntries() ([]nats.KeyValueEntry, error) {
 	for _, key := range keys {
 		entry, err := en.kv.Get(key)
 		if err != nil {
-			log.Printf("Error getting key %s: %v", key, err)
+			logger.Error("Error getting key from KV store",
+				zap.String("key", key),
+				zap.Error(err))
 			continue
 		}
 		entries = append(entries, entry)

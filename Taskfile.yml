@@ -1,0 +1,93 @@
+version: '3'
+
+vars:
+  BINARY_NAME: overwatch
+  DOCKER_IMAGE: constellation-overwatch:latest
+
+tasks:
+  build:
+    desc: Build the binary
+    cmds:
+      - echo "Building {{.BINARY_NAME}}..."
+      - go build -o bin/{{.BINARY_NAME}} ./cmd/microlith
+
+  run:
+    desc: Run the binary
+    deps: [build]
+    cmds:
+      - echo "Running {{.BINARY_NAME}}..."
+      - ./bin/{{.BINARY_NAME}}
+
+  docker-build:
+    desc: Build Docker image
+    cmds:
+      - echo "Building Docker image..."
+      - docker build -t {{.DOCKER_IMAGE}} .
+
+  docker-run:
+    desc: Start services with Docker Compose
+    cmds:
+      - echo "Starting services with Docker Compose..."
+      - docker-compose up -d
+
+  docker-stop:
+    desc: Stop Docker Compose services
+    cmds:
+      - echo "Stopping services..."
+      - docker-compose down
+
+  clean:
+    desc: Clean up build artifacts and data
+    cmds:
+      - echo "Cleaning up..."
+      - rm -rf bin/
+      - rm -rf data/
+      - rm -rf logs/
+
+  generate-certs:
+    desc: Generate self-signed certificates for development
+    cmds:
+      - echo "Generating self-signed certificates for development..."
+      - mkdir -p certs
+      - openssl req -x509 -newkey rsa:4096 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/CN=localhost"
+      - chmod 644 certs/server.crt
+      - chmod 600 certs/server.key
+      - echo "Certificates generated in ./certs/"
+
+  templ-generate:
+    desc: Generate templ files
+    cmds:
+      - echo "Generating templ files..."
+      - go run github.com/a-h/templ/cmd/templ@latest generate
+
+  templ-watch:
+    desc: Start templ file watcher
+    cmds:
+      - echo "Starting templ file watcher..."
+      - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false
+
+  dev:
+    desc: Start development mode with templ generation and server
+    deps: [templ-generate]
+    cmds:
+      - echo "Starting development mode with templ generation and server..."
+      - task: dev:parallel
+
+  dev:parallel:
+    internal: true
+    cmds:
+      - |
+        cleanup() {
+          echo "Shutting down..."
+          jobs -p | xargs kill 2>/dev/null
+        }
+        trap cleanup EXIT
+        task templ-watch &
+        sleep 2
+        task run &
+        wait
+
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list

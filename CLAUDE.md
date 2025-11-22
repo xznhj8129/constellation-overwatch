@@ -4,19 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+This project uses [Task](https://taskfile.dev/) instead of Make for task automation.
+
 ### Development
 ```bash
-# Development mode (with templ auto-rebuild)
-make dev
+# List all available tasks
+task --list
+
+# Development mode (with templ auto-rebuild and server)
+task dev
 
 # Run the server
 go run ./cmd/microlith/main.go
 
 # Build the binary
-make build
+task build
 
 # Run the built binary
-make run
+task run
 
 # Run tests
 go test ./...
@@ -34,10 +39,21 @@ go fmt ./...
 go vet ./...
 
 # Generate templ templates
-make templ-generate
+task templ-generate
 
 # Watch templ files for changes
-make templ-watch
+task templ-watch
+
+# Clean build artifacts and data
+task clean
+
+# Generate development certificates
+task generate-certs
+
+# Docker commands
+task docker-build
+task docker-run
+task docker-stop
 ```
 
 ### Environment Setup

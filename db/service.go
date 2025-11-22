@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"constellation-overwatch/pkg/services/logger"
 	_ "github.com/tursodatabase/go-libsql"
+	"go.uber.org/zap"
 )
 
 //go:embed schema.sql
@@ -76,7 +77,7 @@ func New(config *Config) (*Service, error) {
 
 	connStr := "file:" + absPath
 
-	log.Printf("Opening database with connection string: %s", connStr)
+	logger.Infow("Opening database connection", "connection_string", connStr)
 	db, err := sql.Open("libsql", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -96,14 +97,14 @@ func New(config *Config) (*Service, error) {
 
 	// Initialize schema if database is new and auto-initialization is enabled
 	if !dbExists && config.AutoInitialize {
-		log.Println("Database not found, initializing schema...")
+		logger.Info("Database not found, initializing schema...")
 		if err := service.InitializeSchema(); err != nil {
 			return nil, fmt.Errorf("failed to initialize schema: %w", err)
 		}
-		log.Println("Database schema initialized successfully")
+		logger.Info("Database schema initialized successfully")
 	}
 
-	log.Printf("Database service initialized: %s", config.DBPath)
+	logger.Infow("Database service initialized", "db_path", config.DBPath)
 	return service, nil
 }
 
@@ -121,14 +122,14 @@ func (s *Service) Name() string {
 func (s *Service) Start(ctx context.Context) error {
 	// Verify schema is properly initialized
 	if err := s.VerifySchema(); err != nil {
-		log.Printf("Schema verification failed: %v", err)
-		log.Println("Attempting to initialize schema...")
+		logger.Error("Schema verification failed", zap.Error(err))
+		logger.Info("Attempting to initialize schema...")
 		if err := s.InitializeSchema(); err != nil {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
 
-	log.Println("Database service started successfully")
+	logger.Info("Database service started successfully")
 	return nil
 }
 
@@ -151,7 +152,7 @@ func (s *Service) InitializeSchema() error {
 	}
 
 	// Execute schema
-	log.Printf("Executing schema SQL (len: %d bytes)...", len(schemaSQL))
+	logger.Infow("Executing schema SQL", "bytes", len(schemaSQL))
 
 	// Parse and execute schema line by line to handle comments and splitting correctly
 	var currentStmt strings.Builder
@@ -188,7 +189,7 @@ func (s *Service) InitializeSchema() error {
 			stmt := currentStmt.String()
 
 			if _, err := s.DB.Exec(stmt); err != nil {
-				log.Printf("Failed to execute statement: %s", stmt)
+				logger.Errorw("Failed to execute schema statement", "statement", stmt, "line", i+1)
 				return fmt.Errorf("failed to execute schema statement ending at line %d: %w", i+1, err)
 			}
 
@@ -196,7 +197,7 @@ func (s *Service) InitializeSchema() error {
 		}
 	}
 
-	log.Println("Schema execution completed.")
+	logger.Info("Schema execution completed")
 
 	return nil
 }
@@ -226,14 +227,14 @@ func (s *Service) VerifySchema() error {
 		}
 	}
 
-	log.Println("Schema verification successful - all required tables present")
+	logger.Info("Schema verification successful - all required tables present")
 	return nil
 }
 
 // Close closes the database connection
 func (s *Service) Close() error {
 	if s.DB != nil {
-		log.Println("Closing database connection...")
+		logger.Info("Closing database connection...")
 		return s.DB.Close()
 	}
 	return nil
@@ -295,7 +296,7 @@ func fileExists(path string) bool {
 // This is a placeholder for future migration support
 func (s *Service) MigrateSchema() error {
 	// TODO: Implement migration system
-	log.Println("Schema migration not yet implemented")
+	logger.Info("Schema migration not yet implemented")
 	return nil
 }
 

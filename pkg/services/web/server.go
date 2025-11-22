@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	"constellation-overwatch/db"
 	"constellation-overwatch/pkg/ontology"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/services/web/datastar"
 	"constellation-overwatch/pkg/services/web/templates"
 	"constellation-overwatch/pkg/shared"
@@ -87,9 +87,9 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		log.Printf("Starting web server on %s", s.bindAddr)
+		logger.Infow("Starting web server", "bind_addr", s.bindAddr)
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Web server error: %v", err)
+			logger.Errorw("Web server error", "error", err)
 		}
 	}()
 
@@ -99,7 +99,7 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop gracefully shuts down the web service (implements Service interface)
 func (s *Server) Stop(ctx context.Context) error {
 	if s.server != nil {
-		log.Println("Shutting down web server...")
+		logger.Info("Shutting down web server...")
 		return s.server.Shutdown(ctx)
 	}
 	return nil
@@ -188,7 +188,7 @@ func (s *Server) handleEntitiesPage(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
 		if err != nil {
-			log.Printf("Error patching entities page: %v", err)
+			logger.Infow("Error patching entities page: %v", err)
 		}
 		return
 	}
@@ -222,7 +222,7 @@ func (s *Server) handleEntityForm(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("#entity-form-modal"),
 			datastar.WithMode(datastar.ElementPatchModeInner))
 		if err != nil {
-			log.Printf("Error patching entity form: %v", err)
+			logger.Infow("Error patching entity form: %v", err)
 		}
 		return
 	}
@@ -240,7 +240,7 @@ func (s *Server) handleStreamsPage(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
 		if err != nil {
-			log.Printf("Error patching streams page: %v", err)
+			logger.Infow("Error patching streams page: %v", err)
 		}
 		return
 	}
@@ -259,7 +259,7 @@ func (s *Server) handleOrganizationForm(w http.ResponseWriter, r *http.Request) 
 			datastar.WithSelector("#org-form-modal"),
 			datastar.WithMode(datastar.ElementPatchModeMorph))
 		if err != nil {
-			log.Printf("Error patching organization form: %v", err)
+			logger.Infow("Error patching organization form: %v", err)
 		}
 		return
 	}
@@ -277,7 +277,7 @@ func (s *Server) handleOverwatchPage(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
 		if err != nil {
-			log.Printf("Error patching overwatch page: %v", err)
+			logger.Infow("Error patching overwatch page: %v", err)
 		}
 		return
 	}
@@ -305,7 +305,7 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 				datastar.WithSelector("#org-table"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
 			if err != nil {
-				log.Printf("Error patching organizations: %v", err)
+				logger.Infow("Error patching organizations: %v", err)
 			}
 			return
 		}
@@ -318,12 +318,12 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 
 	case "POST":
 		// Log request details for debugging
-		log.Printf("[API] POST /api/organizations - Content-Type: %s, Accept: %s",
+		logger.Infow("[API] POST /api/organizations - Content-Type: %s, Accept: %s",
 			r.Header.Get("Content-Type"), r.Header.Get("Accept"))
 
 		// Parse form data
 		if err := r.ParseForm(); err != nil {
-			log.Printf("[API] Error parsing form: %v", err)
+			logger.Infow("[API] Error parsing form: %v", err)
 			http.Error(w, "Invalid form data", http.StatusBadRequest)
 			return
 		}
@@ -335,42 +335,42 @@ func (s *Server) handleAPIOrganizations(w http.ResponseWriter, r *http.Request) 
 			Description: r.FormValue("description"),
 		}
 
-		log.Printf("[API] Creating organization: name=%s, type=%s", req.Name, req.OrgType)
+		logger.Infow("[API] Creating organization: name=%s, type=%s", req.Name, req.OrgType)
 
 		// Create the organization
 		org, err := s.orgSvc.CreateOrganization(req)
 		if err != nil {
-			log.Printf("[API] Error creating organization: %v", err)
+			logger.Infow("[API] Error creating organization: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("[API] Organization created: %s (ID: %s)", org.Name, org.OrgID)
+		logger.Infow("[API] Organization created: %s (ID: %s)", org.Name, org.OrgID)
 
 		// Always send SSE response (Datastar forms always expect SSE)
-		log.Printf("[API] Creating SSE connection for response")
+		logger.Infow("[API] Creating SSE connection for response")
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		log.Printf("[API] SSE generator created successfully")
+		logger.Infow("[API] SSE generator created successfully")
 
 		// Insert the new organization row before the form row
-		log.Printf("[API] Rendering organization row component")
+		logger.Infow("[API] Rendering organization row component")
 		component := templates.OrganizationRow(*org, org.OrgID)
 
-		log.Printf("[API] Patching component with selector '#new-org-form-row', mode: before")
+		logger.Infow("[API] Patching component with selector '#new-org-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#new-org-form-row"),
 			datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
-			log.Printf("[API] ERROR inserting org row: %v", err)
+			logger.Infow("[API] ERROR inserting org row: %v", err)
 			return
 		}
 
 		// Reset the form after successful submission
-		log.Printf("[API] Resetting form via ExecuteScript")
+		logger.Infow("[API] Resetting form via ExecuteScript")
 		if err := sse.ExecuteScript("document.getElementById('new-org-form').reset()"); err != nil {
-			log.Printf("[API] ERROR resetting form: %v", err)
+			logger.Infow("[API] ERROR resetting form: %v", err)
 		}
 
-		log.Printf("[API] ✓ SSE patch sent successfully - new row appended and form reset")
+		logger.Infow("[API] ✓ SSE patch sent successfully - new row appended and form reset")
 	}
 }
 
@@ -385,12 +385,12 @@ func (s *Server) handleOrganizationEdit(w http.ResponseWriter, r *http.Request) 
 	// Fetch the organization
 	org, err := s.orgSvc.GetOrganization(orgID)
 	if err != nil {
-		log.Printf("[EDIT] Error fetching organization %s: %v", orgID, err)
+		logger.Infow("[EDIT] Error fetching organization %s: %v", orgID, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	log.Printf("[EDIT] Returning edit row for organization: %s", org.Name)
+	logger.Infow("[EDIT] Returning edit row for organization: %s", org.Name)
 
 	// Return the edit row component via SSE using Replace mode to force re-initialization of event listeners
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -398,7 +398,7 @@ func (s *Server) handleOrganizationEdit(w http.ResponseWriter, r *http.Request) 
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
-		log.Printf("[EDIT] Error patching edit row: %v", err)
+		logger.Infow("[EDIT] Error patching edit row: %v", err)
 	}
 }
 
@@ -413,12 +413,12 @@ func (s *Server) handleOrganizationCancel(w http.ResponseWriter, r *http.Request
 	// Fetch the organization
 	org, err := s.orgSvc.GetOrganization(orgID)
 	if err != nil {
-		log.Printf("[CANCEL] Error fetching organization %s: %v", orgID, err)
+		logger.Infow("[CANCEL] Error fetching organization %s: %v", orgID, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	log.Printf("[CANCEL] Returning normal row for organization: %s", org.Name)
+	logger.Infow("[CANCEL] Returning normal row for organization: %s", org.Name)
 
 	// Return the normal row component via SSE using Morph mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -426,7 +426,7 @@ func (s *Server) handleOrganizationCancel(w http.ResponseWriter, r *http.Request
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
-		log.Printf("[CANCEL] Error patching normal row: %v", err)
+		logger.Infow("[CANCEL] Error patching normal row: %v", err)
 	}
 }
 
@@ -455,7 +455,7 @@ func (s *Server) handleFleetPage(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
 		if err != nil {
-			log.Printf("Error patching fleet page: %v", err)
+			logger.Infow("Error patching fleet page: %v", err)
 		}
 		return
 	}
@@ -475,7 +475,7 @@ func (s *Server) handleFleetEdit(w http.ResponseWriter, r *http.Request) {
 	// Fetch all organizations for the dropdown
 	orgs, err := s.orgSvc.ListOrganizations()
 	if err != nil {
-		log.Printf("[FLEET-EDIT] Error fetching organizations: %v", err)
+		logger.Infow("[FLEET-EDIT] Error fetching organizations: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -492,12 +492,12 @@ func (s *Server) handleFleetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if entity == nil {
-		log.Printf("[FLEET-EDIT] Entity %s not found", entityID)
+		logger.Infow("[FLEET-EDIT] Entity %s not found", entityID)
 		http.Error(w, "Entity not found", http.StatusNotFound)
 		return
 	}
 
-	log.Printf("[FLEET-EDIT] Returning edit row for entity: %s", entity.EntityID)
+	logger.Infow("[FLEET-EDIT] Returning edit row for entity: %s", entity.EntityID)
 
 	// Return the edit row component via SSE using Replace mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -505,7 +505,7 @@ func (s *Server) handleFleetEdit(w http.ResponseWriter, r *http.Request) {
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
-		log.Printf("[FLEET-EDIT] Error patching edit row: %v", err)
+		logger.Infow("[FLEET-EDIT] Error patching edit row: %v", err)
 	}
 }
 
@@ -520,7 +520,7 @@ func (s *Server) handleFleetCancel(w http.ResponseWriter, r *http.Request) {
 	// Fetch all organizations for the dropdown
 	orgs, err := s.orgSvc.ListOrganizations()
 	if err != nil {
-		log.Printf("[FLEET-CANCEL] Error fetching organizations: %v", err)
+		logger.Infow("[FLEET-CANCEL] Error fetching organizations: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -536,12 +536,12 @@ func (s *Server) handleFleetCancel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if entity == nil {
-		log.Printf("[FLEET-CANCEL] Entity %s not found", entityID)
+		logger.Infow("[FLEET-CANCEL] Entity %s not found", entityID)
 		http.Error(w, "Entity not found", http.StatusNotFound)
 		return
 	}
 
-	log.Printf("[FLEET-CANCEL] Returning normal row for entity: %s", entity.EntityID)
+	logger.Infow("[FLEET-CANCEL] Returning normal row for entity: %s", entity.EntityID)
 
 	// Return the normal row component via SSE using Morph mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -549,7 +549,7 @@ func (s *Server) handleFleetCancel(w http.ResponseWriter, r *http.Request) {
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
-		log.Printf("[FLEET-CANCEL] Error patching normal row: %v", err)
+		logger.Infow("[FLEET-CANCEL] Error patching normal row: %v", err)
 	}
 }
 
@@ -570,13 +570,13 @@ func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Requ
 		updates["org_type"] = r.FormValue("org_type")
 		updates["description"] = r.FormValue("description")
 
-		log.Printf("[API] PUT /api/organizations/update (form data, org_id=%s)", orgID)
+		logger.Infow("[API] PUT /api/organizations/update (form data, org_id=%s)", orgID)
 	} else {
 		// Read JSON body (Datastar sends signals as JSON)
 		signals := make(map[string]interface{})
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&signals); err != nil {
-			log.Printf("[API] Error reading JSON: %v", err)
+			logger.Infow("[API] Error reading JSON: %v", err)
 			http.Error(w, "Invalid request data", http.StatusBadRequest)
 			return
 		}
@@ -602,7 +602,7 @@ func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Requ
 			updates["description"] = description
 		}
 
-		log.Printf("[API] PUT /api/organizations/update (JSON, org_id=%s)", orgID)
+		logger.Infow("[API] PUT /api/organizations/update (JSON, org_id=%s)", orgID)
 	}
 
 	if orgID == "" {
@@ -610,12 +610,12 @@ func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	log.Printf("[API] Updating organization with: name=%v, org_type=%v, description=%v",
+	logger.Infow("[API] Updating organization with: name=%v, org_type=%v, description=%v",
 		updates["name"], updates["org_type"], updates["description"])
 
 	// Update the organization
 	if err := s.orgSvc.UpdateOrganization(orgID, updates); err != nil {
-		log.Printf("[API] Error updating organization: %v", err)
+		logger.Infow("[API] Error updating organization: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -623,12 +623,12 @@ func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Requ
 	// Fetch the updated organization
 	org, err := s.orgSvc.GetOrganization(orgID)
 	if err != nil {
-		log.Printf("[API] Error fetching updated organization: %v", err)
+		logger.Infow("[API] Error fetching updated organization: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
+	logger.Infow("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
 
 	// Return the updated row via SSE using Morph mode for intelligent DOM diffing
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -636,11 +636,11 @@ func (s *Server) handleAPIOrganizationUpdate(w http.ResponseWriter, r *http.Requ
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
-		log.Printf("[API] Error patching updated row: %v", err)
+		logger.Infow("[API] Error patching updated row: %v", err)
 		return
 	}
 
-	log.Printf("[API] ✓ Organization row updated via SSE with Morph mode")
+	logger.Infow("[API] ✓ Organization row updated via SSE with Morph mode")
 }
 
 func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
@@ -653,11 +653,11 @@ func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "PUT":
-		log.Printf("[API] PUT /api/organizations/%s", orgID)
+		logger.Infow("[API] PUT /api/organizations/%s", orgID)
 
 		// Parse form data
 		if err := r.ParseForm(); err != nil {
-			log.Printf("[API] Error parsing form: %v", err)
+			logger.Infow("[API] Error parsing form: %v", err)
 			http.Error(w, "Invalid form data", http.StatusBadRequest)
 			return
 		}
@@ -672,12 +672,12 @@ func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
 		// Optional field - include even if empty to allow clearing
 		updates["description"] = r.FormValue("description")
 
-		log.Printf("[API] Updating organization with: name=%s, org_type=%s, description=%s",
+		logger.Infow("[API] Updating organization with: name=%s, org_type=%s, description=%s",
 			updates["name"], updates["org_type"], updates["description"])
 
 		// Update the organization
 		if err := s.orgSvc.UpdateOrganization(orgID, updates); err != nil {
-			log.Printf("[API] Error updating organization: %v", err)
+			logger.Infow("[API] Error updating organization: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -685,12 +685,12 @@ func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
 		// Fetch the updated organization
 		org, err := s.orgSvc.GetOrganization(orgID)
 		if err != nil {
-			log.Printf("[API] Error fetching updated organization: %v", err)
+			logger.Infow("[API] Error fetching updated organization: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
+		logger.Infow("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
 
 		// Return the updated row via SSE using Morph mode for intelligent DOM diffing
 		sse := datastar.NewServerSentEventGenerator(w, r)
@@ -698,42 +698,42 @@ func (s *Server) handleAPIOrganization(w http.ResponseWriter, r *http.Request) {
 		if err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#org-row-"+orgID),
 			datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
-			log.Printf("[API] Error patching updated row: %v", err)
+			logger.Infow("[API] Error patching updated row: %v", err)
 			return
 		}
 
-		log.Printf("[API] ✓ Organization row updated via SSE with Morph mode")
+		logger.Infow("[API] ✓ Organization row updated via SSE with Morph mode")
 
 	case "DELETE":
-		log.Printf("[API] DELETE /api/organizations/%s", orgID)
-		log.Printf("[API] Accept header: %s", r.Header.Get("Accept"))
+		logger.Infow("[API] DELETE /api/organizations/%s", orgID)
+		logger.Infow("[API] Accept header: %s", r.Header.Get("Accept"))
 
 		// Delete the organization
 		if err := s.orgSvc.DeleteOrganization(orgID); err != nil {
-			log.Printf("[API] Error deleting organization: %v", err)
+			logger.Infow("[API] Error deleting organization: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("[API] Organization deleted: %s", orgID)
+		logger.Infow("[API] Organization deleted: %s", orgID)
 
 		// If Datastar, remove the row from the UI
 		acceptHeader := r.Header.Get("Accept")
 		if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
-			log.Printf("[API] Sending SSE response to remove row")
+			logger.Infow("[API] Sending SSE response to remove row")
 			sse := datastar.NewServerSentEventGenerator(w, r)
 			err := sse.PatchElements("",
 				datastar.WithSelector("#org-row-"+orgID),
 				datastar.WithMode(datastar.ElementPatchModeRemove))
 			if err != nil {
-				log.Printf("[API] Error removing organization row: %v", err)
+				logger.Infow("[API] Error removing organization row: %v", err)
 			} else {
-				log.Printf("[API] ✓ SSE response sent successfully")
+				logger.Infow("[API] ✓ SSE response sent successfully")
 			}
 			return
 		}
 
-		log.Printf("[API] No SSE request detected, returning JSON")
+		logger.Infow("[API] No SSE request detected, returning JSON")
 		// Otherwise return JSON success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -772,7 +772,7 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 				datastar.WithSelector("#entities-content"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
 			if err != nil {
-				log.Printf("Error patching entities: %v", err)
+				logger.Infow("Error patching entities: %v", err)
 			}
 			return
 		}
@@ -848,7 +848,7 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 				datastar.WithSelector("#entity-table tbody"),
 				datastar.WithMode(datastar.ElementPatchModeAppend))
 			if err != nil {
-				log.Printf("Error patching new entity: %v", err)
+				logger.Infow("Error patching new entity: %v", err)
 			}
 
 			// Close the modal
@@ -948,7 +948,7 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
 				datastar.WithMode(datastar.ElementPatchModeOuter))
 			if err != nil {
-				log.Printf("Error patching updated entity: %v", err)
+				logger.Infow("Error patching updated entity: %v", err)
 			}
 
 			// Close the modal
@@ -976,7 +976,7 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
 				datastar.WithMode(datastar.ElementPatchModeRemove))
 			if err != nil {
-				log.Printf("Error removing entity: %v", err)
+				logger.Infow("Error removing entity: %v", err)
 			}
 			return
 		}
@@ -1002,7 +1002,7 @@ func (s *Server) handleAPIFleetUpdate(w http.ResponseWriter, r *http.Request) {
 	signals := make(map[string]interface{})
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&signals); err != nil {
-		log.Printf("[FLEET-API] Error reading JSON: %v", err)
+		logger.Infow("[FLEET-API] Error reading JSON: %v", err)
 		http.Error(w, "Invalid request data", http.StatusBadRequest)
 		return
 	}
@@ -1039,23 +1039,23 @@ func (s *Server) handleAPIFleetUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[FLEET-API] PUT /api/fleet/update (entity_id=%s, org_id=%s)", entityID, orgID)
-	log.Printf("[FLEET-API] Updating entity with: %v", updates)
+	logger.Infow("[FLEET-API] PUT /api/fleet/update (entity_id=%s, org_id=%s)", entityID, orgID)
+	logger.Infow("[FLEET-API] Updating entity with: %v", updates)
 
 	// Update the entity
 	entity, err := s.entitySvc.UpdateEntity(orgID, entityID, updates)
 	if err != nil {
-		log.Printf("[FLEET-API] Error updating entity: %v", err)
+		logger.Infow("[FLEET-API] Error updating entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
+	logger.Infow("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 	// Fetch all organizations for the dropdown in the returned row
 	orgs, err := s.orgSvc.ListOrganizations()
 	if err != nil {
-		log.Printf("[FLEET-API] Error fetching organizations: %v", err)
+		logger.Infow("[FLEET-API] Error fetching organizations: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1066,11 +1066,11 @@ func (s *Server) handleAPIFleetUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
-		log.Printf("[FLEET-API] Error patching updated row: %v", err)
+		logger.Infow("[FLEET-API] Error patching updated row: %v", err)
 		return
 	}
 
-	log.Printf("[FLEET-API] ✓ Fleet entity row updated via SSE with Morph mode")
+	logger.Infow("[FLEET-API] ✓ Fleet entity row updated via SSE with Morph mode")
 }
 
 // Fleet API handlers for create and list
@@ -1099,7 +1099,7 @@ func (s *Server) handleAPIFleet(w http.ResponseWriter, r *http.Request) {
 				datastar.WithSelector("#fleet-table"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
 			if err != nil {
-				log.Printf("Error patching fleet: %v", err)
+				logger.Infow("Error patching fleet: %v", err)
 			}
 			return
 		}
@@ -1112,12 +1112,12 @@ func (s *Server) handleAPIFleet(w http.ResponseWriter, r *http.Request) {
 
 	case "POST":
 		// Log request details for debugging
-		log.Printf("[FLEET-API] POST /api/fleet - Content-Type: %s, Accept: %s",
+		logger.Infow("[FLEET-API] POST /api/fleet - Content-Type: %s, Accept: %s",
 			r.Header.Get("Content-Type"), r.Header.Get("Accept"))
 
 		// Parse form data
 		if err := r.ParseForm(); err != nil {
-			log.Printf("[FLEET-API] Error parsing form: %v", err)
+			logger.Infow("[FLEET-API] Error parsing form: %v", err)
 			http.Error(w, "Invalid form data", http.StatusBadRequest)
 			return
 		}
@@ -1157,49 +1157,49 @@ func (s *Server) handleAPIFleet(w http.ResponseWriter, r *http.Request) {
 		metadata["is_live"] = r.FormValue("is_live") == "true"
 		req.Metadata = metadata
 
-		log.Printf("[FLEET-API] Creating fleet entity: type=%s, org_id=%s", req.EntityType, orgID)
+		logger.Infow("[FLEET-API] Creating fleet entity: type=%s, org_id=%s", req.EntityType, orgID)
 
 		// Create the entity
 		entity, err := s.entitySvc.CreateEntity(orgID, req)
 		if err != nil {
-			log.Printf("[FLEET-API] Error creating entity: %v", err)
+			logger.Infow("[FLEET-API] Error creating entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
+		logger.Infow("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 		// Fetch all organizations for rendering the row
 		orgs, err := s.orgSvc.ListOrganizations()
 		if err != nil {
-			log.Printf("[FLEET-API] Error fetching organizations: %v", err)
+			logger.Infow("[FLEET-API] Error fetching organizations: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// Always send SSE response (Datastar forms always expect SSE)
-		log.Printf("[FLEET-API] Creating SSE connection for response")
+		logger.Infow("[FLEET-API] Creating SSE connection for response")
 		sse := datastar.NewServerSentEventGenerator(w, r)
 
 		// Insert the new fleet row before the form row
-		log.Printf("[FLEET-API] Rendering fleet row component")
+		logger.Infow("[FLEET-API] Rendering fleet row component")
 		component := templates.FleetRow(orgs, *entity)
 
-		log.Printf("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
+		logger.Infow("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#new-fleet-form-row"),
 			datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
-			log.Printf("[FLEET-API] ERROR inserting fleet row: %v", err)
+			logger.Infow("[FLEET-API] ERROR inserting fleet row: %v", err)
 			return
 		}
 
 		// Reset the form after successful submission
-		log.Printf("[FLEET-API] Resetting form via ExecuteScript")
+		logger.Infow("[FLEET-API] Resetting form via ExecuteScript")
 		if err := sse.ExecuteScript("document.getElementById('new-fleet-form').reset()"); err != nil {
-			log.Printf("[FLEET-API] ERROR resetting form: %v", err)
+			logger.Infow("[FLEET-API] ERROR resetting form: %v", err)
 		}
 
-		log.Printf("[FLEET-API] ✓ SSE patch sent successfully - new row appended and form reset")
+		logger.Infow("[FLEET-API] ✓ SSE patch sent successfully - new row appended and form reset")
 	}
 }
 
@@ -1217,14 +1217,14 @@ func (s *Server) handleAPIFleetEntity(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "DELETE":
-		log.Printf("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
-		log.Printf("[FLEET-API] Accept header: %s", r.Header.Get("Accept"))
+		logger.Infow("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
+		logger.Infow("[FLEET-API] Accept header: %s", r.Header.Get("Accept"))
 
 		// If org_id not provided, try to find it
 		if orgID == "" {
 			orgs, err := s.orgSvc.ListOrganizations()
 			if err != nil {
-				log.Printf("[FLEET-API] Error fetching organizations: %v", err)
+				logger.Infow("[FLEET-API] Error fetching organizations: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -1245,30 +1245,30 @@ func (s *Server) handleAPIFleetEntity(w http.ResponseWriter, r *http.Request) {
 
 		// Delete the entity
 		if err := s.entitySvc.DeleteEntity(orgID, entityID); err != nil {
-			log.Printf("[FLEET-API] Error deleting entity: %v", err)
+			logger.Infow("[FLEET-API] Error deleting entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("[FLEET-API] Entity deleted: %s", entityID)
+		logger.Infow("[FLEET-API] Entity deleted: %s", entityID)
 
 		// If Datastar, remove the row from the UI
 		acceptHeader := r.Header.Get("Accept")
 		if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
-			log.Printf("[FLEET-API] Sending SSE response to remove row")
+			logger.Infow("[FLEET-API] Sending SSE response to remove row")
 			sse := datastar.NewServerSentEventGenerator(w, r)
 			err := sse.PatchElements("",
 				datastar.WithSelector("#fleet-row-"+entityID),
 				datastar.WithMode(datastar.ElementPatchModeRemove))
 			if err != nil {
-				log.Printf("[FLEET-API] Error removing fleet row: %v", err)
+				logger.Infow("[FLEET-API] Error removing fleet row: %v", err)
 			} else {
-				log.Printf("[FLEET-API] ✓ SSE response sent successfully")
+				logger.Infow("[FLEET-API] ✓ SSE response sent successfully")
 			}
 			return
 		}
 
-		log.Printf("[FLEET-API] No SSE request detected, returning JSON")
+		logger.Infow("[FLEET-API] No SSE request detected, returning JSON")
 		// Otherwise return JSON success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -1301,7 +1301,7 @@ func (s *Server) handleAPIOverwatchKV(w http.ResponseWriter, r *http.Request) {
 	// Get all keys using Keys() method
 	keys, err := kv.Keys()
 	if err != nil {
-		log.Printf("Error fetching KV keys: %v", err)
+		logger.Infow("Error fetching KV keys: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1311,7 +1311,7 @@ func (s *Server) handleAPIOverwatchKV(w http.ResponseWriter, r *http.Request) {
 	for _, key := range keys {
 		entry, err := kv.Get(key)
 		if err != nil {
-			log.Printf("Error getting key %s: %v", key, err)
+			logger.Infow("Error getting key %s: %v", key, err)
 			continue
 		}
 
@@ -1331,7 +1331,7 @@ func (s *Server) handleAPIOverwatchKV(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("#kv-content"),
 			datastar.WithMode(datastar.ElementPatchModeInner))
 		if err != nil {
-			log.Printf("Error patching KV content: %v", err)
+			logger.Infow("Error patching KV content: %v", err)
 		}
 		return
 	}
@@ -1353,7 +1353,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	// Verify we have a flusher (required for SSE)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		log.Printf("[Overwatch] ERROR: ResponseWriter does not support flushing (SSE won't work)")
+		logger.Infow("[Overwatch] ERROR: ResponseWriter does not support flushing (SSE won't work)")
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
@@ -1364,7 +1364,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	log.Printf("[Overwatch] ✓ SSE headers set, establishing connection from %s", r.RemoteAddr)
+	logger.Infow("[Overwatch] ✓ SSE headers set, establishing connection from %s", r.RemoteAddr)
 
 	// Create SSE generator AFTER setting headers
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -1377,12 +1377,12 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	fmt.Fprintf(w, ": SSE connection established\n\n")
 	flusher.Flush()
 	writeMutex.Unlock()
-	log.Printf("[Overwatch] ✓ SSE stream established and flushed")
+	logger.Infow("[Overwatch] ✓ SSE stream established and flushed")
 
 	// Send initial state - get all current entries
 	entries, err := s.natsEmbedded.GetAllKVEntries()
 	if err != nil {
-		log.Printf("[Overwatch] Error fetching initial KV entries: %v", err)
+		logger.Infow("[Overwatch] Error fetching initial KV entries: %v", err)
 		// Can't use http.Error after SSE headers are sent
 		writeMutex.Lock()
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
@@ -1394,15 +1394,15 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	// Parse entries into entity states organized by org
 	entityStatesByOrg := s.parseKVEntriesToEntityStates(entries)
 
-	log.Printf("[Overwatch] Sending initial state with %d orgs containing entities", len(entityStatesByOrg))
+	logger.Infow("[Overwatch] Sending initial state with %d orgs containing entities", len(entityStatesByOrg))
 	for orgID, entities := range entityStatesByOrg {
-		log.Printf("[Overwatch]   Org '%s': %d entities", orgID, len(entities))
+		logger.Infow("[Overwatch]   Org '%s': %d entities", orgID, len(entities))
 	}
 
 	// Send initial state (synchronized)
 	writeMutex.Lock()
 	if err := s.sendEntityStatesUpdate(sse, entityStatesByOrg); err != nil {
-		log.Printf("[Overwatch] Error sending initial state: %v", err)
+		logger.Infow("[Overwatch] Error sending initial state: %v", err)
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 		flusher.Flush()
 		writeMutex.Unlock()
@@ -1411,20 +1411,20 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	// CRITICAL: Flush the response to ensure SSE events reach the browser
 	flusher.Flush()
 	writeMutex.Unlock()
-	log.Printf("[Overwatch] ✓ Initial state flushed to client")
+	logger.Infow("[Overwatch] ✓ Initial state flushed to client")
 
 	// Start watching for changes in a goroutine
 	ctx := r.Context()
 	go func() {
-		log.Printf("[Overwatch] KV watcher goroutine started, waiting for changes...")
+		logger.Infow("[Overwatch] KV watcher goroutine started, waiting for changes...")
 		watchErr := s.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
 			timestamp := time.Now().Format("15:04:05.000")
-			log.Printf("[Overwatch KV Watch] ⚡⚡⚡ Change detected at %s for key: %s, operation: %s", timestamp, key, entry.Operation())
+			logger.Infow("[Overwatch KV Watch] ⚡⚡⚡ Change detected at %s for key: %s, operation: %s", timestamp, key, entry.Operation())
 
 			// On ANY change, refetch the complete global state from NATS KV
 			entries, err := s.natsEmbedded.GetAllKVEntries()
 			if err != nil {
-				log.Printf("[Overwatch KV Watch] Error refetching global state: %v", err)
+				logger.Infow("[Overwatch KV Watch] Error refetching global state: %v", err)
 				// Don't return error - continue watching
 				return nil
 			}
@@ -1437,11 +1437,11 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 			}
 
 			// Send complete global state to client (synchronized)
-			log.Printf("[Overwatch KV Watch] Sending SSE update: %d orgs, %d total entities", len(entityStatesByOrg), totalEntities)
+			logger.Infow("[Overwatch KV Watch] Sending SSE update: %d orgs, %d total entities", len(entityStatesByOrg), totalEntities)
 
 			writeMutex.Lock()
 			if err := s.sendEntityStatesUpdate(sse, entityStatesByOrg); err != nil {
-				log.Printf("[Overwatch KV Watch] ❌ ERROR sending update: %v", err)
+				logger.Infow("[Overwatch KV Watch] ❌ ERROR sending update: %v", err)
 				writeMutex.Unlock()
 				// Don't return error - continue watching
 				return nil
@@ -1450,7 +1450,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 			flusher.Flush()
 			writeMutex.Unlock()
 
-			log.Printf("[Overwatch KV Watch] ✓✓✓ Update flushed to client at %s, continuing to watch...", time.Now().Format("15:04:05.000"))
+			logger.Infow("[Overwatch KV Watch] ✓✓✓ Update flushed to client at %s, continuing to watch...", time.Now().Format("15:04:05.000"))
 
 			return nil
 		})
@@ -1458,12 +1458,12 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 		// Log detailed reason for watcher exit
 		if watchErr != nil {
 			if watchErr == context.Canceled {
-				log.Printf("[Overwatch] KV watcher stopped: HTTP client disconnected")
+				logger.Infow("[Overwatch] KV watcher stopped: HTTP client disconnected")
 			} else {
-				log.Printf("[Overwatch] ❌ KV watcher error: %v", watchErr)
+				logger.Infow("[Overwatch] ❌ KV watcher error: %v", watchErr)
 			}
 		} else {
-			log.Printf("[Overwatch] KV watcher stopped: NATS watch channel closed (watchErr == nil)")
+			logger.Infow("[Overwatch] KV watcher stopped: NATS watch channel closed (watchErr == nil)")
 		}
 	}()
 
@@ -1474,7 +1474,7 @@ func (s *Server) handleAPIOverwatchKVWatch(w http.ResponseWriter, r *http.Reques
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[Overwatch] Client disconnected from %s", r.RemoteAddr)
+			logger.Infow("[Overwatch] Client disconnected from %s", r.RemoteAddr)
 			return
 		case <-ticker.C:
 			// Send heartbeat to keep connection alive (synchronized)
@@ -1509,10 +1509,10 @@ func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[
 	// Now build consolidated EntityState objects
 	entityStatesByOrg := make(map[string][]shared.EntityState)
 
-	log.Printf("[Overwatch] Aggregating %d entities from %d KV entries", len(entitiesByID), len(entries))
+	logger.Infow("[Overwatch] Aggregating %d entities from %d KV entries", len(entitiesByID), len(entries))
 
 	for entityID, dataMap := range entitiesByID {
-		log.Printf("[Overwatch] Processing entity %s with %d KV entries", entityID, len(dataMap))
+		logger.Infow("[Overwatch] Processing entity %s with %d KV entries", entityID, len(dataMap))
 		entityState := s.mergeEntityData(entityID, dataMap)
 
 		// Group by org_id
@@ -1524,7 +1524,7 @@ func (s *Server) parseKVEntriesToEntityStates(entries []nats.KeyValueEntry) map[
 		entityStatesByOrg[orgID] = append(entityStatesByOrg[orgID], entityState)
 	}
 
-	log.Printf("[Overwatch] Built %d entities across %d orgs", len(entitiesByID), len(entityStatesByOrg))
+	logger.Infow("[Overwatch] Built %d entities across %d orgs", len(entitiesByID), len(entityStatesByOrg))
 	return entityStatesByOrg
 }
 
@@ -1547,7 +1547,7 @@ func (s *Server) mergeEntityData(entityID string, dataMap map[string][]byte) sha
 	for key, data := range dataMap {
 		// Skip empty data
 		if len(data) == 0 {
-			log.Printf("[Overwatch] Skipping empty data for key %s", key)
+			logger.Infow("[Overwatch] Skipping empty data for key %s", key)
 			continue
 		}
 
@@ -1556,26 +1556,26 @@ func (s *Server) mergeEntityData(entityID string, dataMap map[string][]byte) sha
 		if len(preview) > 300 {
 			preview = preview[:300] + "..."
 		}
-		log.Printf("[Overwatch] Key '%s' data preview: %s", key, preview)
+		logger.Infow("[Overwatch] Key '%s' data preview: %s", key, preview)
 
 		var rawData map[string]interface{}
 		if err := json.Unmarshal(data, &rawData); err != nil {
-			log.Printf("[Overwatch] Failed to unmarshal key %s: %v", key, err)
+			logger.Infow("[Overwatch] Failed to unmarshal key %s: %v", key, err)
 			continue
 		}
 
 		// Extract org_id (check both org_id and organization_id)
 		if orgID, ok := rawData["org_id"].(string); ok && orgID != "" {
 			state.OrgID = orgID
-			log.Printf("[Overwatch] Found org_id='%s' in key '%s'", orgID, key)
+			logger.Infow("[Overwatch] Found org_id='%s' in key '%s'", orgID, key)
 		}
 		if orgID, ok := rawData["organization_id"].(string); ok && orgID != "" {
 			state.OrgID = orgID
-			log.Printf("[Overwatch] Found organization_id='%s' in key '%s'", orgID, key)
+			logger.Infow("[Overwatch] Found organization_id='%s' in key '%s'", orgID, key)
 		}
 		// Log if neither was found
 		if state.OrgID == "" {
-			log.Printf("[Overwatch] WARNING: No org_id or organization_id found in key '%s'", key)
+			logger.Infow("[Overwatch] WARNING: No org_id or organization_id found in key '%s'", key)
 		}
 
 		// Extract device_id if present
@@ -1587,7 +1587,7 @@ func (s *Server) mergeEntityData(entityID string, dataMap map[string][]byte) sha
 		hasAnalytics := rawData["analytics"] != nil
 		hasDetections := rawData["detections"] != nil
 		hasThreatIntel := rawData["threat_intelligence"] != nil || rawData["threat_intel"] != nil
-		log.Printf("[Overwatch] Key '%s' has: analytics=%v, detections=%v, threat_intel=%v",
+		logger.Infow("[Overwatch] Key '%s' has: analytics=%v, detections=%v, threat_intel=%v",
 			key, hasAnalytics, hasDetections, hasThreatIntel)
 
 		// Determine data type from key suffix and merge accordingly
@@ -1732,14 +1732,14 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 	// Extract core fields (check both org_id and organization_id)
 	if orgID, ok := data["org_id"].(string); ok && orgID != "" {
 		state.OrgID = orgID
-		log.Printf("[Overwatch] mergeFullState: Found org_id='%s'", orgID)
+		logger.Infow("[Overwatch] mergeFullState: Found org_id='%s'", orgID)
 	}
 	if orgID, ok := data["organization_id"].(string); ok && orgID != "" {
 		state.OrgID = orgID
-		log.Printf("[Overwatch] mergeFullState: Found organization_id='%s'", orgID)
+		logger.Infow("[Overwatch] mergeFullState: Found organization_id='%s'", orgID)
 	}
 	if state.OrgID == "" {
-		log.Printf("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
+		logger.Infow("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
 	}
 
 	// Python detection service format (NEW): detections.tracked_objects
@@ -1747,17 +1747,17 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 		// Check for tracked_objects (new format)
 		if trackedObjects, ok := detectionsData["tracked_objects"].(map[string]interface{}); ok {
 			s.mergeDetections(state, map[string]interface{}{"tracked_objects": trackedObjects})
-			log.Printf("[Overwatch] Merged detections.tracked_objects with %d tracked objects", len(trackedObjects))
+			logger.Infow("[Overwatch] Merged detections.tracked_objects with %d tracked objects", len(trackedObjects))
 		} else if objectsData, ok := detectionsData["objects"].(map[string]interface{}); ok {
 			// Fallback to old format: detections.objects
 			s.mergeDetections(state, map[string]interface{}{"tracked_objects": objectsData})
-			log.Printf("[Overwatch] Merged detections.objects with %d tracked objects", len(objectsData))
+			logger.Infow("[Overwatch] Merged detections.objects with %d tracked objects", len(objectsData))
 		}
 
 		// Check for analytics nested inside detections (new format)
 		if analyticsData, ok := detectionsData["analytics"].(map[string]interface{}); ok {
 			s.mergeAnalytics(state, analyticsData)
-			log.Printf("[Overwatch] Merged detections.analytics")
+			logger.Infow("[Overwatch] Merged detections.analytics")
 		}
 	}
 
@@ -1765,21 +1765,21 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 	if analyticsData, ok := data["analytics"].(map[string]interface{}); ok {
 		if summaryData, ok := analyticsData["summary"].(map[string]interface{}); ok {
 			s.mergeAnalytics(state, summaryData)
-			log.Printf("[Overwatch] Merged analytics.summary")
+			logger.Infow("[Overwatch] Merged analytics.summary")
 		}
 	}
 
 	// Python threat intelligence format (NEW): top-level threat_intelligence
 	if threatData, ok := data["threat_intelligence"].(map[string]interface{}); ok {
 		s.mergeThreatIntel(state, threatData)
-		log.Printf("[Overwatch] Merged threat_intelligence")
+		logger.Infow("[Overwatch] Merged threat_intelligence")
 	}
 
 	// Python C4ISR format (OLD): c4isr.threat_intelligence
 	if c4isrData, ok := data["c4isr"].(map[string]interface{}); ok {
 		if threatData, ok := c4isrData["threat_intelligence"].(map[string]interface{}); ok {
 			s.mergeThreatIntel(state, threatData)
-			log.Printf("[Overwatch] Merged c4isr.threat_intelligence")
+			logger.Infow("[Overwatch] Merged c4isr.threat_intelligence")
 		}
 	}
 
@@ -1818,7 +1818,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 		totalEntities += len(entities)
 	}
 
-	log.Printf("[Overwatch] Total: %d entities across %d orgs", totalEntities, totalOrgs)
+	logger.Infow("[Overwatch] Total: %d entities across %d orgs", totalEntities, totalOrgs)
 
 	// STEP 1: Send metadata as signals (for stats display and debugging)
 	signals := map[string]interface{}{
@@ -1830,19 +1830,19 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 	}
 
 	// Log signal structure before sending (for debugging)
-	log.Printf("[Overwatch] Patching signals: totalOrgs=%d, totalEntities=%d, lastUpdate=%s", totalOrgs, totalEntities, signals["lastUpdate"])
+	logger.Infow("[Overwatch] Patching signals: totalOrgs=%d, totalEntities=%d, lastUpdate=%s", totalOrgs, totalEntities, signals["lastUpdate"])
 
 	// Verify entityStatesByOrg structure
 	for orgID, entities := range entityStatesByOrg {
-		log.Printf("[Overwatch]   Signal data - Org '%s': %d entities", orgID, len(entities))
+		logger.Infow("[Overwatch]   Signal data - Org '%s': %d entities", orgID, len(entities))
 	}
 
 	if err := sse.PatchSignals(signals); err != nil {
-		log.Printf("[Overwatch] ERROR in PatchSignals: %v", err)
+		logger.Infow("[Overwatch] ERROR in PatchSignals: %v", err)
 		return err
 	}
 
-	log.Printf("[Overwatch] ✓ Signals patched successfully")
+	logger.Infow("[Overwatch] ✓ Signals patched successfully")
 
 	// STEP 2: Render complete HTML structure (org sections + entity cards) on server
 	var htmlBuilder strings.Builder
@@ -1874,7 +1874,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 				}
 
 				if err := templates.EntityCard(entity).Render(context.Background(), &htmlBuilder); err != nil {
-					log.Printf("[Overwatch] Error rendering entity card %s: %v", entity.EntityID, err)
+					logger.Infow("[Overwatch] Error rendering entity card %s: %v", entity.EntityID, err)
 					continue
 				}
 			}
@@ -1885,7 +1885,7 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 	}
 
 	html := htmlBuilder.String()
-	log.Printf("[Overwatch] Rendered HTML: %d bytes for %d entities", len(html), totalEntities)
+	logger.Infow("[Overwatch] Rendered HTML: %d bytes for %d entities", len(html), totalEntities)
 
 	// STEP 3: Patch the entire entities container with inner mode
 	err := sse.PatchElements(html,
@@ -1893,11 +1893,11 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 		datastar.WithMode(datastar.ElementPatchModeInner))
 
 	if err != nil {
-		log.Printf("[Overwatch] ERROR in PatchElements: %v", err)
+		logger.Infow("[Overwatch] ERROR in PatchElements: %v", err)
 		return err
 	}
 
-	log.Printf("[Overwatch] ✓ SSE update complete: signals + HTML replaced")
+	logger.Infow("[Overwatch] ✓ SSE update complete: signals + HTML replaced")
 	return nil
 }
 
@@ -1911,7 +1911,7 @@ func (s *Server) handleAPIOverwatchKVDebug(w http.ResponseWriter, r *http.Reques
 	// Get all KV entries
 	entries, err := s.natsEmbedded.GetAllKVEntries()
 	if err != nil {
-		log.Printf("[Overwatch Debug] Error fetching KV entries: %v", err)
+		logger.Infow("[Overwatch Debug] Error fetching KV entries: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1937,7 +1937,7 @@ func (s *Server) handleAPIOverwatchKVDebug(w http.ResponseWriter, r *http.Reques
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(response); err != nil {
-		log.Printf("[Overwatch Debug] Error encoding JSON: %v", err)
+		logger.Infow("[Overwatch Debug] Error encoding JSON: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -2084,7 +2084,7 @@ func (s *Server) deleteOrganization(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("#org-row-"+orgID),
 			datastar.WithMode(datastar.ElementPatchModeRemove))
 		if err != nil {
-			log.Printf("Error removing organization row: %v", err)
+			logger.Infow("Error removing organization row: %v", err)
 		}
 		return
 	}

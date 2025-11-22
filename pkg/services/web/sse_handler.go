@@ -3,9 +3,9 @@ package web
 import (
 	"constellation-overwatch/pkg/services/web/datastar"
 	"constellation-overwatch/pkg/services/web/templates"
+	"constellation-overwatch/pkg/services/logger"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -58,19 +58,19 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 			datastar.WithSelector("#stream-messages"),
 			datastar.WithMode(datastar.ElementPatchModePrepend))
 		if patchErr != nil {
-			log.Printf("[SSE] Error patching elements: %v", patchErr)
+			logger.Errorw("Error patching elements", "component", "SSE", "error", patchErr)
 			return
 		}
 	})
 
 	if err != nil {
-		log.Printf("[SSE] Error subscribing to NATS: %v", err)
+		logger.Errorw("Error subscribing to NATS", "component", "SSE", "error", err)
 		http.Error(w, "Failed to subscribe to stream", http.StatusInternalServerError)
 		return
 	}
 	defer sub.Unsubscribe()
 
-	log.Printf("[SSE] Client connected from %s", r.RemoteAddr)
+	logger.Infow("SSE client connected", "component", "SSE", "remote_addr", r.RemoteAddr)
 
 	// Send initial connection message
 	initialHTML := `<div class="empty-state">Connected to stream. Waiting for messages...</div>`
@@ -85,7 +85,7 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
-			log.Printf("[SSE] Client disconnected from %s", r.RemoteAddr)
+			logger.Infow("SSE client disconnected", "component", "SSE", "remote_addr", r.RemoteAddr)
 			return
 		case <-ticker.C:
 			// Send a comment as heartbeat to keep connection alive
@@ -172,13 +172,13 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 				datastar.WithSelector("#stream-messages"),
 				datastar.WithMode(datastar.ElementPatchModePrepend))
 			if patchErr != nil {
-				log.Printf("[SSE] Error patching elements: %v", patchErr)
+				logger.Errorw("Error patching elements", "component", "SSE", "error", patchErr)
 				return
 			}
 		})
 
 		if err != nil {
-			log.Printf("[SSE] Error subscribing to NATS: %v", err)
+			logger.Errorw("Error subscribing to NATS", "component", "SSE", "error", err)
 			http.Error(w, "Failed to subscribe to stream", http.StatusInternalServerError)
 			return
 		}
@@ -192,7 +192,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 		}
 	}()
 
-	log.Printf("[SSE] Client connected from %s with filter: %s", r.RemoteAddr, filter)
+	logger.Infow("SSE client connected with filter", "component", "SSE", "remote_addr", r.RemoteAddr, "filter", filter)
 
 	// Send initial connection message
 	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, filter)
@@ -207,7 +207,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	for {
 		select {
 		case <-r.Context().Done():
-			log.Printf("[SSE] Client disconnected from %s", r.RemoteAddr)
+			logger.Infow("SSE client disconnected", "component", "SSE", "remote_addr", r.RemoteAddr)
 			return
 		case <-ticker.C:
 			// Heartbeat

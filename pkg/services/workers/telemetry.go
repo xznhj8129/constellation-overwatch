@@ -2,11 +2,11 @@ package workers
 
 import (
 	"constellation-overwatch/pkg/shared"
+	"constellation-overwatch/pkg/services/logger"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +45,7 @@ func NewTelemetryWorker(nc *nats.Conn, js nats.JetStreamContext, db *sql.DB, kv 
 }
 
 func (w *TelemetryWorker) Start(ctx context.Context) error {
-	log.Printf("[%s] Starting with global state management...", w.Name())
+	logger.Infow("Starting with global state management", "worker", w.Name())
 	return w.processMessages(ctx, w.handleTelemetryMessage)
 }
 
@@ -54,14 +54,14 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 	// Parse subject: constellation.telemetry.{org_id}.{entity_id}
 	entityID, orgID, err := w.parseSubject(msg.Subject)
 	if err != nil {
-		log.Printf("[%s] Failed to parse subject %s: %v", w.Name(), msg.Subject, err)
+		logger.Errorw("Failed to parse subject", "worker", w.Name(), "subject", msg.Subject, "error", err)
 		return
 	}
 
 	// Parse MAVLink telemetry
 	var telemetry shared.MAVLinkTelemetry
 	if err := json.Unmarshal(msg.Data, &telemetry); err != nil {
-		log.Printf("[%s] Failed to unmarshal telemetry: %v", w.Name(), err)
+		logger.Errorw("Failed to unmarshal telemetry", "worker", w.Name(), "error", err)
 		return
 	}
 
@@ -78,14 +78,14 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 
 	// Check if entity is registered - reject unregistered entities
 	if !w.registry.IsRegistered(entityID) {
-		log.Printf("[%s] Rejecting telemetry for unregistered entity: %s (not in registry)", w.Name(), entityID)
+		logger.Warnw("Rejecting telemetry for unregistered entity", "worker", w.Name(), "entity_id", entityID)
 		return
 	}
 
 	// Get or create entity state
 	state, err := w.getOrCreateEntityState(entityID, orgID)
 	if err != nil {
-		log.Printf("[%s] Failed to get entity state for %s: %v", w.Name(), entityID, err)
+		logger.Errorw("Failed to get entity state", "worker", w.Name(), "entity_id", entityID, "error", err)
 		return
 	}
 
@@ -105,12 +105,11 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 
 	// Save to KV store
 	if err := w.saveEntityState(state); err != nil {
-		log.Printf("[%s] Failed to save entity state: %v", w.Name(), err)
+		logger.Errorw("Failed to save entity state", "worker", w.Name(), "error", err)
 		return
 	}
 
-	log.Printf("[%s] Updated entity %s (%s) with %s message",
-		w.Name(), entityID, state.EntityType, telemetry.MessageType)
+	logger.Debugw("Updated entity state", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
 }
 
 // parseSubject extracts entity_id and org_id from NATS subject
@@ -119,7 +118,7 @@ func (w *TelemetryWorker) parseSubject(subject string) (entityID, orgID string, 
 	// But also support: constellation.telemetry.{category}.{org_id}.{entity_id}
 	parts := strings.Split(subject, ".")
 
-	log.Printf("[%s] Parsing subject '%s' (parts=%d)", w.Name(), subject, len(parts))
+	logger.Debugw("Parsing subject", "worker", w.Name(), "subject", subject, "parts", len(parts))
 
 	// Must have at least constellation.telemetry.org.entity (4 parts)
 	if len(parts) < 4 {
@@ -136,7 +135,7 @@ func (w *TelemetryWorker) parseSubject(subject string) (entityID, orgID string, 
 		// Assume the last two parts are org_id and entity_id
 		orgID = parts[len(parts)-2]
 		entityID = parts[len(parts)-1]
-		log.Printf("[%s] Using 5+ part subject format, category: %s", w.Name(), parts[2])
+		logger.Debugw("Using 5+ part subject format", "worker", w.Name(), "category", parts[2])
 	}
 
 	// Validate entity_id and org_id are not empty
@@ -144,11 +143,11 @@ func (w *TelemetryWorker) parseSubject(subject string) (entityID, orgID string, 
 		return "", "", fmt.Errorf("entity_id is empty in subject: %s", subject)
 	}
 	if orgID == "" {
-		log.Printf("[%s] WARNING: org_id is empty in subject: %s", w.Name(), subject)
+		logger.Warnw("org_id is empty in subject", "worker", w.Name(), "subject", subject)
 		orgID = "unknown"
 	}
 
-	log.Printf("[%s] Parsed subject '%s' -> entity_id='%s', org_id='%s'", w.Name(), subject, entityID, orgID)
+	logger.Debugw("Parsed subject", "worker", w.Name(), "subject", subject, "entity_id", entityID, "org_id", orgID)
 	return entityID, orgID, nil
 }
 
@@ -216,7 +215,7 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 			return nil, fmt.Errorf("invalid entity_id '%s': %w", entityID, err)
 		}
 
-		log.Printf("[TelemetryWorker] Entity %s not in database, creating new state", entityID)
+		logger.Infow("Entity not in database, creating new state", "component", "TelemetryWorker", "entity_id", entityID)
 		state = shared.EntityState{
 			EntityID:   entityID,
 			OrgID:      orgID,
@@ -292,7 +291,7 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 	state.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	state.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 
-	log.Printf("[TelemetryWorker] Initialized entity %s (%s) from database", entityID, state.EntityType)
+	logger.Infow("Initialized entity from database", "component", "TelemetryWorker", "entity_id", entityID, "entity_type", state.EntityType)
 	return &state, nil
 }
 
@@ -337,13 +336,13 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 				if _, err := w.kv.Create(key, data); err != nil {
 					if err == nats.ErrKeyExists {
 						// Race condition: key was created between check and create, retry
-						log.Printf("[%s] Race condition creating key %s, retrying...", w.Name(), key)
+						logger.Debugw("Race condition creating key, retrying", "worker", w.Name(), "key", key)
 						continue
 					}
 					return fmt.Errorf("failed to create entity state (key='%s'): %w", key, err)
 				}
 
-				log.Printf("[%s] Created new entity state for %s", w.Name(), state.EntityID)
+				logger.Debugw("Created new entity state", "worker", w.Name(), "entity_id", state.EntityID)
 				w.updateCache(state)
 				return nil
 			}
@@ -353,7 +352,7 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 		// Key exists - merge with existing data
 		var existingState shared.EntityState
 		if err := json.Unmarshal(existingEntry.Value(), &existingState); err != nil {
-			log.Printf("[%s] Warning: failed to unmarshal existing state, will overwrite: %v", w.Name(), err)
+			logger.Warnw("Failed to unmarshal existing state, will overwrite", "worker", w.Name(), "error", err)
 			// Fall through to just write new state
 		} else {
 			// Merge: preserve C4ISR data from Python service, update telemetry from this worker
@@ -370,14 +369,13 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 		if _, err := w.kv.Update(key, data, existingEntry.Revision()); err != nil {
 			if err.Error() == "nats: wrong last sequence" || err.Error() == "wrong last sequence" {
 				// Revision mismatch - someone else updated between our read and write
-				log.Printf("[%s] Revision mismatch on key %s (attempt %d/%d), retrying...",
-					w.Name(), key, attempt+1, maxRetries)
+				logger.Debugw("Revision mismatch, retrying", "worker", w.Name(), "key", key, "attempt", attempt+1, "max_retries", maxRetries)
 				continue
 			}
 			return fmt.Errorf("failed to update entity state (key='%s'): %w", key, err)
 		}
 
-		log.Printf("[%s] Updated entity state for %s (merged with existing data)", w.Name(), state.EntityID)
+		logger.Debugw("Updated entity state (merged with existing data)", "worker", w.Name(), "entity_id", state.EntityID)
 		w.updateCache(state)
 		return nil
 	}

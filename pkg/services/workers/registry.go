@@ -2,8 +2,9 @@ package workers
 
 import (
 	"database/sql"
-	"log"
 	"sync"
+
+	"constellation-overwatch/pkg/services/logger"
 )
 
 // EntityRegistry maintains an in-memory set of registered entity IDs
@@ -44,14 +45,14 @@ func (r *EntityRegistry) LoadFromDB() error {
 	for rows.Next() {
 		var entityID string
 		if err := rows.Scan(&entityID); err != nil {
-			log.Printf("[EntityRegistry] Error scanning entity_id: %v", err)
+			logger.Errorw("Error scanning entity_id", "component", "EntityRegistry", "error", err)
 			continue
 		}
 		r.entities[entityID] = true
 		count++
 	}
 
-	log.Printf("[EntityRegistry] Loaded %d entities from database", count)
+	logger.Infow("Loaded entities from database", "component", "EntityRegistry", "count", count)
 	return rows.Err()
 }
 
@@ -60,7 +61,7 @@ func (r *EntityRegistry) Register(entityID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entities[entityID] = true
-	log.Printf("[EntityRegistry] Registered entity: %s (total: %d)", entityID, len(r.entities))
+	logger.Infow("Registered entity", "component", "EntityRegistry", "entity_id", entityID, "total", len(r.entities))
 }
 
 // Unregister removes an entity_id from the registry
@@ -68,7 +69,7 @@ func (r *EntityRegistry) Unregister(entityID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.entities, entityID)
-	log.Printf("[EntityRegistry] Unregistered entity: %s (total: %d)", entityID, len(r.entities))
+	logger.Infow("Unregistered entity", "component", "EntityRegistry", "entity_id", entityID, "total", len(r.entities))
 }
 
 // IsRegistered checks if an entity_id is in the registry

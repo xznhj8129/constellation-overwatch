@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -12,18 +11,20 @@ import (
 	"constellation-overwatch/db"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"constellation-overwatch/pkg/services"
+	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/services/web"
 	"constellation-overwatch/pkg/services/workers"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 func main() {
 	// Load .env file if it exists
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+		logger.Info("No .env file found, using environment variables")
 	} else {
-		log.Println("Loaded configuration from .env file")
+		logger.Info("Loaded configuration from .env file")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -35,39 +36,39 @@ func main() {
 	// Initialize database service
 	dbService, err := db.NewService()
 	if err != nil {
-		log.Fatal("Failed to initialize database service:", err)
+		logger.Fatal("Failed to initialize database service", zap.Error(err))
 	}
 	serviceManager.AddService(dbService)
 
 	// Initialize NATS service
 	natsService, err := embeddednats.NewService()
 	if err != nil {
-		log.Fatal("Failed to initialize NATS service:", err)
+		logger.Fatal("Failed to initialize NATS service", zap.Error(err))
 	}
 	serviceManager.AddService(natsService)
 
 	// Start core services (DB and NATS)
-	log.Println("Starting core services...")
+	logger.Info("Starting core services...")
 	if err := serviceManager.Start(ctx); err != nil {
-		log.Fatal("Failed to start core services:", err)
+		logger.Fatal("Failed to start core services", zap.Error(err))
 	}
 
 	// Initialize workers service
 	workerManager, err := workers.NewManager(natsService, dbService.GetDB())
 	if err != nil {
-		log.Fatal("Failed to create worker manager:", err)
+		logger.Fatal("Failed to create worker manager", zap.Error(err))
 	}
 	if err := workerManager.Start(); err != nil {
-		log.Fatal("Failed to start workers:", err)
+		logger.Fatal("Failed to start workers", zap.Error(err))
 	}
 
 	// Initialize web service
 	webService, err := web.NewWebService(dbService, natsService.GetConnection(), natsService)
 	if err != nil {
-		log.Fatal("Failed to create web service:", err)
+		logger.Fatal("Failed to create web service", zap.Error(err))
 	}
 	if err := webService.Start(ctx); err != nil {
-		log.Fatal("Failed to start web service:", err)
+		logger.Fatal("Failed to start web service", zap.Error(err))
 	}
 
 	// Print startup information
@@ -79,7 +80,7 @@ func main() {
 
 	// Wait for shutdown signal
 	<-sigChan
-	log.Println("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -87,40 +88,40 @@ func main() {
 
 	// Stop services in reverse order
 	if err := webService.Stop(shutdownCtx); err != nil {
-		log.Printf("Failed to stop web service: %v", err)
+		logger.Error("Failed to stop web service", zap.Error(err))
 	}
 
 	if err := workerManager.Stop(); err != nil {
-		log.Printf("Failed to stop workers: %v", err)
+		logger.Error("Failed to stop workers", zap.Error(err))
 	}
 
 	if err := serviceManager.Stop(shutdownCtx); err != nil {
-		log.Printf("Failed to stop services: %v", err)
+		logger.Error("Failed to stop services", zap.Error(err))
 	}
 
-	log.Println("Server shutdown complete")
+	logger.Info("Server shutdown complete")
 }
 
 func printStartupInfo() {
 	host := getEnv("HOST", "0.0.0.0")
 	port := getEnv("PORT", "8080")
 
-	log.Printf("Bearer token: %s", getAPIToken())
-	log.Println("─────────────────────────────────────────────────────")
-	log.Printf("Local access:")
-	log.Printf("  Web UI:  http://localhost:%s", port)
-	log.Printf("  API:     http://localhost:%s/api/v1/", port)
+	logger.Info("Bearer token", zap.String("token", getAPIToken()))
+	logger.Info("─────────────────────────────────────────────────────")
+	logger.Info("Local access:")
+	logger.Info("Web UI available", zap.String("url", "http://localhost:"+port))
+	logger.Info("API available", zap.String("url", "http://localhost:"+port+"/api/v1/"))
 
 	// If binding to all interfaces, show network IP
 	if host == "0.0.0.0" || host == "" {
 		if localIP := getLocalIP(); localIP != "" {
-			log.Printf("Network access (other devices on LAN):")
-			log.Printf("  Web UI:  http://%s:%s", localIP, port)
-			log.Printf("  API:     http://%s:%s/api/v1/", localIP, port)
-			log.Printf("  NATS:    nats://%s:4222", localIP)
+			logger.Info("Network access (other devices on LAN):")
+			logger.Info("Web UI network access", zap.String("url", "http://"+localIP+":"+port))
+			logger.Info("API network access", zap.String("url", "http://"+localIP+":"+port+"/api/v1/"))
+			logger.Info("NATS network access", zap.String("url", "nats://"+localIP+":4222"))
 		}
 	}
-	log.Println("─────────────────────────────────────────────────────")
+	logger.Info("─────────────────────────────────────────────────────")
 }
 
 func getAPIToken() string {

@@ -3,14 +3,15 @@ package services
 import (
 	"constellation-overwatch/pkg/ontology"
 	"constellation-overwatch/pkg/shared"
+	"constellation-overwatch/pkg/services/logger"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type EntityService struct {
@@ -260,7 +261,7 @@ func (s *EntityService) UpdateEntityStatus(orgID, entityID, status string) error
 
 func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType string) {
 	if s.nats == nil || s.nats.JetStream() == nil {
-		log.Printf("NATS not available for publishing event")
+		logger.Warn("NATS not available for publishing event")
 		return
 	}
 
@@ -286,16 +287,16 @@ func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType st
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("Failed to marshal entity event: %v", err)
+		logger.Error("Failed to marshal entity event", zap.Error(err))
 		return
 	}
 
 	msgID := fmt.Sprintf("%s-%s-%d", entity.EntityID, eventType, time.Now().UnixNano())
 
 	if err := s.nats.PublishWithDedup(event.Subject, data, msgID); err != nil {
-		log.Printf("Failed to publish entity event: %v", err)
+		logger.Error("Failed to publish entity event", zap.Error(err))
 	} else {
-		log.Printf("Published entity event: %s on subject: %s", eventType, event.Subject)
+		logger.Info("Published entity event", zap.String("event_type", eventType), zap.String("subject", event.Subject))
 	}
 }
 

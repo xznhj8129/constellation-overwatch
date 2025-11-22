@@ -3,8 +3,8 @@ package workers
 import (
 	"context"
 	"encoding/json"
-	"log"
 
+	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/shared"
 	"github.com/nats-io/nats.go"
 )
@@ -28,14 +28,14 @@ func NewEntityWorker(nc *nats.Conn, js nats.JetStreamContext) *EntityWorker {
 
 func (w *EntityWorker) Start(ctx context.Context) error {
 	return w.processMessages(ctx, func(msg *nats.Msg) {
-		log.Printf("[%s] Received entity message on subject: %s", w.Name(), msg.Subject)
+		logger.Infow("Received entity message", "worker", w.Name(), "subject", msg.Subject)
 		
 		var data map[string]interface{}
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
-			log.Printf("[%s] Raw message data: %s", w.Name(), string(msg.Data))
+			logger.Debugw("Raw message data", "worker", w.Name(), "data", string(msg.Data))
 		} else {
 			prettyJSON, _ := json.MarshalIndent(data, "", "  ")
-			log.Printf("[%s] Entity data:\n%s", w.Name(), string(prettyJSON))
+			logger.Debugw("Entity data", "worker", w.Name(), "json", string(prettyJSON))
 		}
 	})
 }

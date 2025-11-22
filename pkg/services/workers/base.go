@@ -2,9 +2,9 @@ package workers
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"constellation-overwatch/pkg/services/logger"
 	"github.com/nats-io/nats.go"
 )
 
@@ -59,24 +59,24 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 	}
 	w.sub = sub
 
-	log.Printf("[%s] Starting worker for stream: %s, consumer: %s", w.name, w.stream, w.consumer)
+	logger.Infow("Starting worker", "worker", w.name, "stream", w.stream, "consumer", w.consumer)
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[%s] Worker stopping", w.name)
+			logger.Infow("Worker stopping", "worker", w.name)
 			return ctx.Err()
 		default:
 			msgs, err := sub.Fetch(10, nats.MaxWait(2*time.Second))
 			if err != nil && err != nats.ErrTimeout {
-				log.Printf("[%s] Error fetching messages: %v", w.name, err)
+				logger.Errorw("Error fetching messages", "worker", w.name, "error", err)
 				continue
 			}
 
 			for _, msg := range msgs {
 				handler(msg)
 				if err := msg.Ack(); err != nil {
-					log.Printf("[%s] Error acknowledging message: %v", w.name, err)
+					logger.Errorw("Error acknowledging message", "worker", w.name, "error", err)
 				}
 			}
 		}

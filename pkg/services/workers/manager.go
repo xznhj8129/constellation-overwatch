@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"sync"
 
+	"constellation-overwatch/pkg/services/logger"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/nats-io/nats.go"
 )
@@ -67,33 +67,33 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 }
 
 func (m *Manager) Start() error {
-	log.Println("Starting NATS workers...")
+	logger.Info("Starting NATS workers...")
 
 	for _, worker := range m.workers {
 		m.wg.Add(1)
 		go func(w Worker) {
 			defer m.wg.Done()
 			
-			log.Printf("Starting worker: %s", w.Name())
+			logger.Infow("Starting worker", "worker", w.Name())
 			if err := w.Start(m.ctx); err != nil && err != context.Canceled {
-				log.Printf("Worker %s error: %v", w.Name(), err)
+				logger.Errorw("Worker error", "worker", w.Name(), "error", err)
 			}
-			log.Printf("Worker %s stopped", w.Name())
+			logger.Infow("Worker stopped", "worker", w.Name())
 		}(worker)
 	}
 
-	log.Printf("Started %d workers", len(m.workers))
+	logger.Infow("Started workers", "count", len(m.workers))
 	return nil
 }
 
 func (m *Manager) Stop() error {
-	log.Println("Stopping NATS workers...")
+	logger.Info("Stopping NATS workers...")
 	
 	m.cancel()
 	
 	for _, worker := range m.workers {
 		if err := worker.Stop(); err != nil {
-			log.Printf("Error stopping worker %s: %v", worker.Name(), err)
+			logger.Errorw("Error stopping worker", "worker", worker.Name(), "error", err)
 		}
 	}
 	
@@ -103,6 +103,6 @@ func (m *Manager) Stop() error {
 		m.nc.Close()
 	}
 	
-	log.Println("All workers stopped")
+	logger.Info("All workers stopped")
 	return nil
 }

@@ -107,6 +107,7 @@ sequenceDiagram
 ### Prerequisites
 
 - Go 1.24 or higher
+- [Task](https://taskfile.dev/) - Task runner (alternative to Make)
 
 ### Installation
 
@@ -115,11 +116,21 @@ sequenceDiagram
 git clone https://github.com/Constellation-Overwatch/constellation-overwatch.git
 cd constellation-overwatch
 
+# Install Task (if not already installed)
+# macOS
+brew install go-task/tap/go-task
+
+# Linux
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
+
+# Windows (using Scoop)
+scoop install task
+
 # Install dependencies
 go mod download
 
 # Quick start - development mode with auto-rebuild
-make dev
+task dev
 
 # OR run the server directly
 go run ./cmd/microlith/main.go
@@ -144,7 +155,7 @@ Access the web interface at `http://localhost:8080` to:
 
 For development with auto-rebuilding templ templates:
 ```bash
-make dev  # Starts both templ watcher and server
+task dev  # Starts both templ watcher and server
 ```
 
 ### Configuration
@@ -351,20 +362,20 @@ constellation-overwatch/
 
 ```bash
 # Development mode (with templ auto-rebuild and server)
-make dev
+task dev
 
 # Generate templ templates once
-make templ-generate
+task templ-generate
 
 # Watch templ files for changes
-make templ-watch
+task templ-watch
 
 # Build the binary
-make build
+task build
 # or manually: go build -o bin/overwatch ./cmd/microlith
 
 # Run the binary
-make run
+task run
 # or manually: ./bin/overwatch
 
 # Run tests
@@ -375,6 +386,9 @@ go fmt ./...
 
 # Run go vet
 go vet ./...
+
+# List all available tasks
+task --list
 ```
 
 ## Docker & Deployment
@@ -384,7 +398,7 @@ go vet ./...
 Build the lightweight production image:
 
 ```bash
-make docker-build
+task docker-build
 ```
 
 ### Docker Compose
@@ -392,7 +406,13 @@ make docker-build
 Run the service with Docker Compose:
 
 ```bash
-make docker-run
+task docker-run
+```
+
+Stop the service:
+
+```bash
+task docker-stop
 ```
 
 This will start the service with the configuration defined in `docker-compose.yml`.
@@ -415,7 +435,7 @@ To enable TLS for NATS connections:
 
 1.  Generate certificates (for development):
     ```bash
-    make generate-certs
+    task generate-certs
     ```
 2.  Uncomment the TLS configuration in `docker-compose.yml` or set the environment variables:
     - `NATS_TLS_ENABLED=true`
