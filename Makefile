@@ -1,4 +1,4 @@
-.PHONY: build run docker-build docker-run clean generate-certs
+.PHONY: build run docker-build docker-run clean generate-certs templ-generate templ-watch dev
 
 BINARY_NAME=overwatch
 DOCKER_IMAGE=constellation-overwatch:latest
@@ -36,3 +36,17 @@ generate-certs:
 	chmod 644 certs/server.crt
 	chmod 600 certs/server.key
 	@echo "Certificates generated in ./certs/"
+
+templ-generate:
+	@echo "Generating templ files..."
+	go run github.com/a-h/templ/cmd/templ@latest generate
+
+templ-watch:
+	@echo "Starting templ file watcher..."
+	go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false
+
+dev: templ-generate
+	@echo "Starting development mode with templ generation and server..."
+	@trap 'kill %1; kill %2' INT; \
+	make templ-watch & \
+	sleep 2 && make run &

@@ -14,7 +14,8 @@ Constellation Overwatch provides a distributed, event-driven architecture for ma
 - **RESTful API** - Simple HTTP interface with bearer token authentication
 - **Embedded NATS** - Self-contained messaging system with no external dependencies
 - **Telemetry Streaming** - Efficient handling of high-frequency sensor data
-- **Command & Control** - Secure command distribution to edge devices
+- **Real-time Web UI** - Server-sent events (SSE) powered dashboard with Datastar framework
+- **Templ Templates** - Type-safe Go templates for reactive web components
 
 ## Architecture
 
@@ -105,8 +106,7 @@ sequenceDiagram
 
 ### Prerequisites
 
-- Go 1.21 or higher
-- SQLite3
+- Go 1.24 or higher
 
 ### Installation
 
@@ -118,14 +118,34 @@ cd constellation-overwatch
 # Install dependencies
 go mod download
 
-# Run the server
+# Quick start - development mode with auto-rebuild
+make dev
+
+# OR run the server directly
 go run ./cmd/microlith/main.go
 ```
 
 The server will start:
-- API server on port 8080 
-- Web interface on port 8090
+- API server & Web UI on port 8080
 - Embedded NATS server on port 4222
+
+### Web UI
+
+The application includes a real-time web dashboard built with:
+- **Templ** - Type-safe Go HTML templates
+- **Datastar** - Hypermedia framework for reactive UI updates
+- **Server-Sent Events (SSE)** - Real-time data streaming to the browser
+
+Access the web interface at `http://localhost:8080` to:
+- View organizations and entities in real-time
+- Monitor NATS streams and key-value stores
+- Create and manage fleet entities
+- Watch live telemetry data
+
+For development with auto-rebuilding templ templates:
+```bash
+make dev  # Starts both templ watcher and server
+```
 
 ### Configuration
 
@@ -139,24 +159,18 @@ Configuration options:
 
 - `API_BEARER_TOKEN` - Bearer token for API authentication (default: `constellation-dev-token`)
 - `PORT` - HTTP server port (default: `8080`)
-- `WEB_PORT` - Web interface port (default: `8090`)
 - `DB_PATH` - SQLite database path (default: `./db/constellation.db`)
 - `NATS_PORT` - NATS server port (default: `4222`)
-- `NATS_DATA_DIR` - NATS data directory (default: `./data/nats`)
+- `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
 
 Example `.env` file:
 
 ```bash
-API_BEARER_TOKEN=constellation-dev-token # default
+API_BEARER_TOKEN=constellation-dev-token
 PORT=8080
 DB_PATH=./db/constellation.db
 NATS_PORT=4222
-NATS_DATA_DIR=./data/nats
-
-# NATS Security (Optional but Recommended)
-NATS_AUTH_ENABLED=true
-NATS_USER=admin
-NATS_PASSWORD=secure_password
+NATS_DATA_DIR=./data/overwatch
 ```
 
 ### API Authentication
@@ -336,14 +350,31 @@ constellation-overwatch/
 ### Building
 
 ```bash
+# Development mode (with templ auto-rebuild and server)
+make dev
+
+# Generate templ templates once
+make templ-generate
+
+# Watch templ files for changes
+make templ-watch
+
 # Build the binary
-go build -o constellation-overwatch ./cmd/microlith/main.go
+make build
+# or manually: go build -o bin/overwatch ./cmd/microlith
 
 # Run the binary
-./constellation-overwatch
+make run
+# or manually: ./bin/overwatch
 
 # Run tests
 go test ./...
+
+# Format code
+go fmt ./...
+
+# Run go vet
+go vet ./...
 ```
 
 ## Docker & Deployment

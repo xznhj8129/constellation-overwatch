@@ -6,11 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development
 ```bash
+# Development mode (with templ auto-rebuild)
+make dev
+
 # Run the server
 go run ./cmd/microlith/main.go
 
 # Build the binary
-go build -o constellation-overwatch ./cmd/microlith/main.go
+make build
+
+# Run the built binary
+make run
 
 # Run tests
 go test ./...
@@ -26,6 +32,12 @@ go fmt ./...
 
 # Run go vet
 go vet ./...
+
+# Generate templ templates
+make templ-generate
+
+# Watch templ files for changes
+make templ-watch
 ```
 
 ### Environment Setup
@@ -35,7 +47,7 @@ cp .env.example .env
 ```
 
 Default ports:
-- API Server: 8080
+- API Server & Web UI: 8080
 - NATS Server: 4222 (embedded)
 
 ## Architecture
