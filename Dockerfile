@@ -28,8 +28,8 @@ RUN apt-get update && apt-get install -y ca-certificates tzdata && rm -rf /var/l
 RUN groupadd -r constellation && useradd -r -g constellation constellation
 
 # Create necessary directories with correct permissions
-RUN mkdir -p /app/data/nats /app/logs /app/certs && \
-    chown -R constellation:constellation /app
+RUN mkdir -p /data/nats /data/logs /data/certs /app && \
+    chown -R constellation:constellation /data /app
 
 # Copy binary from builder
 COPY --from=builder /app/bin/overwatch /app/overwatch
@@ -39,6 +39,9 @@ COPY nats.conf /app/nats.conf
 
 # Copy static assets
 COPY pkg/services/web/static /app/pkg/services/web/static
+
+# Declare volume for persistence
+VOLUME ["/data"]
 
 # Switch to non-root user
 USER constellation

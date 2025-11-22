@@ -41,7 +41,9 @@ func (w *BaseWorker) Name() string {
 
 func (w *BaseWorker) Stop() error {
 	if w.sub != nil {
-		return w.sub.Drain()
+		// For pull subscriptions, unsubscribe instead of drain
+		// Drain() is for push subscriptions and doesn't work properly with pull consumers
+		return w.sub.Unsubscribe()
 	}
 	return nil
 }
@@ -67,8 +69,24 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 			logger.Infow("Worker stopping", "worker", w.name)
 			return ctx.Err()
 		default:
+			// Check if subscription is still valid before attempting fetch
+			if w.sub != nil && !w.sub.IsValid() {
+				logger.Infow("Subscription invalid, worker exiting gracefully", "worker", w.name)
+				return nil
+			}
+
 			msgs, err := sub.Fetch(10, nats.MaxWait(2*time.Second))
-			if err != nil && err != nats.ErrTimeout {
+			if err != nil {
+				// Timeout is expected and normal - just continue
+				if err == nats.ErrTimeout {
+					continue
+				}
+				// These errors indicate shutdown or connection closure - exit gracefully
+				if err == nats.ErrBadSubscription || err == nats.ErrConnectionClosed {
+					logger.Infow("Subscription closed, worker exiting gracefully", "worker", w.name, "error", err)
+					return nil
+				}
+				// For other errors, log and continue
 				logger.Errorw("Error fetching messages", "worker", w.name, "error", err)
 				continue
 			}

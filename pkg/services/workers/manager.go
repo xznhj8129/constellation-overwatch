@@ -95,21 +95,26 @@ func (m *Manager) Start() error {
 
 func (m *Manager) Stop() error {
 	logger.Info("Stopping NATS workers...")
-	
-	m.cancel()
-	
+
+	// Step 1: Stop all workers (unsubscribe from consumers)
+	// This must happen BEFORE canceling context to prevent race conditions
 	for _, worker := range m.workers {
 		if err := worker.Stop(); err != nil {
 			logger.Errorw("Error stopping worker", "worker", worker.Name(), "error", err)
 		}
 	}
-	
+
+	// Step 2: Cancel context to break any remaining fetch loops
+	m.cancel()
+
+	// Step 3: Wait for all worker goroutines to complete
 	m.wg.Wait()
-	
+
+	// Step 4: Finally close NATS connection
 	if m.nc != nil {
 		m.nc.Close()
 	}
-	
+
 	logger.Info("All workers stopped")
 	return nil
 }
