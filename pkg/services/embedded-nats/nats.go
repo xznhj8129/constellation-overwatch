@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"constellation-overwatch/pkg/shared"
+
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
@@ -104,7 +106,27 @@ func New(cfg *Config) (*EmbeddedNATS, error) {
 	}, nil
 }
 
-func (en *EmbeddedNATS) Start() error {
+// NewService creates a new NATS service with default configuration
+func NewService() (*EmbeddedNATS, error) {
+	return New(DefaultConfig())
+}
+
+// Name returns the service name
+func (en *EmbeddedNATS) Name() string {
+	return "embedded-nats"
+}
+
+// Start initializes and starts the NATS service (implements Service interface)
+func (en *EmbeddedNATS) Start(ctx context.Context) error {
+	return en.StartEmbedded()
+}
+
+// Stop gracefully shuts down the NATS service (implements Service interface)
+func (en *EmbeddedNATS) Stop(ctx context.Context) error {
+	return en.Shutdown(ctx)
+}
+
+func (en *EmbeddedNATS) StartEmbedded() error {
 	opts := &server.Options{
 		Host:      en.config.Host,
 		Port:      en.config.Port,
@@ -178,7 +200,45 @@ func (en *EmbeddedNATS) Start() error {
 		return fmt.Errorf("failed to connect to embedded NATS: %w", err)
 	}
 
+	// Initialize streams and consumers
+	if err := en.initializeStreamsAndConsumers(); err != nil {
+		return fmt.Errorf("failed to initialize streams and consumers: %w", err)
+	}
+
 	log.Printf("Embedded NATS server started on %s:%d", en.config.Host, en.config.Port)
+	return nil
+}
+
+// initializeStreamsAndConsumers sets up all required streams and consumers
+func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
+	// Create constellation streams
+	if err := en.CreateConstellationStreams(); err != nil {
+		return fmt.Errorf("failed to create constellation streams: %w", err)
+	}
+
+	// Create global state KV bucket
+	if err := en.CreateGlobalStateKV(shared.KVBucketGlobalState); err != nil {
+		return fmt.Errorf("failed to create global state KV bucket: %w", err)
+	}
+
+	// Create durable consumers
+	consumers := []struct {
+		stream   string
+		consumer string
+		filter   string
+	}{
+		{shared.StreamEntities, shared.ConsumerEntityProcessor, shared.SubjectEntitiesAll},
+		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
+		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
+		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
+	}
+
+	for _, c := range consumers {
+		if err := en.CreateDurableConsumer(c.stream, c.consumer, c.filter); err != nil {
+			return fmt.Errorf("failed to create consumer %s: %w", c.consumer, err)
+		}
+	}
+
 	return nil
 }
 

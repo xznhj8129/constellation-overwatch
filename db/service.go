@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -29,10 +30,18 @@ type Config struct {
 	AutoInitialize bool // Automatically initialize schema if DB doesn't exist
 }
 
+// getEnv gets environment variable with fallback
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 // DefaultConfig returns default database configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DBPath:         "./db/data/constellation.db",
+		DBPath:         getEnv("DB_PATH", "./db/data/constellation.db"),
 		MaxOpenConns:   1, // SQLite doesn't handle concurrent writes well
 		MaxIdleConns:   1,
 		AutoInitialize: true,
@@ -96,6 +105,41 @@ func New(config *Config) (*Service, error) {
 
 	log.Printf("Database service initialized: %s", config.DBPath)
 	return service, nil
+}
+
+// NewService creates a new database service with default configuration
+func NewService() (*Service, error) {
+	return New(DefaultConfig())
+}
+
+// Name returns the service name (implements Service interface)
+func (s *Service) Name() string {
+	return "database"
+}
+
+// Start initializes the database service (implements Service interface)
+func (s *Service) Start(ctx context.Context) error {
+	// Verify schema is properly initialized
+	if err := s.VerifySchema(); err != nil {
+		log.Printf("Schema verification failed: %v", err)
+		log.Println("Attempting to initialize schema...")
+		if err := s.InitializeSchema(); err != nil {
+			return fmt.Errorf("failed to initialize schema: %w", err)
+		}
+	}
+
+	log.Println("Database service started successfully")
+	return nil
+}
+
+// Stop gracefully shuts down the database service (implements Service interface) 
+func (s *Service) Stop(ctx context.Context) error {
+	return s.Close()
+}
+
+// HealthCheck returns the health status of the database service (implements Service interface)
+func (s *Service) HealthCheck() error {
+	return s.Health()
 }
 
 // InitializeSchema loads and executes the schema.sql file

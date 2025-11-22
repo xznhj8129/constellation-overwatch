@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +32,8 @@ type Server struct {
 	entitySvc    *services.EntityService
 	sseHandler   *SSEHandler
 	mux          *http.ServeMux
+	server       *http.Server
+	bindAddr     string
 }
 
 func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS) (*Server, error) {
@@ -46,6 +49,69 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 
 	s.setupRoutes()
 	return s, nil
+}
+
+// NewWebService creates a new web service with environment-based configuration
+func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS) (*Server, error) {
+	server, err := NewServer(dbService, nc, natsEmbedded)
+	if err != nil {
+		return nil, err
+	}
+
+	// Configure bind address from environment
+	host := getEnv("HOST", "0.0.0.0")
+	port := getEnv("PORT", "8080")
+	server.bindAddr = fmt.Sprintf("%s:%s", host, port)
+
+	return server, nil
+}
+
+// getEnv gets environment variable with fallback
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
+// Name returns the service name (implements Service interface)
+func (s *Server) Name() string {
+	return "web-server"
+}
+
+// Start initializes and starts the web service (implements Service interface)
+func (s *Server) Start(ctx context.Context) error {
+	s.server = &http.Server{
+		Addr:    s.bindAddr,
+		Handler: s.mux,
+	}
+
+	go func() {
+		log.Printf("Starting web server on %s", s.bindAddr)
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("Web server error: %v", err)
+		}
+	}()
+
+	return nil
+}
+
+// Stop gracefully shuts down the web service (implements Service interface)
+func (s *Server) Stop(ctx context.Context) error {
+	if s.server != nil {
+		log.Println("Shutting down web server...")
+		return s.server.Shutdown(ctx)
+	}
+	return nil
+}
+
+// HealthCheck returns the health status of the web service (implements Service interface)
+func (s *Server) HealthCheck() error {
+	// Simple check that server is configured
+	if s.server == nil {
+		return fmt.Errorf("web server not initialized")
+	}
+	return nil
 }
 
 func (s *Server) setupRoutes() {
@@ -88,10 +154,6 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/entities", s.handleAPIV1Entities)
 }
 
-func (s *Server) Start(bindAddr string) error {
-	log.Printf("Starting Constellation Overwatch Edge Awareness Plane on %s", bindAddr)
-	return http.ListenAndServe(bindAddr, s.mux)
-}
 
 // Page handlers
 

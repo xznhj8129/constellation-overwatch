@@ -2,121 +2,21 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
+	"time"
 
 	"constellation-overwatch/db"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services"
 	"constellation-overwatch/pkg/services/web"
 	"constellation-overwatch/pkg/services/workers"
-	"constellation-overwatch/pkg/shared"
 
 	"github.com/joho/godotenv"
 )
-
-var (
-	dbService *db.Service
-	nats      *embeddednats.EmbeddedNATS
-)
-
-func initDB() error {
-	var err error
-
-	// Create database service with default config
-	config := db.DefaultConfig()
-	// config.DBPath = "./db/constellation.db"
-	config.AutoInitialize = true
-if dbPath := os.Getenv("DB_PATH"); dbPath != "" {
-config.DBPath = dbPath
-}
-	dbService, err = db.New(config)
-	if err != nil {
-		return fmt.Errorf("failed to initialize database service: %w", err)
-	}
-
-	// Verify schema is properly initialized
-	if err := dbService.VerifySchema(); err != nil {
-		log.Printf("Schema verification failed: %v", err)
-		log.Println("Attempting to initialize schema...")
-		if err := dbService.InitializeSchema(); err != nil {
-			return fmt.Errorf("failed to initialize schema: %w", err)
-		}
-	}
-
-	log.Println("Database service initialized successfully")
-	return nil
-}
-
-func initNATS() error {
-	var err error
-
-	config := embeddednats.DefaultConfig()
-	config.DataDir = "./data/nats"
-
-	// Read NATS host from environment
-	if natsHost := os.Getenv("NATS_HOST"); natsHost != "" {
-		config.Host = natsHost
-	}
-
-	// Read NATS port from environment
-	if natsPort := os.Getenv("NATS_PORT"); natsPort != "" {
-		if port, err := strconv.Atoi(natsPort); err == nil {
-			config.Port = port
-		}
-	}
-
-	// Read NATS Auth from environment
-	if authEnabled := os.Getenv("NATS_AUTH_ENABLED"); authEnabled == "true" {
-		config.EnableAuth = true
-		config.Username = os.Getenv("NATS_USER")
-		config.Password = os.Getenv("NATS_PASSWORD")
-	}
-
-	nats, err = embeddednats.New(config)
-	if err != nil {
-		return fmt.Errorf("failed to create embedded NATS: %w", err)
-	}
-
-	if err := nats.Start(); err != nil {
-		return fmt.Errorf("failed to start embedded NATS: %w", err)
-	}
-
-	// Create constellation streams
-	if err := nats.CreateConstellationStreams(); err != nil {
-		return fmt.Errorf("failed to create constellation streams: %w", err)
-	}
-
-	// Create global state KV bucket
-	if err := nats.CreateGlobalStateKV(shared.KVBucketGlobalState); err != nil {
-		return fmt.Errorf("failed to create global state KV bucket: %w", err)
-	}
-
-	// Create durable consumers
-	consumers := []struct {
-		stream   string
-		consumer string
-		filter   string
-	}{
-		{shared.StreamEntities, shared.ConsumerEntityProcessor, shared.SubjectEntitiesAll},
-		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
-		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
-		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
-	}
-
-	for _, c := range consumers {
-		if err := nats.CreateDurableConsumer(c.stream, c.consumer, c.filter); err != nil {
-			return fmt.Errorf("failed to create consumer %s: %w", c.consumer, err)
-		}
-	}
-
-	log.Println("NATS JetStream initialized successfully")
-	return nil
-}
 
 func main() {
 	// Load .env file if it exists
@@ -129,19 +29,31 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize database
-	if err := initDB(); err != nil {
-		log.Fatal("Failed to initialize database:", err)
-	}
-	defer dbService.Close()
+	// Create service manager
+	serviceManager := services.NewManager()
 
-	// Initialize embedded NATS
-	if err := initNATS(); err != nil {
-		log.Fatal("Failed to initialize NATS:", err)
+	// Initialize database service
+	dbService, err := db.NewService()
+	if err != nil {
+		log.Fatal("Failed to initialize database service:", err)
+	}
+	serviceManager.AddService(dbService)
+
+	// Initialize NATS service
+	natsService, err := embeddednats.NewService()
+	if err != nil {
+		log.Fatal("Failed to initialize NATS service:", err)
+	}
+	serviceManager.AddService(natsService)
+
+	// Start core services (DB and NATS)
+	log.Println("Starting core services...")
+	if err := serviceManager.Start(ctx); err != nil {
+		log.Fatal("Failed to start core services:", err)
 	}
 
-	// Start NATS workers with database access
-	workerManager, err := workers.NewManager(nats, dbService.GetDB())
+	// Initialize workers service
+	workerManager, err := workers.NewManager(natsService, dbService.GetDB())
 	if err != nil {
 		log.Fatal("Failed to create worker manager:", err)
 	}
@@ -149,73 +61,66 @@ func main() {
 		log.Fatal("Failed to start workers:", err)
 	}
 
+	// Initialize web service
+	webService, err := web.NewWebService(dbService, natsService.GetConnection(), natsService)
+	if err != nil {
+		log.Fatal("Failed to create web service:", err)
+	}
+	if err := webService.Start(ctx); err != nil {
+		log.Fatal("Failed to start web service:", err)
+	}
+
+	// Print startup information
+	printStartupInfo()
+
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Create unified web server (includes both web UI and REST API)
-	webServer, err := web.NewServer(dbService, nats.GetConnection(), nats)
-	if err != nil {
-		log.Fatal("Failed to create web server:", err)
-	}
-
-	// Get host and port from environment
-	host := os.Getenv("HOST")
-	if host == "" {
-		host = "0.0.0.0" // Default to all interfaces
-	}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	// Start unified server in goroutine
-	go func() {
-		bindAddr := fmt.Sprintf("%s:%s", host, port)
-
-		log.Printf("Starting Constellation Overwatch unified server on %s", bindAddr)
-		log.Printf("Bearer token: %s", getAPIToken())
-		log.Println("─────────────────────────────────────────────────────")
-		log.Printf("Local access:")
-		log.Printf("  Web UI:  http://localhost:%s", port)
-		log.Printf("  API:     http://localhost:%s/api/v1/", port)
-
-		// If binding to all interfaces, show network IP
-		if host == "0.0.0.0" || host == "" {
-			if localIP := getLocalIP(); localIP != "" {
-				log.Printf("Network access (other devices on LAN):")
-				log.Printf("  Web UI:  http://%s:%s", localIP, port)
-				log.Printf("  API:     http://%s:%s/api/v1/", localIP, port)
-				log.Printf("  NATS:    nats://%s:4222", localIP)
-			}
-		}
-		log.Println("─────────────────────────────────────────────────────")
-
-		if err := webServer.Start(bindAddr); err != nil {
-			log.Fatal("Server failed to start:", err)
-		}
-	}()
 
 	// Wait for shutdown signal
 	<-sigChan
 	log.Println("Shutting down server...")
 
-	// Stop workers
-	if workerManager != nil {
-		if err := workerManager.Stop(); err != nil {
-			log.Printf("Failed to stop workers: %v", err)
-		}
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	// Stop services in reverse order
+	if err := webService.Stop(shutdownCtx); err != nil {
+		log.Printf("Failed to stop web service: %v", err)
 	}
 
-	// Shutdown NATS
-	if nats != nil {
-		if err := nats.Shutdown(ctx); err != nil {
-			log.Printf("Failed to shutdown NATS: %v", err)
-		}
+	if err := workerManager.Stop(); err != nil {
+		log.Printf("Failed to stop workers: %v", err)
+	}
+
+	if err := serviceManager.Stop(shutdownCtx); err != nil {
+		log.Printf("Failed to stop services: %v", err)
 	}
 
 	log.Println("Server shutdown complete")
+}
+
+func printStartupInfo() {
+	host := getEnv("HOST", "0.0.0.0")
+	port := getEnv("PORT", "8080")
+
+	log.Printf("Bearer token: %s", getAPIToken())
+	log.Println("─────────────────────────────────────────────────────")
+	log.Printf("Local access:")
+	log.Printf("  Web UI:  http://localhost:%s", port)
+	log.Printf("  API:     http://localhost:%s/api/v1/", port)
+
+	// If binding to all interfaces, show network IP
+	if host == "0.0.0.0" || host == "" {
+		if localIP := getLocalIP(); localIP != "" {
+			log.Printf("Network access (other devices on LAN):")
+			log.Printf("  Web UI:  http://%s:%s", localIP, port)
+			log.Printf("  API:     http://%s:%s/api/v1/", localIP, port)
+			log.Printf("  NATS:    nats://%s:4222", localIP)
+		}
+	}
+	log.Println("─────────────────────────────────────────────────────")
 }
 
 func getAPIToken() string {
@@ -224,6 +129,13 @@ func getAPIToken() string {
 		token = "constellation-dev-token"
 	}
 	return token
+}
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
 }
 
 // getLocalIP returns the non-loopback local IP of the host
