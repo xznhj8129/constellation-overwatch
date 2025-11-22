@@ -40,8 +40,6 @@ COPY nats.conf /app/nats.conf
 # Copy static assets
 COPY pkg/services/web/static /app/pkg/services/web/static
 
-# Declare volume for persistence
-VOLUME ["/data"]
 
 # Switch to non-root user
 USER constellation
