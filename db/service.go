@@ -7,8 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/tursodatabase/go-libsql"
 )
 
 //go:embed schema.sql
@@ -31,7 +32,7 @@ type Config struct {
 // DefaultConfig returns default database configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DBPath:         "./db/constellation.db",
+		DBPath:         "./db/data/constellation.db",
 		MaxOpenConns:   1, // SQLite doesn't handle concurrent writes well
 		MaxIdleConns:   1,
 		AutoInitialize: true,
@@ -57,8 +58,17 @@ func New(config *Config) (*Service, error) {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// Open database connection
-	db, err := sql.Open("sqlite3", config.DBPath)
+	// Open database connection using libsql
+	// Ensure absolute path for local files
+	absPath, err := filepath.Abs(config.DBPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve absolute path for database: %w", err)
+	}
+
+	connStr := "file:" + absPath
+
+	log.Printf("Opening database with connection string: %s", connStr)
+	db, err := sql.Open("libsql", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -97,9 +107,52 @@ func (s *Service) InitializeSchema() error {
 	}
 
 	// Execute schema
-	if _, err := s.DB.Exec(string(schemaSQL)); err != nil {
-		return fmt.Errorf("failed to execute schema: %w", err)
+	log.Printf("Executing schema SQL (len: %d bytes)...", len(schemaSQL))
+
+	// Parse and execute schema line by line to handle comments and splitting correctly
+	var currentStmt strings.Builder
+	lines := strings.Split(string(schemaSQL), "\n")
+	inTrigger := false
+
+	for i, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Skip empty lines and full-line comments
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "--") {
+			continue
+		}
+
+		// Detect start of a trigger definition
+		if strings.HasPrefix(strings.ToUpper(trimmedLine), "CREATE TRIGGER") {
+			inTrigger = true
+		}
+
+		currentStmt.WriteString(line)
+		currentStmt.WriteString("\n")
+
+		// If line ends with semicolon, check if we should execute
+		if strings.HasSuffix(trimmedLine, ";") {
+			// If we are in a trigger, only execute if we see END;
+			if inTrigger {
+				if strings.HasSuffix(strings.ToUpper(trimmedLine), "END;") {
+					inTrigger = false
+				} else {
+					continue
+				}
+			}
+
+			stmt := currentStmt.String()
+
+			if _, err := s.DB.Exec(stmt); err != nil {
+				log.Printf("Failed to execute statement: %s", stmt)
+				return fmt.Errorf("failed to execute schema statement ending at line %d: %w", i+1, err)
+			}
+
+			currentStmt.Reset()
+		}
 	}
+
+	log.Println("Schema execution completed.")
 
 	return nil
 }

@@ -1,10 +1,10 @@
 # Build Stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24-bookworm AS builder
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache git make build-base
+RUN apt-get update && apt-get install -y git make build-essential
 
 # Copy go mod and sum files
 COPY go.mod go.sum ./
@@ -17,15 +17,15 @@ COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build -o /app/bin/overwatch ./cmd/microlith
 
 # Run Stage
-FROM alpine:3.19
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+RUN apt-get update && apt-get install -y ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -S constellation && adduser -S constellation -G constellation
+RUN groupadd -r constellation && useradd -r -g constellation constellation
 
 # Create necessary directories with correct permissions
 RUN mkdir -p /app/data/nats /app/logs /app/certs && \
@@ -34,7 +34,6 @@ RUN mkdir -p /app/data/nats /app/logs /app/certs && \
 # Copy binary from builder
 COPY --from=builder /app/bin/overwatch /app/overwatch
 
-# Copy configuration files
 # Copy configuration files
 COPY nats.conf /app/nats.conf
 

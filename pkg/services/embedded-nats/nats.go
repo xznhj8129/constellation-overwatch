@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
@@ -50,17 +52,44 @@ type StreamConfig struct {
 	DiscardPolicy   nats.DiscardPolicy
 }
 
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if value, ok := os.LookupEnv(key); ok {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
+func getEnvInt64(key string, fallback int64) int64 {
+	if value, ok := os.LookupEnv(key); ok {
+		if i, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
 func DefaultConfig() *Config {
 	return &Config{
-		Host:            "0.0.0.0", // Bind to all interfaces by default
-		Port:            4222,
-		WSPort:          8222,
-		DataDir:         "./data/nats",
-		MaxMemory:       256 * 1024 * 1024,      // 256MB
-		MaxFileStore:    2 * 1024 * 1024 * 1024, // 2GB
-		JetStreamDomain: "constellation",
-		EnableTLS:       false,
-		EnableAuth:      false,
+		Host:            getEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
+		Port:            getEnvInt("NATS_PORT", 4222),
+		WSPort:          getEnvInt("NATS_WS_PORT", 8222),
+		DataDir:         getEnv("NATS_DATA_DIR", "./data/overwatch"),
+		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 256*1024*1024),        // 256MB
+		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
+		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
+		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
+		EnableAuth:      getEnv("NATS_ENABLE_AUTH", "false") == "true",
+		Username:        getEnv("NATS_USER", ""),
+		Password:        getEnv("NATS_PASSWORD", ""),
 	}
 }
 
@@ -86,7 +115,7 @@ func (en *EmbeddedNATS) Start() error {
 		MaxConn:        2000,
 		MaxSubs:        0,                 // Unlimited subscriptions
 		MaxPayload:     2 * 1024 * 1024,   // 2MB max payload
-		MaxPending:     128 * 1024 * 1024, // 128MB pending data
+		MaxPending:     256 * 1024 * 1024, // 256MB pending data (Increased for performance)
 		MaxControlLine: 4096,
 		WriteDeadline:  5 * time.Second,
 

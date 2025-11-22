@@ -29,9 +29,11 @@ func initDB() error {
 
 	// Create database service with default config
 	config := db.DefaultConfig()
-	config.DBPath = "./db/constellation.db"
+	// config.DBPath = "./db/constellation.db"
 	config.AutoInitialize = true
-
+if dbPath := os.Getenv("DB_PATH"); dbPath != "" {
+config.DBPath = dbPath
+}
 	dbService, err = db.New(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize database service: %w", err)
