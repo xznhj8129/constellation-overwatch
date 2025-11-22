@@ -152,6 +152,11 @@ PORT=8080
 DB_PATH=./db/constellation.db
 NATS_PORT=4222
 NATS_DATA_DIR=./data/nats
+
+# NATS Security (Optional but Recommended)
+NATS_AUTH_ENABLED=true
+NATS_USER=admin
+NATS_PASSWORD=secure_password
 ```
 
 ### API Authentication
@@ -340,6 +345,51 @@ go build -o constellation-overwatch ./cmd/microlith/main.go
 # Run tests
 go test ./...
 ```
+
+## Docker & Deployment
+
+### Docker Build
+
+Build the lightweight production image:
+
+```bash
+make docker-build
+```
+
+### Docker Compose
+
+Run the service with Docker Compose:
+
+```bash
+make docker-run
+```
+
+This will start the service with the configuration defined in `docker-compose.yml`.
+
+### Security Hardening
+
+#### NATS Authentication
+
+To enable NATS authentication, set the following environment variables:
+
+- `NATS_AUTH_ENABLED=true`
+- `NATS_USER=your_username`
+- `NATS_PASSWORD=your_password`
+
+When enabled, all NATS clients (including the internal services) must authenticate using these credentials.
+
+#### TLS Encryption
+
+To enable TLS for NATS connections:
+
+1.  Generate certificates (for development):
+    ```bash
+    make generate-certs
+    ```
+2.  Uncomment the TLS configuration in `docker-compose.yml` or set the environment variables:
+    - `NATS_TLS_ENABLED=true`
+    - `NATS_TLS_CERT=/path/to/server.crt`
+    - `NATS_TLS_KEY=/path/to/server.key`
 
 ## Contributing
 

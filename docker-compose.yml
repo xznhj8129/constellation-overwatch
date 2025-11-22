@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  constellation-overwatch:
+    build: .
+    image: constellation-overwatch:latest
+    container_name: constellation-overwatch
+    restart: unless-stopped
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Uncomment if using custom certs
+      # - ./certs:/app/certs:ro
+    environment:
+      - NATS_HOST=0.0.0.0
+      - NATS_PORT=4222
+      - NATS_WS_PORT=8222
+      # Security Configuration
+      - NATS_AUTH_ENABLED=true
+      - NATS_USER=constellation
+      - NATS_PASSWORD=changeme_dev_only
+      - NATS_SYS_USER=sys
+      - NATS_SYS_PASSWORD=changeme_sys_dev_only
+      # TLS Configuration (Enable for production)
+      - NATS_TLS_ENABLED=false
+      # - NATS_TLS_CERT=/app/certs/server.crt
+      # - NATS_TLS_KEY=/app/certs/server.key
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/varz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

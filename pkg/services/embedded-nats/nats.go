@@ -11,16 +11,19 @@ import (
 )
 
 type Config struct {
-	Host           string
-	Port           int
-	WSPort         int
-	DataDir        string
-	MaxMemory      int64
-	MaxFileStore   int64
+	Host            string
+	Port            int
+	WSPort          int
+	DataDir         string
+	MaxMemory       int64
+	MaxFileStore    int64
 	JetStreamDomain string
-	EnableTLS      bool
-	TLSCert        string
-	TLSKey         string
+	EnableTLS       bool
+	TLSCert         string
+	TLSKey          string
+	EnableAuth      bool
+	Username        string
+	Password        string
 }
 
 type EmbeddedNATS struct {
@@ -33,18 +36,18 @@ type EmbeddedNATS struct {
 }
 
 type StreamConfig struct {
-	Name             string
-	Subjects         []string
-	Retention        nats.RetentionPolicy
-	MaxMsgs          int64
-	MaxBytes         int64
-	MaxAge           time.Duration
-	MaxMsgSize       int32
-	Replicas         int
-	DuplicateWindow  time.Duration
-	AllowRollup      bool
-	AllowDirect      bool
-	DiscardPolicy    nats.DiscardPolicy
+	Name            string
+	Subjects        []string
+	Retention       nats.RetentionPolicy
+	MaxMsgs         int64
+	MaxBytes        int64
+	MaxAge          time.Duration
+	MaxMsgSize      int32
+	Replicas        int
+	DuplicateWindow time.Duration
+	AllowRollup     bool
+	AllowDirect     bool
+	DiscardPolicy   nats.DiscardPolicy
 }
 
 func DefaultConfig() *Config {
@@ -53,10 +56,11 @@ func DefaultConfig() *Config {
 		Port:            4222,
 		WSPort:          8222,
 		DataDir:         "./data/nats",
-		MaxMemory:       256 * 1024 * 1024, // 256MB
+		MaxMemory:       256 * 1024 * 1024,      // 256MB
 		MaxFileStore:    2 * 1024 * 1024 * 1024, // 2GB
 		JetStreamDomain: "constellation",
 		EnableTLS:       false,
+		EnableAuth:      false,
 	}
 }
 
@@ -73,37 +77,44 @@ func New(cfg *Config) (*EmbeddedNATS, error) {
 
 func (en *EmbeddedNATS) Start() error {
 	opts := &server.Options{
-		Host:       en.config.Host,
-		Port:       en.config.Port,
-		JetStream:  true,
-		StoreDir:   en.config.DataDir,
+		Host:      en.config.Host,
+		Port:      en.config.Port,
+		JetStream: true,
+		StoreDir:  en.config.DataDir,
 
 		// Connection limits optimized for telemetry
-		MaxConn:            2000,
-		MaxSubs:            0, // Unlimited subscriptions
-		MaxPayload:         2 * 1024 * 1024, // 2MB max payload
-		MaxPending:         128 * 1024 * 1024, // 128MB pending data
-		MaxControlLine:     4096,
-		WriteDeadline:      5 * time.Second,
+		MaxConn:        2000,
+		MaxSubs:        0,                 // Unlimited subscriptions
+		MaxPayload:     2 * 1024 * 1024,   // 2MB max payload
+		MaxPending:     128 * 1024 * 1024, // 128MB pending data
+		MaxControlLine: 4096,
+		WriteDeadline:  5 * time.Second,
 
 		// Ping settings for better connection health monitoring
-		PingInterval:       2 * time.Minute,
-		MaxPingsOut:        3,
+		PingInterval: 2 * time.Minute,
+		MaxPingsOut:  3,
 
 		// Slow consumer settings
 
 		// Disable debug logging by default
-		Debug:              false,
-		Trace:              false,
-		Logtime:            true,
+		Debug:   false,
+		Trace:   false,
+		Logtime: true,
+		NoSigs:  true, // Disable built-in signal handlers
 	}
 
 	// Only enable websocket if we have TLS
 	if en.config.EnableTLS {
 		opts.Websocket = server.WebsocketOpts{
-			Port: en.config.WSPort,
+			Port:  en.config.WSPort,
 			NoTLS: false,
 		}
+	}
+
+	// Configure Authentication
+	if en.config.EnableAuth {
+		opts.Username = en.config.Username
+		opts.Password = en.config.Password
 	}
 
 	// Configure JetStream limits
@@ -145,12 +156,12 @@ func (en *EmbeddedNATS) Start() error {
 func (en *EmbeddedNATS) connect() error {
 	url := fmt.Sprintf("nats://localhost:%d", en.config.Port)
 
-	nc, err := nats.Connect(url,
-		nats.ReconnectWait(2*time.Second),
+	connectOpts := []nats.Option{
+		nats.ReconnectWait(2 * time.Second),
 		nats.MaxReconnects(-1),
-		nats.PingInterval(20*time.Second),
+		nats.PingInterval(20 * time.Second),
 		nats.MaxPingsOutstanding(5),
-		nats.Timeout(5*time.Second),
+		nats.Timeout(5 * time.Second),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			log.Printf("NATS error: %v", err)
 		}),
@@ -162,15 +173,21 @@ func (en *EmbeddedNATS) connect() error {
 		nats.ReconnectHandler(func(_ *nats.Conn) {
 			log.Printf("NATS reconnected")
 		}),
-	)
+	}
+
+	if en.config.EnableAuth {
+		connectOpts = append(connectOpts, nats.UserInfo(en.config.Username, en.config.Password))
+	}
+
+	nc, err := nats.Connect(url, connectOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
 	// Create JetStream context with optimized settings for high-throughput telemetry
 	js, err := nc.JetStream(
-		nats.PublishAsyncMaxPending(256),     // Allow more pending async publishes
-		nats.MaxWait(3*time.Second),          // Reduced from default 5s for faster failures
+		nats.PublishAsyncMaxPending(256), // Allow more pending async publishes
+		nats.MaxWait(3*time.Second),      // Reduced from default 5s for faster failures
 	)
 	if err != nil {
 		nc.Close()
@@ -188,18 +205,18 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 	}
 
 	config := &nats.StreamConfig{
-		Name:            streamConfig.Name,
-		Subjects:        streamConfig.Subjects,
-		Retention:       streamConfig.Retention,
-		MaxMsgs:         streamConfig.MaxMsgs,
-		MaxBytes:        streamConfig.MaxBytes,
-		MaxAge:          streamConfig.MaxAge,
-		MaxMsgSize:      streamConfig.MaxMsgSize,
-		Replicas:        streamConfig.Replicas,
-		Duplicates:      streamConfig.DuplicateWindow,
-		AllowRollup:     streamConfig.AllowRollup,
-		AllowDirect:     streamConfig.AllowDirect,
-		Discard:         streamConfig.DiscardPolicy,
+		Name:        streamConfig.Name,
+		Subjects:    streamConfig.Subjects,
+		Retention:   streamConfig.Retention,
+		MaxMsgs:     streamConfig.MaxMsgs,
+		MaxBytes:    streamConfig.MaxBytes,
+		MaxAge:      streamConfig.MaxAge,
+		MaxMsgSize:  streamConfig.MaxMsgSize,
+		Replicas:    streamConfig.Replicas,
+		Duplicates:  streamConfig.DuplicateWindow,
+		AllowRollup: streamConfig.AllowRollup,
+		AllowDirect: streamConfig.AllowDirect,
+		Discard:     streamConfig.DiscardPolicy,
 	}
 
 	// Try to update stream if it exists, otherwise create it
@@ -222,7 +239,7 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 
 	en.streams[streamConfig.Name] = streamConfig
 	log.Printf("Created stream: %s with subjects: %v", stream.Config.Name, stream.Config.Subjects)
-	
+
 	return nil
 }
 
@@ -233,9 +250,9 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Subjects:        []string{"constellation.entities.>"},
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         100000,
-			MaxBytes:        256 * 1024 * 1024, // 256MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      1024 * 1024,         // 1MB
+			MaxBytes:        256 * 1024 * 1024,  // 256MB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      1024 * 1024,        // 1MB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     true,
@@ -260,10 +277,10 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Name:            "CONSTELLATION_TELEMETRY",
 			Subjects:        []string{"constellation.telemetry.>"},
 			Retention:       nats.LimitsPolicy, // Keep based on limits (not consumer interest)
-			MaxMsgs:         100000,              // Increased for high-frequency telemetry
-			MaxBytes:        256 * 1024 * 1024,   // 256MB (increased from 64MB)
-			MaxAge:          2 * time.Hour,       // Increased from 1 hour
-			MaxMsgSize:      128 * 1024,          // 128KB (increased from 64KB for MAVLink messages)
+			MaxMsgs:         100000,            // Increased for high-frequency telemetry
+			MaxBytes:        256 * 1024 * 1024, // 256MB (increased from 64MB)
+			MaxAge:          2 * time.Hour,     // Increased from 1 hour
+			MaxMsgSize:      128 * 1024,        // 128KB (increased from 64KB for MAVLink messages)
 			Replicas:        1,
 			DuplicateWindow: 30 * time.Second,
 			AllowRollup:     true,
@@ -281,7 +298,7 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Replicas:        1,
 			DuplicateWindow: 1 * time.Minute,
 			AllowRollup:     false,
-			AllowDirect:     false, // Commands must go through stream
+			AllowDirect:     false,           // Commands must go through stream
 			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
 		},
 	}
@@ -306,8 +323,8 @@ func (en *EmbeddedNATS) CreateGlobalStateKV(bucketName string) error {
 		Bucket:      bucketName,
 		Description: "Global state storage for fleets and swarms",
 		MaxBytes:    512 * 1024 * 1024, // 512MB
-		TTL:         0,                  // No TTL - data persists until deleted
-		History:     10,                 // Keep last 10 versions
+		TTL:         0,                 // No TTL - data persists until deleted
+		History:     10,                // Keep last 10 versions
 		Replicas:    1,
 	}
 
@@ -332,25 +349,25 @@ func (en *EmbeddedNATS) PublishWithDedup(subject string, data []byte, msgID stri
 	msg := nats.NewMsg(subject)
 	msg.Data = data
 	msg.Header.Set("Nats-Msg-Id", msgID)
-	
+
 	_, err := en.js.PublishMsg(msg)
 	if err != nil {
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, filterSubject string) error {
 	config := &nats.ConsumerConfig{
-		Durable:         consumerName,
-		FilterSubject:   filterSubject,
-		AckPolicy:       nats.AckExplicitPolicy,
-		AckWait:         30 * time.Second,
-		MaxDeliver:      3,
-		MaxAckPending:   1000,
-		DeliverPolicy:   nats.DeliverAllPolicy,
-		ReplayPolicy:    nats.ReplayInstantPolicy,
+		Durable:       consumerName,
+		FilterSubject: filterSubject,
+		AckPolicy:     nats.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxDeliver:    3,
+		MaxAckPending: 1000,
+		DeliverPolicy: nats.DeliverAllPolicy,
+		ReplayPolicy:  nats.ReplayInstantPolicy,
 	}
 
 	// Try to get existing consumer

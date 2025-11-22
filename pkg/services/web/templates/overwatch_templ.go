@@ -107,7 +107,7 @@ func OverwatchPanel() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\" data-signals=\"{entities: [], entityStatesByOrg: {}, lastUpdate: '', _isConnected: false, debugInfo: ''}\" data-init=\"@get('/api/overwatch/kv/watch')\" data-on-datastar-signal-merge=\"console.log('Entities:', $entities, 'ByOrg:', $entityStatesByOrg); $$debugInfo = 'Entities: ' + $entities.length\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span> <span class=\"debug-info\" style=\"margin-left: 20px; font-size: 0.9em; color: #888;\" data-text=\"$debugInfo\"></span></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- This will be populated by Datastar SSE with server-rendered HTML --><div id=\"entities-container\" class=\"entities-grid\" style=\"padding: 20px;\"><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center;\"><p>No entity states in global store. Waiting for telemetry data...</p><p style=\"font-size: 10px; margin-top: 10px;\">Using server-side HTML rendering via SSE PatchElements</p></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\" data-signals=\"{\n\t\t\tentityStatesByOrg: {},\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\ttotalEntities: 0,\n\t\t\ttotalOrgs: 0,\n\t\t\tdebugMode: false\n\t\t}\" data-init=\"@get('/api/overwatch/kv/watch')\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$totalOrgs + ' orgs'\"></span> <span data-text=\"' • ' + $totalEntities + ' entities'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span> <button data-on:click=\"$debugMode = !$debugMode\" style=\"margin-left: 20px; padding: 4px 8px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 3px;\"><span data-text=\"$debugMode ? 'Hide Debug' : 'Show Debug'\"></span></button></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- Debug Panel - Uses signals for display only --><div data-show=\"$debugMode\" style=\"background: #1a1a1a; padding: 15px; margin: 10px 20px; border-radius: 4px; border: 1px solid #333;\"><h4 style=\"color: #0f0; margin-top: 0;\">Signal Store Debug</h4><div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;\"><div><strong style=\"color: #888;\">Total Orgs:</strong> <span style=\"color: #fff;\" data-text=\"$totalOrgs\"></span></div><div><strong style=\"color: #888;\">Total Entities:</strong> <span style=\"color: #fff;\" data-text=\"$totalEntities\"></span></div><div><strong style=\"color: #888;\">Connected:</strong> <span style=\"color: #fff;\" data-text=\"$_isConnected ? 'Yes' : 'No'\"></span></div><div><strong style=\"color: #888;\">Last Update:</strong> <span style=\"color: #fff;\" data-text=\"$lastUpdate || 'Never'\"></span></div></div><details style=\"margin-top: 10px;\"><summary style=\"color: #0ff; cursor: pointer; margin-bottom: 10px;\">View Raw Signal Data</summary><pre data-text=\"JSON.stringify($entityStatesByOrg, null, 2)\" style=\"color: #888; font-size: 10px; max-height: 400px; overflow: auto; background: #0a0a0a; padding: 10px; border-radius: 3px;\"></pre></details></div><!-- Entities Container - Server-rendered HTML only, no client-side loops --><div id=\"entities-container\" class=\"entities-grid\" style=\"padding: 20px;\"><!-- This will be populated by server via SSE PatchElements (inner mode) --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center;\"><p>No entity states in global store. Waiting for telemetry data...</p><p style=\"font-size: 10px; margin-top: 10px;\">Server-side rendering via SSE</p></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -143,7 +143,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("entity-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 52, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 87, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -156,7 +156,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs("entity-header-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 55, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 90, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -169,7 +169,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 57, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 92, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -182,7 +182,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entity.DeviceID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 60, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 95, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -195,7 +195,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Status)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 63, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 98, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -208,7 +208,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 66, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 101, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -226,7 +226,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("analytics-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 71, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 106, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -239,7 +239,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("analytics-tracked-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 74, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 109, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -252,7 +252,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 76, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 111, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -265,7 +265,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("analytics-active-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 78, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 113, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -278,7 +278,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.ActiveObjectsCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 80, Col: 109}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 115, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -291,7 +291,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("analytics-frames-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 82, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 117, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -304,7 +304,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.TotalFramesProcessed))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 84, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 119, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -317,7 +317,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs("analytics-threats-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 86, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 121, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -330,7 +330,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 88, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 123, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -353,7 +353,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs("detections-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 95, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 130, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -372,7 +372,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs("track-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 100, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 135, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -385,7 +385,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs("track-header-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 101, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 136, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -398,7 +398,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs("track-status-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 103, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 138, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -411,7 +411,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs("track-label-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 104, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 139, Col: 46}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -424,7 +424,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(obj.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 104, Col: 117}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 139, Col: 117}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs("track-confidence-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 107, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 142, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -450,7 +450,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var28 string
 					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f%%", obj.AvgConfidence*100))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 108, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 143, Col: 58}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {
@@ -463,7 +463,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var29 string
 					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs("track-threat-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 110, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 145, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 					if templ_7745c5c3_Err != nil {
@@ -476,7 +476,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var30 string
 					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(obj.ThreatLevel)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 110, Col: 143}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 145, Col: 143}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 					if templ_7745c5c3_Err != nil {
@@ -489,7 +489,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var31 string
 					templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs("track-meta-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 113, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 148, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 					if templ_7745c5c3_Err != nil {
@@ -502,7 +502,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var32 string
 					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs("track-frames-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 114, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 149, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 					if templ_7745c5c3_Err != nil {
@@ -515,7 +515,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var33 string
 					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", obj.FrameCount))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 114, Col: 113}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 149, Col: 113}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 					if templ_7745c5c3_Err != nil {
@@ -528,7 +528,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var34 string
 					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 115, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 150, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 					if templ_7745c5c3_Err != nil {
@@ -546,7 +546,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var35 string
 					templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs("track-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 119, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 154, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 					if templ_7745c5c3_Err != nil {
@@ -559,7 +559,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var36 string
 					templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs("track-header-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 120, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 155, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 					if templ_7745c5c3_Err != nil {
@@ -572,7 +572,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var37 string
 					templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs("track-status-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 122, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 157, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 					if templ_7745c5c3_Err != nil {
@@ -585,7 +585,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs("track-label-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 123, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 158, Col: 46}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {
@@ -598,7 +598,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var39 string
 					templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(obj.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 123, Col: 117}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 158, Col: 117}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 					if templ_7745c5c3_Err != nil {
@@ -611,7 +611,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var40 string
 					templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs("track-confidence-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 126, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 161, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 					if templ_7745c5c3_Err != nil {
@@ -624,7 +624,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f%%", obj.AvgConfidence*100))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 127, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 162, Col: 58}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -642,7 +642,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 						var templ_7745c5c3_Var42 string
 						templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs("track-threat-" + trackID)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 130, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 165, Col: 48}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 						if templ_7745c5c3_Err != nil {
@@ -655,7 +655,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 						var templ_7745c5c3_Var43 string
 						templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(obj.ThreatLevel)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 130, Col: 144}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 165, Col: 144}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 						if templ_7745c5c3_Err != nil {
@@ -673,7 +673,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 						var templ_7745c5c3_Var44 string
 						templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs("track-threat-" + trackID)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 132, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 167, Col: 48}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 						if templ_7745c5c3_Err != nil {
@@ -686,7 +686,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 						var templ_7745c5c3_Var45 string
 						templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(obj.ThreatLevel)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 132, Col: 144}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 167, Col: 144}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 						if templ_7745c5c3_Err != nil {
@@ -704,7 +704,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var46 string
 					templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs("track-meta-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 136, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 171, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 					if templ_7745c5c3_Err != nil {
@@ -717,7 +717,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var47 string
 					templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs("track-frames-" + trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 137, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 172, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 					if templ_7745c5c3_Err != nil {
@@ -730,7 +730,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var48 string
 					templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", obj.FrameCount))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 137, Col: 113}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 172, Col: 113}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 					if templ_7745c5c3_Err != nil {
@@ -743,7 +743,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 					var templ_7745c5c3_Var49 string
 					templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(trackID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 138, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 173, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 					if templ_7745c5c3_Err != nil {
@@ -772,7 +772,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs("threat-intel-" + entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 148, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 183, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
@@ -785,7 +785,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var51 string
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(entity.ThreatIntel.ThreatSummary.AlertLevel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 153, Col: 134}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 188, Col: 134}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -798,7 +798,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var52 string
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.ThreatIntel.ThreatSummary.TotalThreats))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 157, Col: 155}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 192, Col: 155}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
@@ -816,7 +816,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs("entity-footer-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 163, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 198, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 		if templ_7745c5c3_Err != nil {
@@ -829,7 +829,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(entity.UpdatedAt.Format("15:04:05"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 164, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 199, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 		if templ_7745c5c3_Err != nil {

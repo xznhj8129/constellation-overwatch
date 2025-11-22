@@ -11,10 +11,10 @@ import (
 	"syscall"
 
 	"constellation-overwatch/db"
-	"constellation-overwatch/pkg/shared"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"constellation-overwatch/pkg/services/web"
 	"constellation-overwatch/pkg/services/workers"
+	"constellation-overwatch/pkg/shared"
 
 	"github.com/joho/godotenv"
 )
@@ -66,6 +66,13 @@ func initNATS() error {
 		if port, err := strconv.Atoi(natsPort); err == nil {
 			config.Port = port
 		}
+	}
+
+	// Read NATS Auth from environment
+	if authEnabled := os.Getenv("NATS_AUTH_ENABLED"); authEnabled == "true" {
+		config.EnableAuth = true
+		config.Username = os.Getenv("NATS_USER")
+		config.Password = os.Getenv("NATS_PASSWORD")
 	}
 
 	nats, err = embeddednats.New(config)
@@ -200,7 +207,7 @@ func main() {
 	}
 
 	// Shutdown NATS
-if nats != nil {
+	if nats != nil {
 		if err := nats.Shutdown(ctx); err != nil {
 			log.Printf("Failed to shutdown NATS: %v", err)
 		}
