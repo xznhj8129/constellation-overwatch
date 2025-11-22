@@ -547,6 +547,9 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 	if err != nil {
 		return fmt.Errorf("failed to create KV watcher: %w", err)
 	}
+	defer watcher.Stop()
+
+	logger.Debug("KV watcher started")
 
 	// Process updates
 	for {
@@ -555,7 +558,12 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 			return ctx.Err()
 		case entry := <-watcher.Updates():
 			if entry == nil {
-				// Channel closed
+				// Channel closed. Check if it was due to context cancellation.
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				// Channel closed unexpectedly
+				logger.Warn("KV watcher channel closed unexpectedly")
 				return nil
 			}
 
