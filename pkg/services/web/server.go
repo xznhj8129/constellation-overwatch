@@ -41,7 +41,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		db:           dbService,
 		nc:           nc,
 		natsEmbedded: natsEmbedded,
-		orgSvc:       services.NewOrganizationService(dbService.GetDB()),
+		orgSvc:       services.NewOrganizationService(dbService.GetDB(), natsEmbedded),
 		entitySvc:    services.NewEntityService(dbService.GetDB(), natsEmbedded),
 		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
 		mux:          http.NewServeMux(),

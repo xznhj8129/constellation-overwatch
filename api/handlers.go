@@ -4,8 +4,8 @@ import (
 	"constellation-overwatch/api/middleware"
 	"constellation-overwatch/api/services"
 	"constellation-overwatch/pkg/ontology"
-	"constellation-overwatch/pkg/shared"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/shared"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -19,7 +19,7 @@ type Handlers struct {
 
 func NewHandlers(db *sql.DB, nats *embeddednats.EmbeddedNATS) *Handlers {
 	return &Handlers{
-		orgService:    services.NewOrganizationService(db),
+		orgService:    services.NewOrganizationService(db, nats),
 		entityService: services.NewEntityService(db, nats),
 	}
 }
@@ -241,19 +241,19 @@ func (h *Handlers) HealthCheck(nats *embeddednats.EmbeddedNATS) http.HandlerFunc
 func sendSuccess(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	response := shared.Response{
 		Success: true,
 		Data:    data,
 	}
-	
+
 	json.NewEncoder(w).Encode(response)
 }
 
 func sendError(w http.ResponseWriter, statusCode int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	response := shared.Response{
 		Success: false,
 		Error: &shared.Error{
@@ -261,7 +261,7 @@ func sendError(w http.ResponseWriter, statusCode int, code, message string) {
 			Message: message,
 		},
 	}
-	
+
 	json.NewEncoder(w).Encode(response)
 }
 

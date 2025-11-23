@@ -7,19 +7,27 @@ import (
 	"fmt"
 	"time"
 
+	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/logger"
+	"constellation-overwatch/pkg/shared"
+
 	"github.com/google/uuid"
 )
 
 type OrganizationService struct {
-	db *sql.DB
+	db   *sql.DB
+	nats *embeddednats.EmbeddedNATS
 }
 
 func (s *OrganizationService) DB() *sql.DB {
 	return s.db
 }
 
-func NewOrganizationService(db *sql.DB) *OrganizationService {
-	return &OrganizationService{db: db}
+func NewOrganizationService(db *sql.DB, nats *embeddednats.EmbeddedNATS) *OrganizationService {
+	return &OrganizationService{
+		db:   db,
+		nats: nats,
+	}
 }
 
 func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizationRequest) (*ontology.Organization, error) {
@@ -136,7 +144,66 @@ func (s *OrganizationService) UpdateOrganization(orgID string, updates map[strin
 		return fmt.Errorf("organization not found")
 	}
 
+	// If name was updated, we need to update all entities in KV with the new org name
+	if _, ok := updates["name"]; ok {
+		go s.syncOrgNameToKV(orgID, updates["name"].(string))
+	}
+
 	return nil
+}
+
+// syncOrgNameToKV updates the OrgName in all KV entries for this organization
+func (s *OrganizationService) syncOrgNameToKV(orgID, newName string) {
+	if s.nats == nil {
+		return
+	}
+
+	kv := s.nats.KeyValue()
+	if kv == nil {
+		return
+	}
+
+	// We need to find all entities for this org.
+	// Query DB for entity IDs
+	rows, err := s.db.Query("SELECT entity_id FROM entities WHERE org_id = ?", orgID)
+	if err != nil {
+		logger.Errorw("Failed to query entities for org name sync", "org_id", orgID, "error", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var entityID string
+		if err := rows.Scan(&entityID); err != nil {
+			continue
+		}
+
+		key := shared.EntityKey(entityID)
+		entry, err := kv.Get(key)
+		if err != nil {
+			continue
+		}
+
+		var state shared.EntityState
+		if err := json.Unmarshal(entry.Value(), &state); err != nil {
+			continue
+		}
+
+		// Update OrgName
+		state.OrgName = newName
+		state.UpdatedAt = time.Now()
+
+		data, err := json.Marshal(state)
+		if err != nil {
+			continue
+		}
+
+		if _, err := kv.Put(key, data); err != nil {
+			logger.Errorw("Failed to update org name in KV for entity", "entity_id", entityID, "error", err)
+		}
+	}
+
+	logger.Infow("Synced organization name to KV entities", "org_id", orgID, "new_name", newName)
 }
 
 func (s *OrganizationService) DeleteOrganization(orgID string) error {
