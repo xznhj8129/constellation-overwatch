@@ -8,6 +8,7 @@ import (
 
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"constellation-overwatch/pkg/services/logger"
+
 	"github.com/nats-io/nats.go"
 )
 
@@ -93,13 +94,13 @@ func (m *Manager) Start() error {
 	return nil
 }
 
-func (m *Manager) Stop() error {
+func (m *Manager) Stop(ctx context.Context) error {
 	logger.Info("Stopping NATS workers...")
 
 	// Step 1: Stop all workers (unsubscribe from consumers)
 	// This must happen BEFORE canceling context to prevent race conditions
 	for _, worker := range m.workers {
-		if err := worker.Stop(); err != nil {
+		if err := worker.Stop(ctx); err != nil {
 			logger.Errorw("Error stopping worker", "worker", worker.Name(), "error", err)
 		}
 	}

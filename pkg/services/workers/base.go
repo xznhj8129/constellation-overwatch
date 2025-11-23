@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"constellation-overwatch/pkg/services/logger"
+
 	"github.com/nats-io/nats.go"
 )
 
 type Worker interface {
 	Start(ctx context.Context) error
-	Stop() error
+	Stop(ctx context.Context) error
 	Name() string
 }
 
@@ -39,7 +40,14 @@ func (w *BaseWorker) Name() string {
 	return w.name
 }
 
-func (w *BaseWorker) Stop() error {
+func (w *BaseWorker) HealthCheck() error {
+	if w.nc != nil && w.nc.IsConnected() {
+		return nil
+	}
+	return nats.ErrConnectionClosed
+}
+
+func (w *BaseWorker) Stop(ctx context.Context) error {
 	if w.sub != nil {
 		// For pull subscriptions, unsubscribe instead of drain
 		// Drain() is for push subscriptions and doesn't work properly with pull consumers
