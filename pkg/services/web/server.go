@@ -1591,7 +1591,11 @@ func (s *Server) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flus
 				}
 
 				var orgHTML strings.Builder
-				orgHTML.WriteString(fmt.Sprintf(`<div style="margin-bottom: 30px;"><h3 style="color: #0ff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 15px;">Organization: %s</h3><div id="org-cards-%s" class="entity-cards-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 15px;"></div></div>`, entityState.OrgID, entityState.OrgID))
+				orgName := entityState.OrgID
+				if entityState.OrgName != "" {
+					orgName = entityState.OrgName
+				}
+				orgHTML.WriteString(fmt.Sprintf(`<div style="margin-bottom: 30px;"><h3 style="color: #0ff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 15px;">Organization: %s</h3><div id="org-cards-%s" class="entity-cards-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 15px;"></div></div>`, orgName, entityState.OrgID))
 
 				sse.PatchElements(orgHTML.String(), datastar.WithSelector("#entities-container"), datastar.WithMode(datastar.ElementPatchModeAppend))
 				knownOrgs[entityState.OrgID] = true
@@ -1624,9 +1628,14 @@ func (s *Server) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flus
 	}
 
 	if updatesSent > 0 {
+		// Get total orgs from DB for accurate count
+		orgs, _ := s.orgSvc.ListOrganizations()
+		totalOrgs := len(orgs)
+
 		sse.PatchSignals(map[string]interface{}{
 			"lastUpdate":    time.Now().Format("15:04:05"),
 			"totalEntities": totalEntities,
+			"totalOrgs":     totalOrgs,
 			"_isConnected":  true,
 		})
 		flusher.Flush()
@@ -1858,12 +1867,19 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 	// Extract core fields (check both org_id and organization_id)
 	if orgID, ok := data["org_id"].(string); ok && orgID != "" {
 		state.OrgID = orgID
-		logger.Infof("[Overwatch] mergeFullState: Found org_id='%s'", orgID)
 	}
 	if orgID, ok := data["organization_id"].(string); ok && orgID != "" {
 		state.OrgID = orgID
-		logger.Infof("[Overwatch] mergeFullState: Found organization_id='%s'", orgID)
 	}
+
+	// Extract Name and OrgName if present
+	if name, ok := data["name"].(string); ok && name != "" {
+		state.Name = name
+	}
+	if orgName, ok := data["org_name"].(string); ok && orgName != "" {
+		state.OrgName = orgName
+	}
+
 	if state.OrgID == "" {
 		logger.Infow("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
 	}
@@ -1986,9 +2002,13 @@ func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, 
 		// Render organization sections with entity cards
 		for orgID, entities := range entityStatesByOrg {
 			// Org section
+			orgName := orgID
+			if len(entities) > 0 && entities[0].OrgName != "" {
+				orgName = entities[0].OrgName
+			}
+
 			htmlBuilder.WriteString(`<div style="margin-bottom: 30px;">`)
-			htmlBuilder.WriteString(`<h3 style="color: #0ff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">`)
-			htmlBuilder.WriteString(fmt.Sprintf(`<span>Organization: %s</span>`, orgID))
+			htmlBuilder.WriteString(fmt.Sprintf(`<h3 style="color: #0ff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;"><span>Organization: %s</span>`, orgName))
 			htmlBuilder.WriteString(fmt.Sprintf(`<span style="font-size: 14px; color: #888;">%d entities</span>`, len(entities)))
 			htmlBuilder.WriteString(`</h3>`)
 

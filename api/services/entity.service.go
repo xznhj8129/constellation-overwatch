@@ -89,6 +89,9 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	// Publish entity created event
 	go s.publishEntityEvent(entity, shared.EventTypeCreated)
 
+	// Sync to KV store
+	go s.syncToKV(entity)
+
 	return entity, nil
 }
 
@@ -215,6 +218,9 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 	// Publish entity updated event
 	go s.publishEntityEvent(entity, shared.EventTypeUpdated)
 
+	// Sync to KV store
+	go s.syncToKV(entity)
+
 	return entity, nil
 }
 
@@ -240,6 +246,9 @@ func (s *EntityService) DeleteEntity(orgID, entityID string) error {
 
 	// Publish entity deleted event
 	go s.publishEntityEvent(entity, shared.EventTypeDeleted)
+
+	// Remove from KV store
+	go s.removeFromKV(entity.EntityID)
 
 	return nil
 }
@@ -342,4 +351,84 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 	entity.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 
 	return &entity, nil
+}
+
+// syncToKV updates the entity state in the KV store
+func (s *EntityService) syncToKV(entity *ontology.Entity) {
+	if s.nats == nil {
+		return
+	}
+
+	kv := s.nats.KeyValue()
+	if kv == nil {
+		return
+	}
+
+	// Get existing state if possible to preserve telemetry
+	key := shared.EntityKey(entity.EntityID)
+	var state shared.EntityState
+
+	entry, err := kv.Get(key)
+	if err == nil {
+		// Unmarshal existing state
+		if err := json.Unmarshal(entry.Value(), &state); err != nil {
+			logger.Errorw("Failed to unmarshal existing KV entry", "entity_id", entity.EntityID, "error", err)
+			// Continue with new state if unmarshal fails
+		}
+	}
+
+	// Update static fields from DB entity
+	state.EntityID = entity.EntityID
+	state.OrgID = entity.OrgID
+	state.Name = entity.Name
+	state.EntityType = entity.EntityType
+	state.Status = entity.Status
+	state.Priority = entity.Priority
+	state.IsLive = entity.IsLive
+	state.UpdatedAt = time.Now()
+
+	// If we have an org name available (we might need to fetch it if not in entity struct), set it
+	// For now, we'll rely on the fact that if it was already there, we kept it.
+	// If it wasn't there, we might want to fetch it, but that adds a DB query.
+	// Let's do a quick check if we need to fetch org name
+	if state.OrgName == "" {
+		var orgName string
+		err := s.db.QueryRow("SELECT name FROM organizations WHERE org_id = ?", entity.OrgID).Scan(&orgName)
+		if err == nil {
+			state.OrgName = orgName
+		}
+	}
+
+	// Marshal back to JSON
+	data, err := json.Marshal(state)
+	if err != nil {
+		logger.Errorw("Failed to marshal entity state for KV", "entity_id", entity.EntityID, "error", err)
+		return
+	}
+
+	// Put to KV
+	if _, err := kv.Put(key, data); err != nil {
+		logger.Errorw("Failed to put entity to KV", "entity_id", entity.EntityID, "error", err)
+	} else {
+		logger.Infow("Synced entity to KV", "entity_id", entity.EntityID)
+	}
+}
+
+// removeFromKV removes the entity from the KV store
+func (s *EntityService) removeFromKV(entityID string) {
+	if s.nats == nil {
+		return
+	}
+
+	kv := s.nats.KeyValue()
+	if kv == nil {
+		return
+	}
+
+	key := shared.EntityKey(entityID)
+	if err := kv.Delete(key); err != nil {
+		logger.Errorw("Failed to delete entity from KV", "entity_id", entityID, "error", err)
+	} else {
+		logger.Infow("Removed entity from KV", "entity_id", entityID)
+	}
 }
