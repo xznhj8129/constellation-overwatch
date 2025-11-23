@@ -559,6 +559,8 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case entry, ok := <-watcher.Updates():
 			if !ok {
 				// Channel closed
@@ -574,6 +576,11 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 			}
 
 			if err := callback(entry.Key(), entry); err != nil {
+				// If the context is canceled, return immediately
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+
 				logger.Error("Error in KV watch callback",
 					zap.String("key", entry.Key()),
 					zap.Error(err))

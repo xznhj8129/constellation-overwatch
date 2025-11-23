@@ -2,9 +2,9 @@ package services
 
 import (
 	"constellation-overwatch/pkg/ontology"
-	"constellation-overwatch/pkg/shared"
-	"constellation-overwatch/pkg/services/logger"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/logger"
+	"constellation-overwatch/pkg/shared"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -57,9 +57,9 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	}
 
 	_, err := s.db.Exec(
-		`INSERT INTO entities (entity_id, org_id, entity_type, status, priority, latitude, longitude, altitude, metadata, created_at, updated_at) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entityID, orgID, req.EntityType, status, priority, latitude, longitude, altitude, metadataJSON, 
+		`INSERT INTO entities (entity_id, org_id, name, entity_type, status, priority, latitude, longitude, altitude, metadata, created_at, updated_at) 
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entityID, orgID, req.Name, req.EntityType, status, priority, latitude, longitude, altitude, metadataJSON,
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
@@ -69,6 +69,7 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	entity := &ontology.Entity{
 		EntityID:   entityID,
 		OrgID:      orgID,
+		Name:       req.Name,
 		EntityType: req.EntityType,
 		Status:     status,
 		Priority:   priority,
@@ -93,7 +94,7 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 
 func (s *EntityService) ListEntities(orgID string) ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
-		`SELECT entity_id, org_id, entity_type, status, priority, is_live,
+		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
 		        latitude, longitude, altitude, heading, velocity,
 		        components, tags, metadata, created_at, updated_at
 		 FROM entities WHERE org_id = ?`, orgID,
@@ -117,7 +118,7 @@ func (s *EntityService) ListEntities(orgID string) ([]ontology.Entity, error) {
 
 func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
-		`SELECT entity_id, org_id, entity_type, status, priority, is_live,
+		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
 		        latitude, longitude, altitude, heading, velocity,
 		        components, tags, metadata, created_at, updated_at
 		 FROM entities ORDER BY updated_at DESC`,
@@ -141,10 +142,10 @@ func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 
 func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, error) {
 	row := s.db.QueryRow(
-		`SELECT entity_id, org_id, entity_type, status, priority, is_live, 
+		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live, 
 		        latitude, longitude, altitude, heading, velocity, 
 		        components, tags, metadata, created_at, updated_at 
-		 FROM entities WHERE org_id = ? AND entity_id = ?`, 
+		 FROM entities WHERE org_id = ? AND entity_id = ?`,
 		orgID, entityID,
 	)
 
@@ -170,7 +171,7 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 
 	for key, value := range updates {
 		switch key {
-		case "status", "priority", "entity_type":
+		case "status", "priority", "entity_type", "name":
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, value)
 		case "is_live":
@@ -225,7 +226,7 @@ func (s *EntityService) DeleteEntity(orgID, entityID string) error {
 	}
 
 	result, err := s.db.Exec(
-		"DELETE FROM entities WHERE org_id = ? AND entity_id = ?", 
+		"DELETE FROM entities WHERE org_id = ? AND entity_id = ?",
 		orgID, entityID,
 	)
 	if err != nil {
@@ -247,7 +248,7 @@ func (s *EntityService) UpdateEntityStatus(orgID, entityID, status string) error
 	updates := map[string]interface{}{
 		"status": status,
 	}
-	
+
 	entity, err := s.UpdateEntity(orgID, entityID, updates)
 	if err != nil {
 		return err
@@ -305,14 +306,19 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 	var createdAt, updatedAt string
 	var isLive int
 	var lat, lon, alt, heading, velocity sql.NullFloat64
+	var name sql.NullString
 
 	err := scanner.Scan(
-		&entity.EntityID, &entity.OrgID, &entity.EntityType, &entity.Status, &entity.Priority,
+		&entity.EntityID, &entity.OrgID, &name, &entity.EntityType, &entity.Status, &entity.Priority,
 		&isLive, &lat, &lon, &alt, &heading, &velocity,
 		&entity.Components, &entity.Tags, &entity.Metadata, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan entity: %w", err)
+	}
+
+	if name.Valid {
+		entity.Name = name.String
 	}
 
 	entity.IsLive = isLive == 1

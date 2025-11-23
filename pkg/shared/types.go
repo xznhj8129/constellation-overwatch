@@ -89,14 +89,15 @@ type HealthStatus struct {
 // EntityState represents the complete real-time state of an entity
 type EntityState struct {
 	// Core Entity Identity (from entities table)
-	EntityID    string    `json:"entity_id"`
-	OrgID       string    `json:"org_id"`
-	OrgName     string    `json:"org_name,omitempty"`
-	EntityType  string    `json:"entity_type"`
-	Status      string    `json:"status"`
-	Priority    string    `json:"priority"`
-	IsLive      bool      `json:"is_live"`
-	ExpiryTime  *time.Time `json:"expiry_time,omitempty"`
+	EntityID   string     `json:"entity_id"`
+	OrgID      string     `json:"org_id"`
+	OrgName    string     `json:"org_name,omitempty"`
+	Name       string     `json:"name,omitempty"`
+	EntityType string     `json:"entity_type"`
+	Status     string     `json:"status"`
+	Priority   string     `json:"priority"`
+	IsLive     bool       `json:"is_live"`
+	ExpiryTime *time.Time `json:"expiry_time,omitempty"`
 
 	// Position State
 	Position *PositionState `json:"position,omitempty"`
@@ -159,16 +160,16 @@ type PositionState struct {
 
 // GlobalPosition represents GPS-based global position
 type GlobalPosition struct {
-	Latitude         float64   `json:"latitude"`
-	Longitude        float64   `json:"longitude"`
-	AltitudeMSL      float64   `json:"altitude_msl"`
-	AltitudeRelative float64   `json:"altitude_relative"`
-	AltitudeTerrain  float64   `json:"altitude_terrain,omitempty"`
-	AccuracyH        float64   `json:"accuracy_h"`
-	AccuracyV        float64   `json:"accuracy_v"`
-	SatellitesVisible int      `json:"satellites_visible,omitempty"`
-	FixType          int      `json:"fix_type,omitempty"`
-	Timestamp        time.Time `json:"timestamp"`
+	Latitude          float64   `json:"latitude"`
+	Longitude         float64   `json:"longitude"`
+	AltitudeMSL       float64   `json:"altitude_msl"`
+	AltitudeRelative  float64   `json:"altitude_relative"`
+	AltitudeTerrain   float64   `json:"altitude_terrain,omitempty"`
+	AccuracyH         float64   `json:"accuracy_h"`
+	AccuracyV         float64   `json:"accuracy_v"`
+	SatellitesVisible int       `json:"satellites_visible,omitempty"`
+	FixType           int       `json:"fix_type,omitempty"`
+	Timestamp         time.Time `json:"timestamp"`
 }
 
 // LocalPosition represents NED (North-East-Down) local position
@@ -274,16 +275,16 @@ type EnvironmentState struct {
 
 // AnalyticsState contains analytics summary data
 type AnalyticsState struct {
-	TotalUniqueObjects   int                    `json:"total_unique_objects"`
-	TotalFramesProcessed int                    `json:"total_frames_processed"`
-	ActiveObjectsCount   int                    `json:"active_objects_count"`
-	TrackedObjectsCount  int                    `json:"tracked_objects_count"`
-	LabelDistribution    map[string]int         `json:"label_distribution"`
-	ThreatDistribution   map[string]int         `json:"threat_distribution"`
-	ActiveThreatCount    int                    `json:"active_threat_count"`
-	ActiveTrackIDs       []string               `json:"active_track_ids"`
-	ThreatAlerts         []interface{}          `json:"threat_alerts"`
-	Timestamp            time.Time              `json:"timestamp"`
+	TotalUniqueObjects   int            `json:"total_unique_objects"`
+	TotalFramesProcessed int            `json:"total_frames_processed"`
+	ActiveObjectsCount   int            `json:"active_objects_count"`
+	TrackedObjectsCount  int            `json:"tracked_objects_count"`
+	LabelDistribution    map[string]int `json:"label_distribution"`
+	ThreatDistribution   map[string]int `json:"threat_distribution"`
+	ActiveThreatCount    int            `json:"active_threat_count"`
+	ActiveTrackIDs       []string       `json:"active_track_ids"`
+	ThreatAlerts         []interface{}  `json:"threat_alerts"`
+	Timestamp            time.Time      `json:"timestamp"`
 }
 
 // DetectionState contains object detection and tracking data
@@ -294,16 +295,16 @@ type DetectionState struct {
 
 // TrackedObject represents a single tracked object
 type TrackedObject struct {
-	TrackID              string      `json:"track_id"`
-	Label                string      `json:"label"`
-	FirstSeen            time.Time   `json:"first_seen"`
-	LastSeen             time.Time   `json:"last_seen"`
-	FrameCount           int         `json:"frame_count"`
-	AvgConfidence        float64     `json:"avg_confidence"`
-	IsActive             bool        `json:"is_active"`
-	ThreatLevel          string      `json:"threat_level"`
-	SuspiciousIndicators []string    `json:"suspicious_indicators"`
-	Area                 *float64    `json:"area,omitempty"`
+	TrackID              string       `json:"track_id"`
+	Label                string       `json:"label"`
+	FirstSeen            time.Time    `json:"first_seen"`
+	LastSeen             time.Time    `json:"last_seen"`
+	FrameCount           int          `json:"frame_count"`
+	AvgConfidence        float64      `json:"avg_confidence"`
+	IsActive             bool         `json:"is_active"`
+	ThreatLevel          string       `json:"threat_level"`
+	SuspiciousIndicators []string     `json:"suspicious_indicators"`
+	Area                 *float64     `json:"area,omitempty"`
 	CurrentBBox          *BoundingBox `json:"current_bbox,omitempty"`
 }
 
@@ -317,11 +318,11 @@ type BoundingBox struct {
 
 // ThreatIntelState contains threat intelligence data
 type ThreatIntelState struct {
-	Mission        string                 `json:"mission"`
-	Analytics      *AnalyticsState        `json:"analytics,omitempty"`
-	ThreatSummary  *ThreatSummary         `json:"threat_summary,omitempty"`
-	ThreatAlerts   []interface{}          `json:"threat_alerts"`
-	Timestamp      time.Time              `json:"timestamp"`
+	Mission       string          `json:"mission"`
+	Analytics     *AnalyticsState `json:"analytics,omitempty"`
+	ThreatSummary *ThreatSummary  `json:"threat_summary,omitempty"`
+	ThreatAlerts  []interface{}   `json:"threat_alerts"`
+	Timestamp     time.Time       `json:"timestamp"`
 }
 
 // ThreatSummary contains aggregated threat information
@@ -344,31 +345,31 @@ type MAVLinkTelemetry struct {
 // Constants
 const (
 	// Entity Types
-	EntityTypeVehicle   = "vehicle"
-	EntityTypePerson    = "person"
-	EntityTypeAsset     = "asset"
-	EntityTypeLocation  = "location"
-	EntityTypeSensor    = "sensor"
-	EntityTypeDevice    = "device"
-	
+	EntityTypeVehicle  = "vehicle"
+	EntityTypePerson   = "person"
+	EntityTypeAsset    = "asset"
+	EntityTypeLocation = "location"
+	EntityTypeSensor   = "sensor"
+	EntityTypeDevice   = "device"
+
 	// Entity Status
 	StatusActive   = "active"
 	StatusInactive = "inactive"
 	StatusUnknown  = "unknown"
 	StatusOffline  = "offline"
 	StatusOnline   = "online"
-	
+
 	// Priority Levels
 	PriorityLow      = "low"
 	PriorityNormal   = "normal"
 	PriorityHigh     = "high"
 	PriorityCritical = "critical"
-	
+
 	// Organization Types
 	OrgTypeCompany    = "company"
 	OrgTypeAgency     = "agency"
 	OrgTypeIndividual = "individual"
-	
+
 	// Event Types
 	EventTypeCreated = "created"
 	EventTypeUpdated = "updated"

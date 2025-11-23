@@ -192,6 +192,7 @@ templ EntitiesTable(orgID string, entities []ontology.Entity) {
 		<thead>
 			<tr>
 				<th>Org ID</th>
+				<th>Name</th>
 				<th>Type</th>
 				<th>Status</th>
 				<th>Priority</th>
@@ -216,6 +217,7 @@ templ EntitiesTable(orgID string, entities []ontology.Entity) {
 templ EntityRow(orgID string, entity ontology.Entity) {
 	<tr id={ fmt.Sprintf("entity-%s", entity.EntityID) }>
 		<td class="org-id">{ entity.OrgID }</td>
+		<td class="entity-name">{ entity.Name }</td>
 		<td class="entity-type">{ entity.EntityType }</td>
 		<td><span class={ "status-badge", entity.Status }>{ entity.Status }</span></td>
 		<td class={ fmt.Sprintf("priority-%s", entity.Priority) }>{ entity.Priority }</td>

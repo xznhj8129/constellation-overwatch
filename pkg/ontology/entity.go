@@ -7,6 +7,7 @@ import (
 type Entity struct {
 	EntityID   string    `json:"entity_id" db:"entity_id"`
 	OrgID      string    `json:"org_id" db:"org_id"`
+	Name       string    `json:"name" db:"name"`
 	EntityType string    `json:"entity_type" db:"entity_type"`
 	Status     string    `json:"status" db:"status"`
 	Priority   string    `json:"priority" db:"priority"`
@@ -24,6 +25,7 @@ type Entity struct {
 }
 
 type CreateEntityRequest struct {
+	Name       string                 `json:"name,omitempty"`
 	EntityType string                 `json:"entity_type" validate:"required"`
 	Status     string                 `json:"status,omitempty" validate:"omitempty,oneof=active inactive unknown"`
 	Priority   string                 `json:"priority,omitempty" validate:"omitempty,oneof=low normal high critical"`
@@ -32,10 +34,11 @@ type CreateEntityRequest struct {
 }
 
 type UpdateEntityRequest struct {
-	Status     string                 `json:"status,omitempty" validate:"omitempty,oneof=active inactive unknown"`
-	Priority   string                 `json:"priority,omitempty" validate:"omitempty,oneof=low normal high critical"`
-	Position   *Position              `json:"position,omitempty"`
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Name     string                 `json:"name,omitempty"`
+	Status   string                 `json:"status,omitempty" validate:"omitempty,oneof=active inactive unknown"`
+	Priority string                 `json:"priority,omitempty" validate:"omitempty,oneof=low normal high critical"`
+	Position *Position              `json:"position,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type Position struct {

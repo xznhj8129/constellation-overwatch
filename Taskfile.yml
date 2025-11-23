@@ -68,9 +68,8 @@ tasks:
 
   dev:
     desc: Start development mode (build and run)
-    deps: [templ-generate, build]
     cmds:
-      - ./bin/{{.BINARY_NAME}}
+      - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith"
 
   default:
     desc: Show available tasks

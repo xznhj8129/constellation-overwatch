@@ -8,6 +8,7 @@ import (
 
 	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/shared"
+
 	"github.com/nats-io/nats.go"
 )
 
@@ -114,7 +115,7 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 	// Query all entities from the database - keep it simple, just essential info
 	// Publishers (telemetry, detection workers) will fill in the rest
 	query := `
-		SELECT e.entity_id, e.org_id, o.name as org_name, e.entity_type
+		SELECT e.entity_id, e.org_id, o.name as org_name, e.entity_type, COALESCE(e.name, '') as name
 		FROM entities e
 		LEFT JOIN organizations o ON e.org_id = o.org_id`
 
@@ -130,9 +131,9 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 	skipped := 0
 
 	for rows.Next() {
-		var entityID, orgID, orgName, entityType string
+		var entityID, orgID, orgName, entityType, name string
 
-		if err := rows.Scan(&entityID, &orgID, &orgName, &entityType); err != nil {
+		if err := rows.Scan(&entityID, &orgID, &orgName, &entityType, &name); err != nil {
 			logger.Errorw("Error scanning entity row", "component", "EntityRegistry", "error", err)
 			continue
 		}
@@ -152,10 +153,11 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 			EntityID:   entityID,
 			OrgID:      orgID,
 			OrgName:    orgName,
+			Name:       name,
 			EntityType: entityType,
-			Status:     "unknown",    // Will be updated by telemetry
-			Priority:   "normal",     // Default
-			IsLive:     false,        // Will be set true when telemetry arrives
+			Status:     "unknown", // Will be updated by telemetry
+			Priority:   "normal",  // Default
+			IsLive:     false,     // Will be set true when telemetry arrives
 			Components: make(map[string]interface{}),
 			Aliases:    make(map[string]string),
 			Tags:       []string{},

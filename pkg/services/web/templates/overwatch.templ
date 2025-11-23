@@ -84,12 +84,26 @@ templ OverwatchPanel() {
 }
 
 templ EntityCard(entity shared.EntityState) {
-	<div id={ "entity-" + entity.EntityID } class="entity-card" style="border: 2px solid #f0f; margin: 5px; padding: 10px;">
+	<div id={ "entity-" + entity.EntityID } class="entity-card" 
+		style={ "margin: 5px; padding: 10px; border: 2px solid " + 
+			templ.SafeCSSProperty(func() string {
+				if entity.Analytics != nil && entity.Analytics.ActiveThreatCount > 0 {
+					return "#f00"
+				}
+				return "#f0f"
+			}()) }>
 		<div class="entity-card-inner">
 			<!-- Header -->
 			<div id={ "entity-header-" + entity.EntityID } class="entity-header" style="margin-bottom: 15px;">
 				<div style="color: #0ff; font-size: 18px; font-weight: bold;">
-					Entity ID: { entity.EntityID }
+					if entity.Name != "" {
+						{ entity.Name }
+					} else {
+						Entity ID: { entity.EntityID }
+					}
+				</div>
+				<div style="color: #888; font-size: 12px;">
+					ID: <span style="color: #fff;">{ entity.EntityID }</span>
 				</div>
 				<div style="color: #888; font-size: 12px;">
 					Device: <span style="color: #fff;">{ entity.DeviceID }</span>

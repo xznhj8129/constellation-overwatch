@@ -26,6 +26,18 @@ templ EntityForm(orgID string, entity *ontology.Entity, isEdit bool) {
 				data-indicator:_submitting>
 
 				<div class="form-group">
+					<label for="name">Entity Name</label>
+					<input type="text"
+						name="name"
+						id="name"
+						placeholder="e.g., Alpha-1"
+						if entity != nil {
+							value={ entity.Name }
+						}
+						maxlength="255"/>
+				</div>
+
+				<div class="form-group">
 					<label for="entity_type">Entity Type *</label>
 					<select name="entity_type" id="entity_type" required disabled?={ isEdit }>
 						<option value="">Select Type</option>

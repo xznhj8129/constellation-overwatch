@@ -800,6 +800,9 @@ func (s *Server) handleAPIEntities(w http.ResponseWriter, r *http.Request) {
 			Priority:   r.FormValue("priority"),
 		}
 
+		// Handle name
+		req.Name = r.FormValue("name")
+
 		// Handle position data
 		if lat := r.FormValue("latitude"); lat != "" {
 			if lon := r.FormValue("longitude"); lon != "" {
@@ -882,6 +885,11 @@ func (s *Server) handleAPIEntity(w http.ResponseWriter, r *http.Request) {
 
 		// Create updates map for UpdateEntity
 		updates := make(map[string]interface{})
+
+		// Add name if provided
+		if name := r.FormValue("name"); name != "" {
+			updates["name"] = name
+		}
 
 		// Add status if provided
 		if status := r.FormValue("status"); status != "" {
@@ -1022,6 +1030,11 @@ func (s *Server) handleAPIFleetUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract update fields from signals
+	if name, ok := signals["edit_name"]; ok {
+		if str, ok := name.(string); ok {
+			updates["name"] = str
+		}
+	}
 	if entityType, ok := signals["edit_entity_type"]; ok {
 		updates["entity_type"] = entityType
 	}
@@ -1132,6 +1145,7 @@ func (s *Server) handleAPIFleet(w http.ResponseWriter, r *http.Request) {
 
 		// Create entity request
 		req := &ontology.CreateEntityRequest{
+			Name:       r.FormValue("name"),
 			EntityType: r.FormValue("entity_type"),
 			Status:     r.FormValue("status"),
 			Priority:   r.FormValue("priority"),
@@ -1925,10 +1939,13 @@ func (s *Server) mergeFullState(state *shared.EntityState, data map[string]inter
 func (s *Server) sendEntityStatesUpdate(sse *datastar.ServerSentEventGenerator, entityStatesByOrg map[string][]shared.EntityState) error {
 	// Calculate totals
 	totalEntities := 0
-	totalOrgs := len(entityStatesByOrg)
 	for _, entities := range entityStatesByOrg {
 		totalEntities += len(entities)
 	}
+
+	// Get total orgs from DB for accurate count
+	orgs, _ := s.orgSvc.ListOrganizations()
+	totalOrgs := len(orgs)
 
 	logger.Infow("[Overwatch] Total entities", "total_entities", totalEntities, "total_orgs", totalOrgs)
 
