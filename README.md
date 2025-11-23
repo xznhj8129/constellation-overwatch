@@ -1,33 +1,56 @@
-# Constellation Overwatch
+<p align="center">
+  <img src="pkg/services/web/static/images/favicon.svg" alt="Constellation Overwatch" width="120"/>
+  <h1 align="center">Constellation Overwatch</h1>
+</p>
 
-Open source Edge C4ISR (Command, Control, & Communication) Server Mesh Fabric designed for hybrid drone/robotic pub/sub communication, sensor data streaming, and video stream management.
+<p align="center">
+  Open source Edge C4ISR Server Mesh for drone/robotic communication, telemetry streaming, and real-time command & control.
+</p>
 
-## Overview
+<p align="center">
+  <a title="Build Status" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/actions"><img src="https://img.shields.io/github/actions/workflow/status/Constellation-Overwatch/constellation-overwatch/go.yml?style=flat-square"></a>
+  <a title="Go Report Card" target="_blank" href="https://goreportcard.com/report/github.com/Constellation-Overwatch/constellation-overwatch"><img src="https://goreportcard.com/badge/github.com/Constellation-Overwatch/constellation-overwatch?style=flat-square"></a>
+  <a title="Go Version" target="_blank" href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/Constellation-Overwatch/constellation-overwatch?style=flat-square"></a>
+  <a title="License" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/blob/main/LICENSE"><img src="http://img.shields.io/badge/license-MIT-orange.svg?style=flat-square"></a>
+  <br>
+  <a title="GitHub Pull Requests" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/pulls"><img src="https://img.shields.io/github/issues-pr-closed/Constellation-Overwatch/constellation-overwatch.svg?style=flat-square&color=FF9966"></a>
+  <a title="GitHub Commits" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/commits/main"><img src="https://img.shields.io/github/commit-activity/m/Constellation-Overwatch/constellation-overwatch.svg?style=flat-square"></a>
+  <a title="Last Commit" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/commits/main"><img src="https://img.shields.io/github/last-commit/Constellation-Overwatch/constellation-overwatch.svg?style=flat-square&color=FF9900"></a>
+</p>
 
-Constellation Overwatch provides a distributed, event-driven architecture for managing fleets of autonomous systems including drones, robots, IoT sensors, and edge computing devices. Built on NATS JetStream for reliable, low-latency messaging with atomic operations and durable streams.
+---
 
-## Key Features
+## About
 
-- **Real-time Pub/Sub Messaging** - Low-latency communication between edge devices and control systems
-- **Durable Event Streams** - Reliable message delivery with JetStream persistence
-- **Multi-Entity Support** - Manage drones, robots, sensors, and other autonomous systems
-- **RESTful API** - Simple HTTP interface with bearer token authentication
-- **Embedded NATS** - Self-contained messaging system with no external dependencies
-- **Telemetry Streaming** - Efficient handling of high-frequency sensor data
-- **Real-time Web UI** - Server-sent events (SSE) powered dashboard with Datastar framework
-- **Templ Templates** - Type-safe Go templates for reactive web components
+Constellation Overwatch is a distributed, event-driven C4ISR (Command, Control, Communications, and Intelligence) server mesh for managing fleets of autonomous systems including drones, robots, IoT sensors, and edge computing devices. Built on NATS JetStream for reliable, low-latency messaging with atomic operations and durable streams.
 
-### TODO:
-- SSE PatchElements + PatchSignal for Kvwatcher on `/overwatch` and correpsponding templ components
-- Mapbox or MapLibre webComponents tied with same global kvwatcher
-- 1:n Video stream to webui
-- Standardize data publishing to our constellation global kvwatcher from publishers for + cleanup noisy streams of publishers for only SIGINT emission
-- add a logging stream page to webui
-- Implement enhanced tls1.3 encryption for NATS
-- Refactor and consolidate `/api/` and `/pkg/services/web/server` on sse and unified REST API + SSE layer
-- refactor `/pkg/services/web/server` to be more simpler and modular to its supporting templ templates and handlers
+> **⚠️ Warning:** This software is under active development. While functional, it may contain bugs and undergo breaking changes. Use caution with production deployments and ensure you have proper backups.
 
-- evaluate more enhanced goilerplating for productization
+## Features and Roadmap
+
+* **Real-time Pub/Sub Messaging** for low-latency communication between edge devices and control systems
+* **Durable Event Streams** using NATS JetStream for reliable message delivery and persistence
+* **Multi-Entity Fleet Support** for managing drones, robots, sensors, and other autonomous systems
+* **RESTful API** with bearer token authentication for secure HTTP access
+* **Embedded NATS Server** providing self-contained messaging with no external dependencies
+* **High-Frequency Telemetry** streaming with efficient handling of sensor data
+* **Real-time Web Dashboard** powered by Server-Sent Events (SSE) and Datastar framework
+* **Type-Safe Templates** using Templ for reactive Go-based web components
+* **SQLite Database** with auto-initialization and schema management
+* **Event-Driven Architecture** with workers for entities, commands, telemetry, and events
+
+The following features are on our current roadmap:
+
+* **Enhanced SSE Integration** with PatchElements and PatchSignal for KV watcher on `/overwatch`
+* **Interactive Maps** using Mapbox or MapLibre web components with global KV watcher
+* **Video Stream Proxy** for 1:n video streaming to web UI
+* **TLS 1.3 Encryption** for enhanced NATS security
+* **Unified API Layer** consolidating REST and SSE endpoints
+* **Logging Stream UI** for centralized log viewing
+* **WebSocket Support** for alternative real-time communication
+* **Kubernetes Deployment** manifests and Helm charts
+* **Prometheus Metrics** integration for observability
+* **Edge Client SDKs** for Go, Python, and Rust
 
 ## Architecture
 
@@ -114,21 +137,53 @@ sequenceDiagram
     N-->>C: Notify subscribers
 ```
 
-## Quick Start
+## Getting Started
 
-### Prerequisites
+Please see the [Quick Start Guide](#quick-start-examples) below for detailed usage examples.
+
+<details>
+<summary>📋 Prerequisites</summary>
+<br>
 
 - Go 1.24 or higher
-- [Task](https://taskfile.dev/) - Task runner (alternative to Make)
+- [Task](https://taskfile.dev/) - Task runner (optional, recommended)
 
-### Installation
+</details>
+
+<details>
+<summary>⚡ Quick Start</summary>
+<br>
+
+Clone the repository and start the server:
 
 ```bash
 # Clone the repository
 git clone https://github.com/Constellation-Overwatch/constellation-overwatch.git
 cd constellation-overwatch
 
-# Install Task (if not already installed)
+# Install dependencies
+go mod download
+
+# Run in development mode (recommended)
+task dev
+
+# OR run directly
+go run ./cmd/microlith/main.go
+```
+
+The server will start:
+- **API Server & Web UI**: `http://localhost:8080`
+- **Embedded NATS**: `nats://localhost:4222`
+
+</details>
+
+<details>
+<summary>🛠️ Installation (Task Runner)</summary>
+<br>
+
+Install Task for enhanced development workflow:
+
+```bash
 # macOS
 brew install go-task/tap/go-task
 
@@ -137,38 +192,52 @@ sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
 
 # Windows (using Scoop)
 scoop install task
-
-# Install dependencies
-go mod download
-
-# Quick start - development mode with auto-rebuild
-task dev
-
-# OR run the server directly
-go run ./cmd/microlith/main.go
 ```
 
-The server will start:
-- API server & Web UI on port 8080
-- Embedded NATS server on port 4222
+</details>
 
-### Web UI
+<details>
+<summary>🌐 Web Dashboard</summary>
+<br>
 
-The application includes a real-time web dashboard built with:
-- **Templ** - Type-safe Go HTML templates
-- **Datastar** - Hypermedia framework for reactive UI updates
-- **Server-Sent Events (SSE)** - Real-time data streaming to the browser
+Access the real-time web interface at `http://localhost:8080`
 
-Access the web interface at `http://localhost:8080` to:
+**Features:**
 - View organizations and entities in real-time
 - Monitor NATS streams and key-value stores
 - Create and manage fleet entities
 - Watch live telemetry data
 
-For development with auto-rebuilding templ templates:
+**Technology Stack:**
+- **Templ** - Type-safe Go HTML templates
+- **Datastar** - Hypermedia framework for reactive UI
+- **Server-Sent Events (SSE)** - Real-time data streaming
+
+**Development Mode:**
 ```bash
-task dev  # Starts both templ watcher and server
+task dev  # Auto-rebuilds templ templates on changes
 ```
+
+</details>
+
+<details>
+<summary>🐳 Docker Deployment</summary>
+<br>
+
+Build and run with Docker:
+
+```bash
+# Build image
+task docker-build
+
+# Run with Docker Compose
+task docker-run
+
+# Stop service
+task docker-stop
+```
+
+</details>
 
 ### Configuration
 
@@ -205,31 +274,53 @@ curl -H "Authorization: Bearer constellation-dev-token" \
      http://localhost:8080/api/v1/organizations
 ```
 
-### Quick Start with curl
+## Quick Start Examples
 
-Once the server is running, you can quickly provision an organization and create entities:
+<details>
+<summary>🚀 API Quickstart with curl</summary>
+<br>
+
+Once the server is running, provision an organization and create entities:
+
+**Step 1: Set your API token**
 
 ```bash
-# Set your API token
-export TOKEN="constellation-dev-token" # or what you changed in .env
+export TOKEN="constellation-dev-token"  # or your custom token from .env
+```
 
-# 1. Create an organization
+**Step 2: Create an organization**
+
+```bash
 curl -s -X POST http://localhost:8080/api/v1/organizations \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Fleet",
-    "org_type": "civilian", # allowed enums 'military', 'civilian' 'commercial', 'ngo'
+    "org_type": "civilian",
     "description": "Test drone fleet"
   }'
 ```
 
-You will thin get a response like this:
+**Allowed `org_type` values:** `military`, `civilian`, `commercial`, `ngo`
+
+**Example Response:**
 ```json
-{"success":true,"data":{"org_id":"ae9c65d0-b5f3-4cec-8ffa-68ff1173e050","name":"My Fleet","org_type":"civilian","metadata":"{}","created_at":"2025-10-22T11:34:29.195678-05:00","updated_at":"2025-10-22T11:34:29.195678-05:00"}}
+{
+  "success": true,
+  "data": {
+    "org_id": "ae9c65d0-b5f3-4cec-8ffa-68ff1173e050",
+    "name": "My Fleet",
+    "org_type": "civilian",
+    "metadata": "{}",
+    "created_at": "2025-10-22T11:34:29.195678-05:00",
+    "updated_at": "2025-10-22T11:34:29.195678-05:00"
+  }
+}
 ```
 
-Start registering entities to this organization id from above at `data.org_id`:
+**Step 3: Register entities to the organization**
+
+Extract the `org_id` from the response above:
 ```sh
 export ORG_ID='ae9c65d0-b5f3-4cec-8ffa-68ff1173e050'
 curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
@@ -245,61 +336,37 @@ curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
     }
   }'
 ```
-You will then get a response like this on the client:
-```json
-{"success":true,"data":{"entity_id":"5458eec0-b0e3-4290-8db5-17936dbbfc64","org_id":"ae9c65d0-b5f3-4cec-8ffa-68ff1173e050","entity_type":"aircraft_multirotor","status":"unknown","priority":"normal","is_live":false,"metadata":"{\"model\":\"DJI-M300\",\"serial\":\"ABC123456\"}","created_at":"2025-10-22T11:41:11.069194-05:00","updated_at":"2025-10-22T11:41:11.069194-05:00"}}
-```
 
-You will see this log on your `constellation-overwatch` c4isr server logs:
-```sh
-2025/10/22 11:41:11 [EntityWorker] Received entity message on subject: constellation.entities.ae9c65d0-b5f3-4cec-8ffa-68ff1173e050.created
-2025/10/22 11:41:11 [EntityWorker] Entity data:
+**Example Response:**
+```json
 {
+  "success": true,
   "data": {
-    "entity": {
-      "created_at": "2025-10-22T11:41:11.069194-05:00",
-      "entity_id": "5458eec0-b0e3-4290-8db5-17936dbbfc64",
-      "entity_type": "aircraft_multirotor",
-      "is_live": false,
-      "metadata": "{\"model\":\"DJI-M300\",\"serial\":\"ABC123456\"}",
-      "org_id": "ae9c65d0-b5f3-4cec-8ffa-68ff1173e050",
-      "priority": "normal",
-      "status": "unknown",
-      "updated_at": "2025-10-22T11:41:11.069194-05:00"
-    },
     "entity_id": "5458eec0-b0e3-4290-8db5-17936dbbfc64",
-    "entity_type": "aircraft_multirotor",
     "org_id": "ae9c65d0-b5f3-4cec-8ffa-68ff1173e050",
+    "entity_type": "aircraft_multirotor",
+    "status": "unknown",
     "priority": "normal",
-    "status": "unknown"
-  },
-  "id": "15ad3df9-7762-49e2-8dd0-e2f2a42daecd",
-  "source": "entity-service",
-  "subject": "constellation.entities.ae9c65d0-b5f3-4cec-8ffa-68ff1173e050.created",
-  "timestamp": "2025-10-22T16:41:11.071809Z",
-  "type": "created"
+    "is_live": false
+  }
 }
 ```
 
-Extract `data.entity_id`
-```sh
-export ENTITY_ID='5458eec0-b0e3-4290-8db5-17936dbbfc64'
-```
+**Step 4: Query and manage entities**
 
-Get all entities in the organization
-```sh
+```bash
+# Extract entity_id from response
+export ENTITY_ID='5458eec0-b0e3-4290-8db5-17936dbbfc64'
+
+# List all entities in organization
 curl -s "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
   -H "Authorization: Bearer $TOKEN" | jq
-```
 
-Get specific entity details
-```sh
+# Get specific entity details
 curl -s "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$ENTITY_ID" \
   -H "Authorization: Bearer $TOKEN" | jq
-```
 
-Update entity status
-```sh
+# Update entity status
 curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$ENTITY_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -311,6 +378,8 @@ curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$
     }
   }' | jq
 ```
+
+</details>
 
 ## API Endpoints
 
@@ -344,39 +413,58 @@ curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$
 - `constellation.commands.{org_id}.{entity_id}`
 - `constellation.commands.{org_id}.broadcast`
 
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 constellation-overwatch/
 ├── cmd/
-│   └── microlith/         # Main application entry point
+│   └── microlith/              # Main application entry point
 ├── api/
-│   ├── middleware/        # HTTP middleware (auth, CORS, logging)
-│   ├── services/          # Business logic services
-│   └── handlers.go        # HTTP request handlers
+│   ├── middleware/             # HTTP middleware (auth, CORS, logging)
+│   ├── services/               # Business logic services (entities, organizations)
+│   └── handlers.go             # REST API request handlers
 ├── db/
-│   ├── service.go         # Database service with auto-initialization
-│   ├── schema.sql         # SQLite database schema
-│   └── constellation.db   # SQLite database (auto-created)
+│   ├── service.go              # Database service with auto-initialization
+│   ├── schema.sql              # SQLite database schema
+│   └── constellation.db        # SQLite database (auto-created)
 ├── pkg/
-│   ├── ontology/          # Core domain models
-│   ├── shared/            # Shared types and constants
+│   ├── ontology/               # Core domain models and entity types
+│   ├── shared/                 # Shared types, constants, and NATS subjects
 │   └── services/
-│       ├── embedded-nats/ # Embedded NATS server
-│       └── workers/       # Background event processors
-├── data/                  # NATS JetStream data directory
-└── nats.conf              # NATS configuration
+│       ├── embedded-nats/      # Embedded NATS JetStream server
+│       ├── logger/             # Centralized logging service
+│       ├── workers/            # Background event processors (entity, command, telemetry, event)
+│       └── web/                # Web UI and SSE services
+│           ├── server.go       # HTTP server and routing
+│           ├── sse_handler.go  # Server-Sent Events handler
+│           ├── datastar/       # Datastar framework integration
+│           ├── templates/      # Templ templates (*.templ files)
+│           └── static/         # Static assets (CSS, JS, images)
+├── prd/
+│   └── design/                 # Product requirements and design docs
+│       ├── API.md              # API specification
+│       ├── CLIENT_DESIGN.md    # Client design documentation
+│       ├── CONSTELLATION_TAK_ONTOLOGY.md  # Entity ontology definitions
+│       └── VENDOR_CAMERA.md    # Camera vendor specifications
+├── tests/
+│   └── publish-simulations/    # NATS publish simulation tests
+├── bin/                        # Compiled binaries (auto-generated)
+├── data/                       # NATS JetStream data directory (auto-generated)
+├── logs/                       # Application logs (auto-generated)
+└── nats.conf                   # NATS server configuration
 ```
 
-### Building
+## Development
+
+<details>
+<summary>🔨 Building and Running</summary>
+<br>
 
 ```bash
-# Development mode (with templ auto-rebuild and server)
+# Development mode (auto-rebuild templ templates)
 task dev
 
-# Generate templ templates once
+# Generate templ templates
 task templ-generate
 
 # Watch templ files for changes
@@ -384,11 +472,11 @@ task templ-watch
 
 # Build the binary
 task build
-# or manually: go build -o bin/overwatch ./cmd/microlith
+# OR manually: go build -o bin/overwatch ./cmd/microlith
 
 # Run the binary
 task run
-# or manually: ./bin/overwatch
+# OR manually: ./bin/overwatch
 
 # Run tests
 go test ./...
@@ -403,68 +491,71 @@ go vet ./...
 task --list
 ```
 
-## Docker & Deployment
+</details>
 
-### Docker Build
+## Security
 
-Build the lightweight production image:
+<details>
+EXPERIMENTAL
+<summary>🔒 NATS Authentication</summary>
+<br>
 
-```bash
-task docker-build
-```
-
-### Docker Compose
-
-Run the service with Docker Compose:
+Enable NATS authentication with environment variables:
 
 ```bash
-task docker-run
+NATS_AUTH_ENABLED=true
+NATS_USER=your_username
+NATS_PASSWORD=your_password
 ```
 
-Stop the service:
+When enabled, all NATS clients must authenticate using these credentials.
 
+</details>
+
+<details>
+<summary>🔐 TLS Encryption</summary>
+<br>
+
+Enable TLS 1.3 for NATS connections:
+
+**Step 1: Generate certificates (development)**
 ```bash
-task docker-stop
+task generate-certs
 ```
 
-This will start the service with the configuration defined in `docker-compose.yml`.
+**Step 2: Configure environment variables**
+```bash
+NATS_TLS_ENABLED=true
+NATS_TLS_CERT=/path/to/server.crt
+NATS_TLS_KEY=/path/to/server.key
+```
 
-### Security Hardening
-
-#### NATS Authentication
-
-To enable NATS authentication, set the following environment variables:
-
-- `NATS_AUTH_ENABLED=true`
-- `NATS_USER=your_username`
-- `NATS_PASSWORD=your_password`
-
-When enabled, all NATS clients (including the internal services) must authenticate using these credentials.
-
-#### TLS Encryption
-
-To enable TLS for NATS connections:
-
-1.  Generate certificates (for development):
-    ```bash
-    task generate-certs
-    ```
-2.  Uncomment the TLS configuration in `docker-compose.yml` or set the environment variables:
-    - `NATS_TLS_ENABLED=true`
-    - `NATS_TLS_CERT=/path/to/server.crt`
-    - `NATS_TLS_KEY=/path/to/server.key`
+</details>
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions to Constellation Overwatch! Please check out our [contribution guidelines](CONTRIBUTING.md) to get started.
 
-## Roadmap
+### How to Contribute
 
-- [ ] WebSocket support for real-time updates
-- [ ] Kubernetes deployment manifests
-- [ ] Prometheus metrics integration
-- [ ] Video stream proxy support
-- [ ] Multi-region mesh networking
-- [ ] Edge client SDK (Go, Python, Rust) - overwatch-sdk
-- [ ] Web dashboard UI
-- [ ] Mobile control application
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+
+- Follow Go best practices and conventions
+- Add tests for new features
+- Update documentation as needed
+- Run `go fmt ./...` and `go vet ./...` before committing
+- Ensure all tests pass with `go test ./...`
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in Constellation Overwatch by you shall be licensed as MIT, without any additional terms or conditions.
