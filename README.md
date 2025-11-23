@@ -57,7 +57,7 @@ The following features are on our current roadmap:
 ### API Service Diagram
 
 ```mermaid
-graph TB
+graph LR
     subgraph "Client Layer"
         C1[Web Dashboard]
         C2[Mobile App]
