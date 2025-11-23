@@ -1,7 +1,6 @@
 package templates
 
 import (
-
 	"github.com/a-h/templ"
 )
 

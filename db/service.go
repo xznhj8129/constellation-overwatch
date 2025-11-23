@@ -133,7 +133,7 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully shuts down the database service (implements Service interface) 
+// Stop gracefully shuts down the database service (implements Service interface)
 func (s *Service) Stop(ctx context.Context) error {
 	return s.Close()
 }

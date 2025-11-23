@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"constellation-overwatch/db"
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"constellation-overwatch/pkg/services"
+	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/services/web"
 	"constellation-overwatch/pkg/services/workers"

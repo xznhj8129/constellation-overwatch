@@ -59,7 +59,7 @@ func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 func sendUnauthorized(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	
+
 	response := shared.Response{
 		Success: false,
 		Error: &shared.Error{
@@ -67,7 +67,7 @@ func sendUnauthorized(w http.ResponseWriter, message string) {
 			Message: message,
 		},
 	}
-	
+
 	json.NewEncoder(w).Encode(response)
 }
 

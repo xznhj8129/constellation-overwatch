@@ -1,9 +1,9 @@
 package web
 
 import (
+	"constellation-overwatch/pkg/services/logger"
 	"constellation-overwatch/pkg/services/web/datastar"
 	"constellation-overwatch/pkg/services/web/templates"
-	"constellation-overwatch/pkg/services/logger"
 	"encoding/json"
 	"fmt"
 	"net/http"

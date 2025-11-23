@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"constellation-overwatch/pkg/services/logger"
 	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/logger"
 	"github.com/nats-io/nats.go"
 )
 
@@ -80,7 +80,7 @@ func (m *Manager) Start() error {
 		m.wg.Add(1)
 		go func(w Worker) {
 			defer m.wg.Done()
-			
+
 			logger.Infow("Starting worker", "worker", w.Name())
 			if err := w.Start(m.ctx); err != nil && err != context.Canceled {
 				logger.Errorw("Worker error", "worker", w.Name(), "error", err)

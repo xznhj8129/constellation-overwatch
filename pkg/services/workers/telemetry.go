@@ -1,8 +1,8 @@
 package workers
 
 import (
-	"constellation-overwatch/pkg/shared"
 	"constellation-overwatch/pkg/services/logger"
+	"constellation-overwatch/pkg/shared"
 	"context"
 	"database/sql"
 	"encoding/json"

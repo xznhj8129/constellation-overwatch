@@ -49,7 +49,7 @@ func (w *BaseWorker) Stop() error {
 }
 
 func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg)) error {
-	sub, err := w.js.PullSubscribe(w.subject, "", 
+	sub, err := w.js.PullSubscribe(w.subject, "",
 		nats.Durable(w.consumer),
 		nats.ManualAck(),
 		nats.AckExplicit(),

@@ -8,13 +8,13 @@ import (
 type Service interface {
 	// Start initializes and starts the service
 	Start(ctx context.Context) error
-	
+
 	// Stop gracefully shuts down the service
 	Stop(ctx context.Context) error
-	
+
 	// Name returns the service name for logging
 	Name() string
-	
+
 	// HealthCheck returns the health status of the service
 	HealthCheck() error
 }

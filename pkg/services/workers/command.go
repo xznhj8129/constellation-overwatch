@@ -29,7 +29,7 @@ func NewCommandWorker(nc *nats.Conn, js nats.JetStreamContext) *CommandWorker {
 func (w *CommandWorker) Start(ctx context.Context) error {
 	return w.processMessages(ctx, func(msg *nats.Msg) {
 		logger.Infow("Received command message", "worker", w.Name(), "subject", msg.Subject)
-		
+
 		var data map[string]interface{}
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
 			logger.Debugw("Raw message data", "worker", w.Name(), "data", string(msg.Data))

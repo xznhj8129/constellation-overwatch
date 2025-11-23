@@ -6,35 +6,35 @@ import "fmt"
 const (
 	// Base subject prefixes
 	SubjectPrefix = "constellation"
-	
+
 	// Entity subjects
-	SubjectEntities         = "constellation.entities"
-	SubjectEntitiesAll      = "constellation.entities.>"
-	SubjectEntityCreated    = "constellation.entities.%s.created"    // org_id
-	SubjectEntityUpdated    = "constellation.entities.%s.updated"    // org_id
-	SubjectEntityDeleted    = "constellation.entities.%s.deleted"    // org_id
-	SubjectEntityStatus     = "constellation.entities.%s.status"     // org_id
-	SubjectEntityTelemetry  = "constellation.entities.%s.telemetry"  // org_id
-	
+	SubjectEntities        = "constellation.entities"
+	SubjectEntitiesAll     = "constellation.entities.>"
+	SubjectEntityCreated   = "constellation.entities.%s.created"   // org_id
+	SubjectEntityUpdated   = "constellation.entities.%s.updated"   // org_id
+	SubjectEntityDeleted   = "constellation.entities.%s.deleted"   // org_id
+	SubjectEntityStatus    = "constellation.entities.%s.status"    // org_id
+	SubjectEntityTelemetry = "constellation.entities.%s.telemetry" // org_id
+
 	// Event subjects
 	SubjectEvents    = "constellation.events"
 	SubjectEventsAll = "constellation.events.>"
-	
+
 	// Telemetry subjects
-	SubjectTelemetry        = "constellation.telemetry"
-	SubjectTelemetryAll     = "constellation.telemetry.>"
-	SubjectTelemetryEntity  = "constellation.telemetry.%s.%s" // org_id, entity_id
-	
+	SubjectTelemetry       = "constellation.telemetry"
+	SubjectTelemetryAll    = "constellation.telemetry.>"
+	SubjectTelemetryEntity = "constellation.telemetry.%s.%s" // org_id, entity_id
+
 	// Command subjects
-	SubjectCommands       = "constellation.commands"
-	SubjectCommandsAll    = "constellation.commands.>"
-	SubjectCommandEntity  = "constellation.commands.%s.%s" // org_id, entity_id
+	SubjectCommands         = "constellation.commands"
+	SubjectCommandsAll      = "constellation.commands.>"
+	SubjectCommandEntity    = "constellation.commands.%s.%s"        // org_id, entity_id
 	SubjectCommandBroadcast = "constellation.commands.%s.broadcast" // org_id
-	
+
 	// System subjects
-	SubjectSystemHealth   = "constellation.system.health"
-	SubjectSystemMetrics  = "constellation.system.metrics"
-	SubjectSystemAlerts   = "constellation.system.alerts"
+	SubjectSystemHealth  = "constellation.system.health"
+	SubjectSystemMetrics = "constellation.system.metrics"
+	SubjectSystemAlerts  = "constellation.system.alerts"
 )
 
 // Stream names
@@ -47,9 +47,9 @@ const (
 
 // Consumer names
 const (
-	ConsumerEntityProcessor  = "entity-processor"
-	ConsumerEventProcessor   = "event-processor"
-	ConsumerCommandProcessor = "command-processor"
+	ConsumerEntityProcessor    = "entity-processor"
+	ConsumerEventProcessor     = "event-processor"
+	ConsumerCommandProcessor   = "command-processor"
 	ConsumerTelemetryProcessor = "telemetry-processor"
 )
 
@@ -60,15 +60,15 @@ const (
 
 // KV Key patterns for global state
 const (
-	KVKeyEntity      = "entity:%s"         // entity_id -> full entity state
-	KVKeyFleet       = "fleet:%s"          // fleet_id
-	KVKeySwarm       = "swarm:%s"          // swarm_id
-	KVKeyEntityList  = "entities:list"     // List of all entity IDs
-	KVKeyFleetList   = "fleets:list"       // List of all fleet IDs
-	KVKeySwarmList   = "swarms:list"       // List of all swarm IDs
-	KVKeyFleetSwarms = "fleet:%s:swarms"   // fleet_id -> list of swarm IDs
-	KVKeySwarmFleet  = "swarm:%s:fleet"    // swarm_id -> fleet_id
-	KVKeyOrgEntities = "org:%s:entities"   // org_id -> list of entity IDs
+	KVKeyEntity      = "entity:%s"       // entity_id -> full entity state
+	KVKeyFleet       = "fleet:%s"        // fleet_id
+	KVKeySwarm       = "swarm:%s"        // swarm_id
+	KVKeyEntityList  = "entities:list"   // List of all entity IDs
+	KVKeyFleetList   = "fleets:list"     // List of all fleet IDs
+	KVKeySwarmList   = "swarms:list"     // List of all swarm IDs
+	KVKeyFleetSwarms = "fleet:%s:swarms" // fleet_id -> list of swarm IDs
+	KVKeySwarmFleet  = "swarm:%s:fleet"  // swarm_id -> fleet_id
+	KVKeyOrgEntities = "org:%s:entities" // org_id -> list of entity IDs
 )
 
 // Helper functions to generate subjects
