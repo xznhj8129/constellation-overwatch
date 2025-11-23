@@ -141,11 +141,7 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 		// Check if KV entry already exists
 		kvKey := shared.EntityKey(entityID)
 		_, err := kv.Get(kvKey)
-		if err == nil {
-			// Entry already exists, skip
-			skipped++
-			continue
-		}
+		exists := err == nil
 
 		// Create minimal initial EntityState - just enough for the UI to display
 		// Telemetry and detection workers will populate the rest
@@ -173,13 +169,17 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 			continue
 		}
 
-		if _, err := kv.Create(kvKey, data); err != nil {
-			logger.Errorw("Failed to create KV entry", "component", "EntityRegistry", "entity_id", entityID, "error", err)
+		if _, err := kv.Put(kvKey, data); err != nil {
+			logger.Errorw("Failed to put KV entry", "component", "EntityRegistry", "entity_id", entityID, "error", err)
 			continue
 		}
 
-		initialized++
-		logger.Infow("✅ Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "kv_key", kvKey)
+		if exists {
+			logger.Infow("🔄 Updated KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "name", name)
+		} else {
+			initialized++
+			logger.Infow("✅ Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "kv_key", kvKey)
+		}
 	}
 
 	logger.Infow("🎉 KV store initialization complete", "component", "EntityRegistry", "initialized", initialized, "skipped", skipped, "total_processed", initialized+skipped)
