@@ -440,9 +440,10 @@ constellation-overwatch/
 ├── cmd/
 │   └── microlith/              # Main application entry point
 ├── api/
+│   ├── handlers/               # API-specific handlers (health, orgs, entities)
 │   ├── middleware/             # HTTP middleware (auth, CORS, logging)
 │   ├── services/               # Business logic services (entities, organizations)
-│   └── handlers.go             # REST API request handlers
+│   └── router.go               # API router definition
 ├── db/
 │   ├── service.go              # Database service with auto-initialization
 │   ├── schema.sql              # libSQL database schema
@@ -455,11 +456,13 @@ constellation-overwatch/
 │       ├── logger/             # Centralized logging service
 │       ├── workers/            # Background event processors (entity, command, telemetry, event)
 │       └── web/                # Web UI and SSE services
-│           ├── server.go       # HTTP server and routing
-│           ├── sse_handler.go  # Server-Sent Events handler
+│           ├── handlers/       # Web-specific handlers (pages, datastar, overwatch)
 │           ├── datastar/       # Datastar framework integration
 │           ├── templates/      # Templ templates (*.templ files)
-│           └── static/         # Static assets (CSS, JS, images)
+│           ├── static/         # Static assets (CSS, JS, images)
+│           ├── router.go       # Web router and API mounting
+│           ├── server.go       # HTTP server lifecycle
+│           └── sse_handler.go  # Server-Sent Events handler
 ├── prd/
 │   └── design/                 # Product requirements and design docs
 │       ├── API.md              # API specification
