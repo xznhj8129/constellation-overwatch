@@ -23,13 +23,6 @@ templ FleetPage(organizations []ontology.Organization, entities []ontology.Entit
 								</span>
 							</div>
 						</div>
-						<button class="refresh-btn"
-							data-on:click="@get('/fleet')"
-							data-indicator:_fleetFetching
-							data-attr:disabled="$_fleetFetching">
-							<span data-show="!$_fleetFetching">↻</span>
-							<span class="loading" data-show="$_fleetFetching"></span>
-						</button>
 					</div>
 					<div class="data-grid">
 						@FleetTable(organizations, entities)

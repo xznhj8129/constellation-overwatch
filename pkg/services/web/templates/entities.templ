@@ -31,13 +31,6 @@ templ OrganizationsPanel(organizations []ontology.Organization, selectedOrgID st
 					</span>
 				</div>
 			</div>
-			<button class="refresh-btn"
-				data-on:click="@get('/api/organizations')"
-				data-indicator:_orgFetching
-				data-attr:disabled="$_orgFetching">
-				<span data-show="!$_orgFetching">↻</span>
-				<span class="loading" data-show="$_orgFetching"></span>
-			</button>
 		</div>
 		<div class="data-grid">
 			@OrganizationsTable(organizations, selectedOrgID)
@@ -171,13 +164,6 @@ templ EntitiesPanel(orgID string, entities []ontology.Entity) {
 		<div class="panel-header">
 			<h2>All Entities</h2>
 			<div>
-				<button class="refresh-btn"
-					data-on:click="@get('/organizations')"
-					data-indicator:_entitiesFetching
-					data-attr:disabled="$_entitiesFetching">
-					<span data-show="!$_entitiesFetching">↻</span>
-					<span class="loading" data-show="$_entitiesFetching"></span>
-				</button>
 			</div>
 		</div>
 		<div id="entities-content" class="data-grid">
