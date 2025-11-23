@@ -77,7 +77,7 @@ graph TB
     
     subgraph "Data Layer"
         DB[(SQLite DB)]
-        NATS[NATS JetStream<br/>:4222]
+        NATS[(NATS JetStream<br/>CONSTELLATION_GLOBAL_STATE KV:entity_id)]
     end
     
     subgraph "NATS Streams"
