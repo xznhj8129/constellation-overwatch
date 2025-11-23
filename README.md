@@ -36,7 +36,7 @@ Constellation Overwatch is a distributed, event-driven C4ISR (Command, Control, 
 * **High-Frequency Telemetry** streaming with efficient handling of sensor data
 * **Real-time Web Dashboard** powered by Server-Sent Events (SSE) and Datastar framework
 * **Type-Safe Templates** using Templ for reactive Go-based web components
-* **SQLite Database** with auto-initialization and schema management
+* **libSQL Database** with auto-initialization and schema management
 * **Event-Driven Architecture** with workers for entities, commands, telemetry, and events
 
 The following features are on our current roadmap:
@@ -76,7 +76,7 @@ graph LR
     end
     
     subgraph "Data Layer"
-        DB[(SQLite DB)]
+        DB[(libSQL/Turso DB)]
         NATS[(NATS JetStream<br/>CONSTELLATION_GLOBAL_STATE KV:entity_id)]
     end
     
@@ -106,35 +106,55 @@ graph LR
 sequenceDiagram
     participant D as Drone/Robot
     participant N as NATS JetStream
+    participant KV as KV Store<br/>(CONSTELLATION_GLOBAL_STATE)
+    participant W as Workers<br/>(Entity/Telemetry/Event)
     participant A as API Service
-    participant DB as Database
-    participant C as Control Client
-    
-    Note over D,C: Entity Registration Flow
-    C->>A: POST /api/v1/entities
-    A->>DB: Store Entity
-    A->>N: Publish entity.created
-    A-->>C: Return Entity
-    
-    Note over D,C: Telemetry Flow
-    D->>N: Publish telemetry data
-    N->>N: Store in TELEMETRY stream
-    C->>A: Subscribe to telemetry
-    N-->>C: Stream telemetry
-    
-    Note over D,C: Command Flow
-    C->>A: Send command
-    A->>N: Publish to COMMANDS stream
-    N->>D: Deliver command
+    participant DB as libSQL DB
+    participant UI as Web UI<br/>(SSE)
+
+    Note over D,UI: Entity Registration Flow
+    UI->>A: POST /api/v1/entities
+    A->>DB: INSERT entity
+    A->>N: Publish entity.created event
+    A->>KV: Sync entity to KV[entity_id]
+    A-->>UI: Return Entity
+    N->>W: EntityWorker processes event
+    W->>DB: Log entity creation
+    W-->>UI: SSE update (if subscribed)
+
+    Note over D,UI: Telemetry Publishing Flow
+    D->>N: Publish to constellation.telemetry.{org_id}.{entity_id}
+    N->>N: Store in CONSTELLATION_TELEMETRY stream
+    N->>W: TelemetryWorker receives message
+    W->>KV: Update entity state with latest telemetry
+    KV-->>UI: KV watcher triggers SSE update
+    UI->>UI: Datastar patches UI elements
+
+    Note over D,UI: Real-time State Sync
+    D->>N: Publish status/position update
+    N->>W: EventWorker processes update
+    W->>DB: Update entity record
+    W->>KV: Sync to KV[entity_id]
+    KV-->>UI: SSE PatchElements with new state
+
+    Note over D,UI: Command Flow
+    UI->>A: POST command
+    A->>N: Publish to constellation.commands.{org_id}.{entity_id}
+    N->>N: Store in CONSTELLATION_COMMANDS stream
+    N->>D: CommandWorker delivers command
     D->>N: Publish command.ack
-    N-->>A: Command acknowledged
-    A-->>C: Command status
-    
-    Note over D,C: Event Processing
-    D->>N: Publish status change
-    N->>N: Store in EVENTS stream
-    A->>DB: Update entity status
-    N-->>C: Notify subscribers
+    N->>W: Process acknowledgment
+    W->>KV: Update command status
+    KV-->>UI: SSE notification
+
+    Note over D,UI: Web Dashboard Live Updates
+    UI->>A: GET /sse/stream (SSE connection)
+    A->>N: Subscribe to constellation.>
+    loop Real-time Updates
+        N->>A: New message on any subject
+        A->>UI: SSE PatchElements (Datastar)
+        UI->>UI: Update DOM without reload
+    end
 ```
 
 ## Getting Started
@@ -251,7 +271,7 @@ Configuration options:
 
 - `API_BEARER_TOKEN` - Bearer token for API authentication (default: `constellation-dev-token`)
 - `PORT` - HTTP server port (default: `8080`)
-- `DB_PATH` - SQLite database path (default: `./db/constellation.db`)
+- `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
 - `NATS_PORT` - NATS server port (default: `4222`)
 - `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
 
@@ -425,8 +445,8 @@ constellation-overwatch/
 │   └── handlers.go             # REST API request handlers
 ├── db/
 │   ├── service.go              # Database service with auto-initialization
-│   ├── schema.sql              # SQLite database schema
-│   └── constellation.db        # SQLite database (auto-created)
+│   ├── schema.sql              # libSQL database schema
+│   └── constellation.db        # libSQL database (auto-created)
 ├── pkg/
 │   ├── ontology/               # Core domain models and entity types
 │   ├── shared/                 # Shared types, constants, and NATS subjects
