@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"constellation-overwatch/pkg/shared"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 // SendSuccess sends a success response with data

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 
 	"github.com/nats-io/nats.go"
 )

@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"constellation-overwatch/api/services"
-	"constellation-overwatch/pkg/ontology"
-	"constellation-overwatch/pkg/services/logger"
-	"constellation-overwatch/pkg/services/web/datastar"
-	"constellation-overwatch/pkg/services/web/templates"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
 )
 
 type DatastarHandler struct {

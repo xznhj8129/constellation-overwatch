@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"constellation-overwatch/api/responses"
-	"constellation-overwatch/api/services"
-	"constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
 type OrganizationHandler struct {

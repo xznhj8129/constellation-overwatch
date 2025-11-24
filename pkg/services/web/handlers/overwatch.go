@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"constellation-overwatch/api/services"
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
-	"constellation-overwatch/pkg/services/logger"
-	"constellation-overwatch/pkg/services/web/datastar"
-	"constellation-overwatch/pkg/services/web/templates"
-	"constellation-overwatch/pkg/shared"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
 )

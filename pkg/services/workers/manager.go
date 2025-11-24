@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
-	"constellation-overwatch/pkg/services/logger"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 
 	"github.com/nats-io/nats.go"
 )

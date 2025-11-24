@@ -13,6 +13,10 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Debug: Check module name and imports
+RUN go list -m
+RUN grep -A 20 "import (" cmd/microlith/main.go
+
 # Build the application
 RUN CGO_ENABLED=1 GOOS=linux go build -o /app/bin/overwatch ./cmd/microlith
 

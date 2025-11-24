@@ -3,9 +3,9 @@ package web
 import (
 	"net/http"
 
-	"constellation-overwatch/api/services"
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
-	"constellation-overwatch/pkg/services/web/handlers"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/handlers"
 )
 
 func NewRouter(

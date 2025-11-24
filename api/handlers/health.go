@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"constellation-overwatch/api/responses"
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
-	"constellation-overwatch/pkg/shared"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"database/sql"
 )
 

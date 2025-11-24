@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"constellation-overwatch/api/responses"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 )
 
 // BearerAuth validates the Bearer token in the Authorization header

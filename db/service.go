@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	_ "github.com/tursodatabase/go-libsql"
 	"go.uber.org/zap"
 )

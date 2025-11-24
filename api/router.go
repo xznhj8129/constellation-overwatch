@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"net/http"
 
-	"constellation-overwatch/api/handlers"
-	"constellation-overwatch/api/middleware"
-	"constellation-overwatch/api/services"
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/handlers"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 
 	"github.com/go-chi/chi/v5"
 )

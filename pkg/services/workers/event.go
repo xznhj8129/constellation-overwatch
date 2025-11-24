@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"constellation-overwatch/pkg/services/logger"
-	"constellation-overwatch/pkg/shared"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/nats-io/nats.go"
 )
 

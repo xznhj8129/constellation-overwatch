@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
-	"constellation-overwatch/api"
-	"constellation-overwatch/db"
-	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
-	"constellation-overwatch/pkg/services/logger"
-	"constellation-overwatch/pkg/services/web"
-	"constellation-overwatch/pkg/services/workers"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api"
+	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
