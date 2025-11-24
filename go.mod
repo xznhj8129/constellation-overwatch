@@ -1,4 +1,4 @@
-module constellation-overwatch
+module github.com/Constellation-Overwatch/constellation-overwatch
 
 go 1.24.0
 
