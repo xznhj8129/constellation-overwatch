@@ -2,12 +2,13 @@ package templates
 
 import "github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
-templ VideoPage(entityIDs []string) {
+templ VideoPage(entityIDs []string, natsAuthToken string) {
 	@Layout("Video Feeds") {
 		@Navigation("video") {
 			<div class="tab-content">
 				@VideoPanel(entityIDs)
 			</div>
+			@VideoWebSocketScript(natsAuthToken)
 		}
 	}
 }
@@ -98,7 +99,7 @@ templ VideoPanel(entityIDs []string) {
 }
 
 templ VideoCard(entity shared.EntityState) {
-	<div id={ "video-card-" + entity.EntityID } class="video-card" style="background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;">
+	<div id={ "video-card-" + entity.EntityID } class="video-card" data-entity-id={ entity.EntityID } style="background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;">
 		<div class="video-card-header" style="padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;">
 			<span style="color: #0ff; font-weight: bold;">
 				if entity.Name != "" {
@@ -107,15 +108,22 @@ templ VideoCard(entity shared.EntityState) {
 					{ entity.EntityID }
 				}
 			</span>
-			<span class="status-dot connected" style="width: 8px; height: 8px; background: #0f0; border-radius: 50%;"></span>
+			<div style="display: flex; align-items: center; gap: 8px;">
+				<span class="fps-counter" style="color: #888; font-size: 11px;">0 fps</span>
+				<span class="status-dot connected" style="width: 8px; height: 8px; background: #0f0; border-radius: 50%;"></span>
+			</div>
 		</div>
 		<div style="background: #000; position: relative;">
+			<!-- Canvas for WebSocket frames (preferred) -->
+			<canvas class="video-canvas" style="width: 100%; height: auto; display: block;"></canvas>
+			<!-- Fallback: MJPEG stream via img tag -->
 			<img
+				class="video-mjpeg"
 				src={ "/api/v1/video/stream/" + entity.EntityID }
 				alt={ "Video stream for " + entity.EntityID }
-				style="width: 100%; height: auto; display: block;"
+				style="width: 100%; height: auto; display: none;"
 				onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"/>
-			<div style="display: none; height: 240px; align-items: center; justify-content: center; color: #666;">
+			<div class="no-signal" style="display: none; height: 240px; align-items: center; justify-content: center; color: #666;">
 				<div style="text-align: center;">
 					<div style="font-size: 32px;">📷</div>
 					<div style="font-size: 12px;">No signal</div>
@@ -123,4 +131,275 @@ templ VideoCard(entity shared.EntityState) {
 			</div>
 		</div>
 	</div>
+}
+
+// VideoWebSocketScript provides NATS WebSocket video streaming
+templ VideoWebSocketScript(natsAuthToken string) {
+	<div id="nats-config" data-auth-token={ natsAuthToken } style="display:none;"></div>
+	<script type="module">
+		// NATS WebSocket Video Stream Manager
+		// Connects to NATS via WebSocket and renders raw JPEG/PNG frames to canvas
+
+		const NATS_WS_URL = `ws://${window.location.hostname}:8222`;
+		const NATS_AUTH_TOKEN = document.getElementById('nats-config')?.dataset.authToken || '';
+		const VIDEO_SUBJECT_PREFIX = 'constellation.video.';
+
+		class NATSVideoStream {
+			constructor() {
+				this.ws = null;
+				this.subscriptions = new Map(); // entityId -> { subId, canvas, ctx, frameCount, lastFpsUpdate }
+				this.nextSubId = 1;
+				this.connected = false;
+				this.reconnectAttempts = 0;
+				this.maxReconnectAttempts = 10;
+				this.pendingSubscriptions = [];
+			}
+
+			async connect() {
+				return new Promise((resolve, reject) => {
+					console.log('[NATS-WS] Connecting to', NATS_WS_URL);
+					this.ws = new WebSocket(NATS_WS_URL);
+
+					this.ws.onopen = () => {
+						console.log('[NATS-WS] Connected');
+						this.connected = true;
+						this.reconnectAttempts = 0;
+						// Send CONNECT command with auth token
+						const connectCmd = NATS_AUTH_TOKEN
+							? `CONNECT {"verbose":false,"pedantic":false,"protocol":1,"auth_token":"${NATS_AUTH_TOKEN}"}\r\n`
+							: 'CONNECT {"verbose":false,"pedantic":false,"protocol":1}\r\n';
+						this.send(connectCmd);
+						// Process any pending subscriptions
+						this.pendingSubscriptions.forEach(sub => this.subscribe(sub.entityId, sub.canvas));
+						this.pendingSubscriptions = [];
+						resolve();
+					};
+
+					this.ws.onmessage = (event) => this.handleMessage(event);
+
+					this.ws.onerror = (error) => {
+						console.error('[NATS-WS] Error:', error);
+						reject(error);
+					};
+
+					this.ws.onclose = () => {
+						console.log('[NATS-WS] Disconnected');
+						this.connected = false;
+						this.attemptReconnect();
+					};
+				});
+			}
+
+			attemptReconnect() {
+				if (this.reconnectAttempts < this.maxReconnectAttempts) {
+					this.reconnectAttempts++;
+					const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+					console.log(`[NATS-WS] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+					setTimeout(() => this.connect().catch(console.error), delay);
+				}
+			}
+
+			send(data) {
+				if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+					this.ws.send(data);
+				}
+			}
+
+			handleMessage(event) {
+				// NATS protocol: MSG <subject> <sid> [reply-to] <#bytes>\r\n<payload>\r\n
+				if (typeof event.data === 'string') {
+					// Protocol message (INFO, PING, +OK, -ERR)
+					if (event.data.startsWith('PING')) {
+						this.send('PONG\r\n');
+					} else if (event.data.startsWith('INFO')) {
+						console.log('[NATS-WS] Server info received');
+					}
+				} else if (event.data instanceof Blob) {
+					// Binary message - likely a video frame
+					this.handleBinaryMessage(event.data);
+				}
+			}
+
+			async handleBinaryMessage(blob) {
+				// Parse NATS MSG from binary data
+				const arrayBuffer = await blob.arrayBuffer();
+				const data = new Uint8Array(arrayBuffer);
+
+				// Find MSG header end (after \r\n)
+				let headerEnd = -1;
+				for (let i = 0; i < Math.min(data.length, 500); i++) {
+					if (data[i] === 0x0D && data[i+1] === 0x0A) { // \r\n
+						headerEnd = i + 2;
+						break;
+					}
+				}
+
+				if (headerEnd === -1) return;
+
+				// Parse header: MSG <subject> <sid> <#bytes>\r\n
+				const header = new TextDecoder().decode(data.slice(0, headerEnd));
+				const match = header.match(/^MSG\s+(\S+)\s+(\d+)\s+(\d+)/);
+				if (!match) return;
+
+				const subject = match[1];
+				const sid = parseInt(match[2]);
+				const payloadLen = parseInt(match[3]);
+
+				// Extract payload (image bytes)
+				const payload = data.slice(headerEnd, headerEnd + payloadLen);
+
+				// Find subscription by sid
+				for (const [entityId, sub] of this.subscriptions) {
+					if (sub.subId === sid) {
+						this.renderFrame(entityId, payload);
+						break;
+					}
+				}
+			}
+
+			renderFrame(entityId, imageData) {
+				const sub = this.subscriptions.get(entityId);
+				if (!sub || !sub.canvas) return;
+
+				// Create blob URL and draw to canvas
+				const blob = new Blob([imageData], { type: 'image/jpeg' });
+				const url = URL.createObjectURL(blob);
+				const img = new Image();
+
+				img.onload = () => {
+					// Resize canvas to match image if needed
+					if (sub.canvas.width !== img.width || sub.canvas.height !== img.height) {
+						sub.canvas.width = img.width;
+						sub.canvas.height = img.height;
+					}
+					sub.ctx.drawImage(img, 0, 0);
+					URL.revokeObjectURL(url);
+
+					// Update FPS counter
+					sub.frameCount++;
+					const now = Date.now();
+					if (now - sub.lastFpsUpdate >= 1000) {
+						const fps = sub.frameCount;
+						sub.frameCount = 0;
+						sub.lastFpsUpdate = now;
+						const fpsEl = sub.canvas.closest('.video-card')?.querySelector('.fps-counter');
+						if (fpsEl) fpsEl.textContent = `${fps} fps`;
+					}
+				};
+
+				img.onerror = () => URL.revokeObjectURL(url);
+				img.src = url;
+			}
+
+			subscribe(entityId, canvas) {
+				if (!this.connected) {
+					this.pendingSubscriptions.push({ entityId, canvas });
+					return;
+				}
+
+				const subId = this.nextSubId++;
+				const subject = VIDEO_SUBJECT_PREFIX + entityId;
+
+				// Get canvas context
+				const ctx = canvas.getContext('2d');
+
+				this.subscriptions.set(entityId, {
+					subId,
+					canvas,
+					ctx,
+					frameCount: 0,
+					lastFpsUpdate: Date.now()
+				});
+
+				// Send NATS SUB command
+				this.send(`SUB ${subject} ${subId}\r\n`);
+				console.log(`[NATS-WS] Subscribed to ${subject} (sid=${subId})`);
+			}
+
+			unsubscribe(entityId) {
+				const sub = this.subscriptions.get(entityId);
+				if (sub) {
+					this.send(`UNSUB ${sub.subId}\r\n`);
+					this.subscriptions.delete(entityId);
+					console.log(`[NATS-WS] Unsubscribed from ${entityId}`);
+				}
+			}
+		}
+
+		// Initialize video stream manager
+		const videoStream = new NATSVideoStream();
+
+		// Connect and set up video cards
+		async function initVideoStreams() {
+			try {
+				await videoStream.connect();
+
+				// Find all video cards and subscribe to their streams
+				document.querySelectorAll('.video-card[data-entity-id]').forEach(card => {
+					const entityId = card.dataset.entityId;
+					const canvas = card.querySelector('.video-canvas');
+					if (entityId && canvas) {
+						videoStream.subscribe(entityId, canvas);
+					}
+				});
+
+				// Update connection status
+				const signals = document.querySelector('[data-signals]');
+				if (signals && window.ds) {
+					window.ds.apply(signals, { _isConnected: true });
+				}
+			} catch (error) {
+				console.error('[NATS-WS] Failed to connect:', error);
+				// Fall back to MJPEG streams
+				document.querySelectorAll('.video-card').forEach(card => {
+					const canvas = card.querySelector('.video-canvas');
+					const mjpeg = card.querySelector('.video-mjpeg');
+					if (canvas) canvas.style.display = 'none';
+					if (mjpeg) mjpeg.style.display = 'block';
+				});
+			}
+		}
+
+		// Observe for dynamically added video cards
+		const observer = new MutationObserver((mutations) => {
+			mutations.forEach(mutation => {
+				mutation.addedNodes.forEach(node => {
+					if (node.nodeType === Node.ELEMENT_NODE) {
+						const cards = node.classList?.contains('video-card')
+							? [node]
+							: node.querySelectorAll?.('.video-card[data-entity-id]') || [];
+						cards.forEach(card => {
+							const entityId = card.dataset.entityId;
+							const canvas = card.querySelector('.video-canvas');
+							if (entityId && canvas && !videoStream.subscriptions.has(entityId)) {
+								videoStream.subscribe(entityId, canvas);
+							}
+						});
+					}
+				});
+				mutation.removedNodes.forEach(node => {
+					if (node.nodeType === Node.ELEMENT_NODE) {
+						const cards = node.classList?.contains('video-card')
+							? [node]
+							: node.querySelectorAll?.('.video-card[data-entity-id]') || [];
+						cards.forEach(card => {
+							const entityId = card.dataset.entityId;
+							if (entityId) {
+								videoStream.unsubscribe(entityId);
+							}
+						});
+					}
+				});
+			});
+		});
+
+		observer.observe(document.body, { childList: true, subtree: true });
+
+		// Start when DOM is ready
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', initVideoStreams);
+		} else {
+			initVideoStreams();
+		}
+	</script>
 }

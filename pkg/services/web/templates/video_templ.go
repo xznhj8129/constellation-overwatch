@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
-func VideoPage(entityIDs []string) templ.Component {
+func VideoPage(entityIDs []string, natsAuthToken string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -67,6 +67,10 @@ func VideoPage(entityIDs []string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = VideoWebSocketScript(natsAuthToken).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 				return nil
 			})
 			templ_7745c5c3_Err = Navigation("video").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
@@ -116,7 +120,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 51, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 52, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -129,7 +133,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 51, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 52, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -176,64 +180,120 @@ func VideoCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("video-card-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 101, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 102, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"video-card\" style=\"background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;\"><div class=\"video-card-header\" style=\"padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;\"><span style=\"color: #0ff; font-weight: bold;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"video-card\" data-entity-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 102, Col: 96}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" style=\"background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;\"><div class=\"video-card-header\" style=\"padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;\"><span style=\"color: #0ff; font-weight: bold;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if entity.Name != "" {
-			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 105, Col: 18}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		} else {
 			var templ_7745c5c3_Var10 string
-			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 107, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 106, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+		} else {
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 108, Col: 22}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span> <span class=\"status-dot connected\" style=\"width: 8px; height: 8px; background: #0f0; border-radius: 50%;\"></span></div><div style=\"background: #000; position: relative;\"><img src=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs("/api/v1/video/stream/" + entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 114, Col: 51}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" alt=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span><div style=\"display: flex; align-items: center; gap: 8px;\"><span class=\"fps-counter\" style=\"color: #888; font-size: 11px;\">0 fps</span> <span class=\"status-dot connected\" style=\"width: 8px; height: 8px; background: #0f0; border-radius: 50%;\"></span></div></div><div style=\"background: #000; position: relative;\"><!-- Canvas for WebSocket frames (preferred) --><canvas class=\"video-canvas\" style=\"width: 100%; height: auto; display: block;\"></canvas><!-- Fallback: MJPEG stream via img tag --><img class=\"video-mjpeg\" src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("Video stream for " + entity.EntityID)
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("/api/v1/video/stream/" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 115, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 122, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" style=\"width: 100%; height: auto; display: block;\" onerror=\"this.style.display='none'; this.nextElementSibling.style.display='flex'\"><div style=\"display: none; height: 240px; align-items: center; justify-content: center; color: #666;\"><div style=\"text-align: center;\"><div style=\"font-size: 32px;\">📷</div><div style=\"font-size: 12px;\">No signal</div></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" alt=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("Video stream for " + entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 123, Col: 47}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" style=\"width: 100%; height: auto; display: none;\" onerror=\"this.style.display='none'; this.nextElementSibling.style.display='flex'\"><div class=\"no-signal\" style=\"display: none; height: 240px; align-items: center; justify-content: center; color: #666;\"><div style=\"text-align: center;\"><div style=\"font-size: 32px;\">📷</div><div style=\"font-size: 12px;\">No signal</div></div></div></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// VideoWebSocketScript provides NATS WebSocket video streaming
+func VideoWebSocketScript(natsAuthToken string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var14 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var14 == nil {
+			templ_7745c5c3_Var14 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div id=\"nats-config\" data-auth-token=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var15 string
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(natsAuthToken)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/video.templ`, Line: 138, Col: 54}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" style=\"display:none;\"></div><script type=\"module\">\n\t\t// NATS WebSocket Video Stream Manager\n\t\t// Connects to NATS via WebSocket and renders raw JPEG/PNG frames to canvas\n\n\t\tconst NATS_WS_URL = `ws://${window.location.hostname}:8222`;\n\t\tconst NATS_AUTH_TOKEN = document.getElementById('nats-config')?.dataset.authToken || '';\n\t\tconst VIDEO_SUBJECT_PREFIX = 'constellation.video.';\n\n\t\tclass NATSVideoStream {\n\t\t\tconstructor() {\n\t\t\t\tthis.ws = null;\n\t\t\t\tthis.subscriptions = new Map(); // entityId -> { subId, canvas, ctx, frameCount, lastFpsUpdate }\n\t\t\t\tthis.nextSubId = 1;\n\t\t\t\tthis.connected = false;\n\t\t\t\tthis.reconnectAttempts = 0;\n\t\t\t\tthis.maxReconnectAttempts = 10;\n\t\t\t\tthis.pendingSubscriptions = [];\n\t\t\t}\n\n\t\t\tasync connect() {\n\t\t\t\treturn new Promise((resolve, reject) => {\n\t\t\t\t\tconsole.log('[NATS-WS] Connecting to', NATS_WS_URL);\n\t\t\t\t\tthis.ws = new WebSocket(NATS_WS_URL);\n\n\t\t\t\t\tthis.ws.onopen = () => {\n\t\t\t\t\t\tconsole.log('[NATS-WS] Connected');\n\t\t\t\t\t\tthis.connected = true;\n\t\t\t\t\t\tthis.reconnectAttempts = 0;\n\t\t\t\t\t\t// Send CONNECT command with auth token\n\t\t\t\t\t\tconst connectCmd = NATS_AUTH_TOKEN\n\t\t\t\t\t\t\t? `CONNECT {\"verbose\":false,\"pedantic\":false,\"protocol\":1,\"auth_token\":\"${NATS_AUTH_TOKEN}\"}\\r\\n`\n\t\t\t\t\t\t\t: 'CONNECT {\"verbose\":false,\"pedantic\":false,\"protocol\":1}\\r\\n';\n\t\t\t\t\t\tthis.send(connectCmd);\n\t\t\t\t\t\t// Process any pending subscriptions\n\t\t\t\t\t\tthis.pendingSubscriptions.forEach(sub => this.subscribe(sub.entityId, sub.canvas));\n\t\t\t\t\t\tthis.pendingSubscriptions = [];\n\t\t\t\t\t\tresolve();\n\t\t\t\t\t};\n\n\t\t\t\t\tthis.ws.onmessage = (event) => this.handleMessage(event);\n\n\t\t\t\t\tthis.ws.onerror = (error) => {\n\t\t\t\t\t\tconsole.error('[NATS-WS] Error:', error);\n\t\t\t\t\t\treject(error);\n\t\t\t\t\t};\n\n\t\t\t\t\tthis.ws.onclose = () => {\n\t\t\t\t\t\tconsole.log('[NATS-WS] Disconnected');\n\t\t\t\t\t\tthis.connected = false;\n\t\t\t\t\t\tthis.attemptReconnect();\n\t\t\t\t\t};\n\t\t\t\t});\n\t\t\t}\n\n\t\t\tattemptReconnect() {\n\t\t\t\tif (this.reconnectAttempts < this.maxReconnectAttempts) {\n\t\t\t\t\tthis.reconnectAttempts++;\n\t\t\t\t\tconst delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);\n\t\t\t\t\tconsole.log(`[NATS-WS] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);\n\t\t\t\t\tsetTimeout(() => this.connect().catch(console.error), delay);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tsend(data) {\n\t\t\t\tif (this.ws && this.ws.readyState === WebSocket.OPEN) {\n\t\t\t\t\tthis.ws.send(data);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\thandleMessage(event) {\n\t\t\t\t// NATS protocol: MSG <subject> <sid> [reply-to] <#bytes>\\r\\n<payload>\\r\\n\n\t\t\t\tif (typeof event.data === 'string') {\n\t\t\t\t\t// Protocol message (INFO, PING, +OK, -ERR)\n\t\t\t\t\tif (event.data.startsWith('PING')) {\n\t\t\t\t\t\tthis.send('PONG\\r\\n');\n\t\t\t\t\t} else if (event.data.startsWith('INFO')) {\n\t\t\t\t\t\tconsole.log('[NATS-WS] Server info received');\n\t\t\t\t\t}\n\t\t\t\t} else if (event.data instanceof Blob) {\n\t\t\t\t\t// Binary message - likely a video frame\n\t\t\t\t\tthis.handleBinaryMessage(event.data);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tasync handleBinaryMessage(blob) {\n\t\t\t\t// Parse NATS MSG from binary data\n\t\t\t\tconst arrayBuffer = await blob.arrayBuffer();\n\t\t\t\tconst data = new Uint8Array(arrayBuffer);\n\n\t\t\t\t// Find MSG header end (after \\r\\n)\n\t\t\t\tlet headerEnd = -1;\n\t\t\t\tfor (let i = 0; i < Math.min(data.length, 500); i++) {\n\t\t\t\t\tif (data[i] === 0x0D && data[i+1] === 0x0A) { // \\r\\n\n\t\t\t\t\t\theaderEnd = i + 2;\n\t\t\t\t\t\tbreak;\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tif (headerEnd === -1) return;\n\n\t\t\t\t// Parse header: MSG <subject> <sid> <#bytes>\\r\\n\n\t\t\t\tconst header = new TextDecoder().decode(data.slice(0, headerEnd));\n\t\t\t\tconst match = header.match(/^MSG\\s+(\\S+)\\s+(\\d+)\\s+(\\d+)/);\n\t\t\t\tif (!match) return;\n\n\t\t\t\tconst subject = match[1];\n\t\t\t\tconst sid = parseInt(match[2]);\n\t\t\t\tconst payloadLen = parseInt(match[3]);\n\n\t\t\t\t// Extract payload (image bytes)\n\t\t\t\tconst payload = data.slice(headerEnd, headerEnd + payloadLen);\n\n\t\t\t\t// Find subscription by sid\n\t\t\t\tfor (const [entityId, sub] of this.subscriptions) {\n\t\t\t\t\tif (sub.subId === sid) {\n\t\t\t\t\t\tthis.renderFrame(entityId, payload);\n\t\t\t\t\t\tbreak;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\trenderFrame(entityId, imageData) {\n\t\t\t\tconst sub = this.subscriptions.get(entityId);\n\t\t\t\tif (!sub || !sub.canvas) return;\n\n\t\t\t\t// Create blob URL and draw to canvas\n\t\t\t\tconst blob = new Blob([imageData], { type: 'image/jpeg' });\n\t\t\t\tconst url = URL.createObjectURL(blob);\n\t\t\t\tconst img = new Image();\n\n\t\t\t\timg.onload = () => {\n\t\t\t\t\t// Resize canvas to match image if needed\n\t\t\t\t\tif (sub.canvas.width !== img.width || sub.canvas.height !== img.height) {\n\t\t\t\t\t\tsub.canvas.width = img.width;\n\t\t\t\t\t\tsub.canvas.height = img.height;\n\t\t\t\t\t}\n\t\t\t\t\tsub.ctx.drawImage(img, 0, 0);\n\t\t\t\t\tURL.revokeObjectURL(url);\n\n\t\t\t\t\t// Update FPS counter\n\t\t\t\t\tsub.frameCount++;\n\t\t\t\t\tconst now = Date.now();\n\t\t\t\t\tif (now - sub.lastFpsUpdate >= 1000) {\n\t\t\t\t\t\tconst fps = sub.frameCount;\n\t\t\t\t\t\tsub.frameCount = 0;\n\t\t\t\t\t\tsub.lastFpsUpdate = now;\n\t\t\t\t\t\tconst fpsEl = sub.canvas.closest('.video-card')?.querySelector('.fps-counter');\n\t\t\t\t\t\tif (fpsEl) fpsEl.textContent = `${fps} fps`;\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t\timg.onerror = () => URL.revokeObjectURL(url);\n\t\t\t\timg.src = url;\n\t\t\t}\n\n\t\t\tsubscribe(entityId, canvas) {\n\t\t\t\tif (!this.connected) {\n\t\t\t\t\tthis.pendingSubscriptions.push({ entityId, canvas });\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst subId = this.nextSubId++;\n\t\t\t\tconst subject = VIDEO_SUBJECT_PREFIX + entityId;\n\n\t\t\t\t// Get canvas context\n\t\t\t\tconst ctx = canvas.getContext('2d');\n\n\t\t\t\tthis.subscriptions.set(entityId, {\n\t\t\t\t\tsubId,\n\t\t\t\t\tcanvas,\n\t\t\t\t\tctx,\n\t\t\t\t\tframeCount: 0,\n\t\t\t\t\tlastFpsUpdate: Date.now()\n\t\t\t\t});\n\n\t\t\t\t// Send NATS SUB command\n\t\t\t\tthis.send(`SUB ${subject} ${subId}\\r\\n`);\n\t\t\t\tconsole.log(`[NATS-WS] Subscribed to ${subject} (sid=${subId})`);\n\t\t\t}\n\n\t\t\tunsubscribe(entityId) {\n\t\t\t\tconst sub = this.subscriptions.get(entityId);\n\t\t\t\tif (sub) {\n\t\t\t\t\tthis.send(`UNSUB ${sub.subId}\\r\\n`);\n\t\t\t\t\tthis.subscriptions.delete(entityId);\n\t\t\t\t\tconsole.log(`[NATS-WS] Unsubscribed from ${entityId}`);\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\t// Initialize video stream manager\n\t\tconst videoStream = new NATSVideoStream();\n\n\t\t// Connect and set up video cards\n\t\tasync function initVideoStreams() {\n\t\t\ttry {\n\t\t\t\tawait videoStream.connect();\n\n\t\t\t\t// Find all video cards and subscribe to their streams\n\t\t\t\tdocument.querySelectorAll('.video-card[data-entity-id]').forEach(card => {\n\t\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\t\tconst canvas = card.querySelector('.video-canvas');\n\t\t\t\t\tif (entityId && canvas) {\n\t\t\t\t\t\tvideoStream.subscribe(entityId, canvas);\n\t\t\t\t\t}\n\t\t\t\t});\n\n\t\t\t\t// Update connection status\n\t\t\t\tconst signals = document.querySelector('[data-signals]');\n\t\t\t\tif (signals && window.ds) {\n\t\t\t\t\twindow.ds.apply(signals, { _isConnected: true });\n\t\t\t\t}\n\t\t\t} catch (error) {\n\t\t\t\tconsole.error('[NATS-WS] Failed to connect:', error);\n\t\t\t\t// Fall back to MJPEG streams\n\t\t\t\tdocument.querySelectorAll('.video-card').forEach(card => {\n\t\t\t\t\tconst canvas = card.querySelector('.video-canvas');\n\t\t\t\t\tconst mjpeg = card.querySelector('.video-mjpeg');\n\t\t\t\t\tif (canvas) canvas.style.display = 'none';\n\t\t\t\t\tif (mjpeg) mjpeg.style.display = 'block';\n\t\t\t\t});\n\t\t\t}\n\t\t}\n\n\t\t// Observe for dynamically added video cards\n\t\tconst observer = new MutationObserver((mutations) => {\n\t\t\tmutations.forEach(mutation => {\n\t\t\t\tmutation.addedNodes.forEach(node => {\n\t\t\t\t\tif (node.nodeType === Node.ELEMENT_NODE) {\n\t\t\t\t\t\tconst cards = node.classList?.contains('video-card')\n\t\t\t\t\t\t\t? [node]\n\t\t\t\t\t\t\t: node.querySelectorAll?.('.video-card[data-entity-id]') || [];\n\t\t\t\t\t\tcards.forEach(card => {\n\t\t\t\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\t\t\t\tconst canvas = card.querySelector('.video-canvas');\n\t\t\t\t\t\t\tif (entityId && canvas && !videoStream.subscriptions.has(entityId)) {\n\t\t\t\t\t\t\t\tvideoStream.subscribe(entityId, canvas);\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t\tmutation.removedNodes.forEach(node => {\n\t\t\t\t\tif (node.nodeType === Node.ELEMENT_NODE) {\n\t\t\t\t\t\tconst cards = node.classList?.contains('video-card')\n\t\t\t\t\t\t\t? [node]\n\t\t\t\t\t\t\t: node.querySelectorAll?.('.video-card[data-entity-id]') || [];\n\t\t\t\t\t\tcards.forEach(card => {\n\t\t\t\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\t\t\t\tif (entityId) {\n\t\t\t\t\t\t\t\tvideoStream.unsubscribe(entityId);\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\n\t\tobserver.observe(document.body, { childList: true, subtree: true });\n\n\t\t// Start when DOM is ready\n\t\tif (document.readyState === 'loading') {\n\t\t\tdocument.addEventListener('DOMContentLoaded', initVideoStreams);\n\t\t} else {\n\t\t\tinitVideoStreams();\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

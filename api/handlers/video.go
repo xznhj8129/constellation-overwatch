@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,8 +15,11 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// JPEG magic bytes for validation
-var jpegMagicBytes = []byte{0xFF, 0xD8, 0xFF}
+// Image magic bytes for validation
+var (
+	jpegMagic = []byte{0xFF, 0xD8, 0xFF}
+	pngMagic  = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+)
 
 // VideoHandler handles video streaming API endpoints
 type VideoHandler struct {
@@ -73,36 +75,39 @@ func (h *VideoHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	// Subscribe to video frames for this entity
 	subject := shared.VideoFrameSubject(entityID)
 
-	// Channel to receive frames
-	frameChan := make(chan []byte, 5) // Buffer a few frames
+	// Channel to receive frames - buffer for burst tolerance
+	frameChan := make(chan []byte, 15)
 	var writeMutex sync.Mutex
 
 	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
-		// Check for JSON-encoded VideoFrame (starts with '{')
-		if len(msg.Data) > 0 && msg.Data[0] == '{' {
-			var videoFrame shared.VideoFrame
-			if err := json.Unmarshal(msg.Data, &videoFrame); err == nil {
-				if len(videoFrame.Data) > 0 {
-					select {
-					case frameChan <- videoFrame.Data:
-					default:
-						logger.Debugw("Dropping video frame (buffer full)", "entity_id", entityID)
-					}
-					return
-				}
-			}
+		// Validate raw image frames (JPEG or PNG)
+		// Publishers MUST send raw image bytes directly - no JSON wrapping
+		if len(msg.Data) < 8 {
+			logger.Debugw("Frame too small", "entity_id", entityID, "len", len(msg.Data))
+			return
 		}
 
-		// Fallback: Check for raw JPEG frames (starts with FF D8 FF)
-		if len(msg.Data) > 3 && bytes.HasPrefix(msg.Data, jpegMagicBytes) {
-			select {
-			case frameChan <- msg.Data:
-			default:
-				// Drop frame if buffer is full (prevents backpressure)
-				logger.Debugw("Dropping video frame (buffer full)", "entity_id", entityID)
+		isJPEG := bytes.HasPrefix(msg.Data, jpegMagic)
+		isPNG := bytes.HasPrefix(msg.Data, pngMagic)
+
+		if !isJPEG && !isPNG {
+			// Log first bytes to help debug publisher issues
+			preview := msg.Data
+			if len(preview) > 16 {
+				preview = preview[:16]
 			}
-		} else {
-			logger.Debugw("Received invalid video frame", "entity_id", entityID, "len", len(msg.Data), "prefix", fmt.Sprintf("%X", msg.Data[:3]))
+			logger.Debugw("Invalid frame format - expected raw JPEG/PNG",
+				"entity_id", entityID,
+				"len", len(msg.Data),
+				"header", fmt.Sprintf("%X", preview))
+			return
+		}
+
+		select {
+		case frameChan <- msg.Data:
+		default:
+			// Drop frame if buffer is full (prevents backpressure)
+			logger.Debugw("Dropping video frame (buffer full)", "entity_id", entityID)
 		}
 	})
 
@@ -130,9 +135,14 @@ func (h *VideoHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		case frame := <-frameChan:
 			lastFrame = time.Now()
 			writeMutex.Lock()
-			// Write MJPEG frame boundary and headers
+			// Detect content type from magic bytes
+			contentType := "image/jpeg"
+			if bytes.HasPrefix(frame, pngMagic) {
+				contentType = "image/png"
+			}
+			// Write multipart frame boundary and headers
 			fmt.Fprintf(w, "--frame\r\n")
-			fmt.Fprintf(w, "Content-Type: image/jpeg\r\n")
+			fmt.Fprintf(w, "Content-Type: %s\r\n", contentType)
 			fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", len(frame))
 			w.Write(frame)
 			fmt.Fprintf(w, "\r\n")

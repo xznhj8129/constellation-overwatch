@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
@@ -197,10 +198,13 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		entityIDs = append(entityIDs, entity.EntityID)
 	}
 
+	// Get NATS auth token for WebSocket connection
+	natsAuthToken := os.Getenv("NATS_AUTH_TOKEN")
+
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.VideoPage(entityIDs)
+		component := templates.VideoPage(entityIDs, natsAuthToken)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -210,6 +214,6 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := templates.VideoPage(entityIDs)
+	component := templates.VideoPage(entityIDs, natsAuthToken)
 	component.Render(r.Context(), w)
 }

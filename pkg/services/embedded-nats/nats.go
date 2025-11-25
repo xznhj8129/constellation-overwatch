@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -19,6 +20,7 @@ type Config struct {
 	Host            string
 	Port            int
 	WSPort          int
+	WSAllowedOrigins []string // Empty = allow all
 	DataDir         string
 	MaxMemory       int64
 	MaxFileStore    int64
@@ -80,18 +82,35 @@ func getEnvInt64(key string, fallback int64) int64 {
 	return fallback
 }
 
+// getEnvStringSlice parses a comma-separated env var into a string slice
+// Returns empty slice if value is "*" or empty (meaning "allow all")
+func getEnvStringSlice(key string) []string {
+	value := os.Getenv(key)
+	if value == "" || value == "*" {
+		return []string{} // Empty = allow all
+	}
+	var result []string
+	for _, s := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(s); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 func DefaultConfig() *Config {
 	return &Config{
-		Host:            getEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
-		Port:            getEnvInt("NATS_PORT", 4222),
-		WSPort:          getEnvInt("NATS_WS_PORT", 8222),
-		DataDir:         getEnv("NATS_DATA_DIR", "./data/overwatch"),
-		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB (increased for video streams)
-		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
-		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
-		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
-		EnableAuth:      getEnv("NATS_ENABLE_AUTH", "false") == "true",
-		AuthToken:       getEnv("NATS_AUTH_TOKEN", ""),
+		Host:             getEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
+		Port:             getEnvInt("NATS_PORT", 4222),
+		WSPort:           getEnvInt("NATS_WS_PORT", 8222),
+		WSAllowedOrigins: getEnvStringSlice("ALLOWED_ORIGINS"),
+		DataDir:          getEnv("NATS_DATA_DIR", "./data/overwatch"),
+		MaxMemory:        getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB (increased for video streams)
+		MaxFileStore:     getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
+		JetStreamDomain:  getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
+		EnableTLS:        getEnv("NATS_ENABLE_TLS", "false") == "true",
+		EnableAuth:       getEnv("NATS_ENABLE_AUTH", "false") == "true",
+		AuthToken:        getEnv("NATS_AUTH_TOKEN", ""),
 	}
 }
 
@@ -159,12 +178,16 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		NoSigs:  true, // Disable built-in signal handlers
 	}
 
-	// Only enable websocket if we have TLS
-	if en.config.EnableTLS {
-		opts.Websocket = server.WebsocketOpts{
-			Port:  en.config.WSPort,
-			NoTLS: false,
-		}
+	// Enable WebSocket for browser-based video streaming
+	// NoTLS allows development without certificates
+	// Empty AllowedOrigins = allow all (when ALLOWED_ORIGINS=* or unset)
+	opts.Websocket = server.WebsocketOpts{
+		Host:             en.config.Host,
+		Port:             en.config.WSPort,
+		NoTLS:            !en.config.EnableTLS,
+		SameOrigin:       false,
+		AllowedOrigins:   en.config.WSAllowedOrigins,
+		HandshakeTimeout: 10 * time.Second,
 	}
 
 	// Configure Authentication
@@ -211,7 +234,8 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 
 	logger.Info("Embedded NATS server started",
 		zap.String("host", en.config.Host),
-		zap.Int("port", en.config.Port))
+		zap.Int("port", en.config.Port),
+		zap.Int("ws_port", en.config.WSPort))
 	return nil
 }
 
