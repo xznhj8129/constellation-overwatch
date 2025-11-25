@@ -133,12 +133,15 @@ templ VideoCard(entity shared.EntityState) {
 	</div>
 }
 
-// VideoWebSocketScript provides NATS WebSocket video streaming
+// VideoWebSocketScript provides NATS WebSocket video streaming using official nats.ws library
 templ VideoWebSocketScript(natsAuthToken string) {
 	<div id="nats-config" data-auth-token={ natsAuthToken } style="display:none;"></div>
 	<script type="module">
-		// NATS WebSocket Video Stream Manager
-		// Connects to NATS via WebSocket and renders raw JPEG/PNG frames to canvas
+		// Import official NATS.js WebSocket client from CDN
+		import { wsconnect } from "https://esm.run/@nats-io/nats-core";
+
+		// NATS WebSocket Video Stream Manager using official nats.ws library
+		// The official library handles WebSocket fragmentation automatically
 
 		const NATS_WS_URL = `ws://${window.location.hostname}:8222`;
 		const NATS_AUTH_TOKEN = document.getElementById('nats-config')?.dataset.authToken || '';
@@ -146,9 +149,8 @@ templ VideoWebSocketScript(natsAuthToken string) {
 
 		class NATSVideoStream {
 			constructor() {
-				this.ws = null;
-				this.subscriptions = new Map(); // entityId -> { subId, canvas, ctx, frameCount, lastFpsUpdate }
-				this.nextSubId = 1;
+				this.nc = null; // NatsConnection
+				this.subscriptions = new Map(); // entityId -> { sub, canvas, ctx, frameCount, lastFpsUpdate }
 				this.connected = false;
 				this.reconnectAttempts = 0;
 				this.maxReconnectAttempts = 10;
@@ -156,113 +158,140 @@ templ VideoWebSocketScript(natsAuthToken string) {
 			}
 
 			async connect() {
-				return new Promise((resolve, reject) => {
-					console.log('[NATS-WS] Connecting to', NATS_WS_URL);
-					this.ws = new WebSocket(NATS_WS_URL);
-
-					this.ws.onopen = () => {
-						console.log('[NATS-WS] Connected');
-						this.connected = true;
-						this.reconnectAttempts = 0;
-						// Send CONNECT command with auth token
-						const connectCmd = NATS_AUTH_TOKEN
-							? `CONNECT {"verbose":false,"pedantic":false,"protocol":1,"auth_token":"${NATS_AUTH_TOKEN}"}\r\n`
-							: 'CONNECT {"verbose":false,"pedantic":false,"protocol":1}\r\n';
-						this.send(connectCmd);
-						// Process any pending subscriptions
-						this.pendingSubscriptions.forEach(sub => this.subscribe(sub.entityId, sub.canvas));
-						this.pendingSubscriptions = [];
-						resolve();
+				console.log('[NATS-WS] Connecting to', NATS_WS_URL);
+				try {
+					const opts = {
+						servers: NATS_WS_URL,
+						maxReconnectAttempts: this.maxReconnectAttempts,
 					};
 
-					this.ws.onmessage = (event) => this.handleMessage(event);
-
-					this.ws.onerror = (error) => {
-						console.error('[NATS-WS] Error:', error);
-						reject(error);
-					};
-
-					this.ws.onclose = () => {
-						console.log('[NATS-WS] Disconnected');
-						this.connected = false;
-						this.attemptReconnect();
-					};
-				});
-			}
-
-			attemptReconnect() {
-				if (this.reconnectAttempts < this.maxReconnectAttempts) {
-					this.reconnectAttempts++;
-					const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-					console.log(`[NATS-WS] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-					setTimeout(() => this.connect().catch(console.error), delay);
-				}
-			}
-
-			send(data) {
-				if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-					this.ws.send(data);
-				}
-			}
-
-			handleMessage(event) {
-				// NATS protocol: MSG <subject> <sid> [reply-to] <#bytes>\r\n<payload>\r\n
-				if (typeof event.data === 'string') {
-					// Protocol message (INFO, PING, +OK, -ERR)
-					if (event.data.startsWith('PING')) {
-						this.send('PONG\r\n');
-					} else if (event.data.startsWith('INFO')) {
-						console.log('[NATS-WS] Server info received');
+					// Add auth token if provided
+					if (NATS_AUTH_TOKEN) {
+						opts.token = NATS_AUTH_TOKEN;
 					}
-				} else if (event.data instanceof Blob) {
-					// Binary message - likely a video frame
-					this.handleBinaryMessage(event.data);
+
+					this.nc = await wsconnect(opts);
+					console.log('[NATS-WS] Connected to', this.nc.getServer());
+					this.connected = true;
+					this.reconnectAttempts = 0;
+
+					// Process any pending subscriptions
+					for (const pending of this.pendingSubscriptions) {
+						await this.subscribe(pending.entityId, pending.canvas);
+					}
+					this.pendingSubscriptions = [];
+
+					// Handle connection status changes
+					(async () => {
+						for await (const status of this.nc.status()) {
+							console.log('[NATS-WS] Status:', status.type, status.data);
+							if (status.type === 'disconnect' || status.type === 'error') {
+								this.connected = false;
+								this.updateConnectionUI(false);
+							} else if (status.type === 'reconnect') {
+								this.connected = true;
+								this.updateConnectionUI(true);
+							}
+						}
+					})();
+
+					return this.nc;
+				} catch (error) {
+					console.error('[NATS-WS] Connection failed:', error);
+					this.connected = false;
+					throw error;
 				}
 			}
 
-			async handleBinaryMessage(blob) {
-				// Parse NATS MSG from binary data
-				const arrayBuffer = await blob.arrayBuffer();
-				const data = new Uint8Array(arrayBuffer);
+			updateConnectionUI(connected) {
+				const signals = document.querySelector('[data-signals]');
+				if (signals && window.ds) {
+					window.ds.apply(signals, { _isConnected: connected });
+				}
+			}
 
-				// Find MSG header end (after \r\n)
-				let headerEnd = -1;
-				for (let i = 0; i < Math.min(data.length, 500); i++) {
-					if (data[i] === 0x0D && data[i+1] === 0x0A) { // \r\n
-						headerEnd = i + 2;
-						break;
-					}
+			async subscribe(entityId, canvas) {
+				// Don't re-subscribe if already subscribed to this entity
+				if (this.subscriptions.has(entityId)) {
+					console.log(`[NATS-WS] Already subscribed to ${entityId}, updating canvas ref`);
+					const sub = this.subscriptions.get(entityId);
+					sub.canvas = canvas;
+					sub.ctx = canvas.getContext('2d');
+					return;
 				}
 
-				if (headerEnd === -1) return;
-
-				// Parse header: MSG <subject> <sid> <#bytes>\r\n
-				const header = new TextDecoder().decode(data.slice(0, headerEnd));
-				const match = header.match(/^MSG\s+(\S+)\s+(\d+)\s+(\d+)/);
-				if (!match) return;
-
-				const subject = match[1];
-				const sid = parseInt(match[2]);
-				const payloadLen = parseInt(match[3]);
-
-				// Extract payload (image bytes)
-				const payload = data.slice(headerEnd, headerEnd + payloadLen);
-
-				// Find subscription by sid
-				for (const [entityId, sub] of this.subscriptions) {
-					if (sub.subId === sid) {
-						this.renderFrame(entityId, payload);
-						break;
+				if (!this.connected || !this.nc) {
+					// Queue for later
+					if (!this.pendingSubscriptions.find(p => p.entityId === entityId)) {
+						this.pendingSubscriptions.push({ entityId, canvas });
 					}
+					return;
 				}
+
+				const subject = VIDEO_SUBJECT_PREFIX + entityId;
+				console.log(`[NATS-WS] Subscribing to ${subject}`);
+
+				// Create subscription using official NATS.js API
+				const sub = this.nc.subscribe(subject);
+
+				// Store subscription info
+				const subInfo = {
+					sub,
+					canvas,
+					ctx: canvas.getContext('2d'),
+					frameCount: 0,
+					lastFpsUpdate: Date.now()
+				};
+				this.subscriptions.set(entityId, subInfo);
+
+				// Process messages asynchronously
+				(async () => {
+					try {
+						for await (const msg of sub) {
+							// msg.data is already a Uint8Array - library handles fragmentation
+							this.renderFrame(entityId, msg.data);
+						}
+					} catch (err) {
+						console.error(`[NATS-WS] Subscription error for ${entityId}:`, err);
+					}
+					console.log(`[NATS-WS] Subscription closed for ${entityId}`);
+				})();
+
+				console.log(`[NATS-WS] Subscribed to ${subject}`);
 			}
 
 			renderFrame(entityId, imageData) {
 				const sub = this.subscriptions.get(entityId);
-				if (!sub || !sub.canvas) return;
+				if (!sub) {
+					return;
+				}
+
+				// Re-acquire canvas from DOM in case it was replaced
+				const card = document.querySelector(`.video-card[data-entity-id="${entityId}"]`);
+				const canvas = card?.querySelector('.video-canvas');
+				if (!canvas) {
+					return;
+				}
+
+				// Update canvas reference if it changed
+				if (sub.canvas !== canvas) {
+					sub.canvas = canvas;
+					sub.ctx = canvas.getContext('2d');
+				}
+
+				// Validate image magic bytes
+				const isJPEG = imageData[0] === 0xFF && imageData[1] === 0xD8 && imageData[2] === 0xFF;
+				const isPNG = imageData[0] === 0x89 && imageData[1] === 0x50 && imageData[2] === 0x4E && imageData[3] === 0x47;
+
+				if (!isJPEG && !isPNG) {
+					console.warn(`[NATS-WS] Invalid image data for ${entityId}, size=${imageData.length}, first bytes:`,
+						Array.from(imageData.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+					return;
+				}
 
 				// Create blob URL and draw to canvas
-				const blob = new Blob([imageData], { type: 'image/jpeg' });
+				const mimeType = isJPEG ? 'image/jpeg' : 'image/png';
+				const blob = new Blob([imageData], { type: mimeType });
 				const url = URL.createObjectURL(blob);
 				const img = new Image();
 
@@ -282,46 +311,29 @@ templ VideoWebSocketScript(natsAuthToken string) {
 						const fps = sub.frameCount;
 						sub.frameCount = 0;
 						sub.lastFpsUpdate = now;
-						const fpsEl = sub.canvas.closest('.video-card')?.querySelector('.fps-counter');
+						const fpsEl = document.querySelector(`.video-card[data-entity-id="${entityId}"] .fps-counter`);
 						if (fpsEl) fpsEl.textContent = `${fps} fps`;
 					}
 				};
 
-				img.onerror = () => URL.revokeObjectURL(url);
+				img.onerror = () => {
+					URL.revokeObjectURL(url);
+				};
 				img.src = url;
 			}
 
-			subscribe(entityId, canvas) {
-				if (!this.connected) {
-					this.pendingSubscriptions.push({ entityId, canvas });
-					return;
-				}
-
-				const subId = this.nextSubId++;
-				const subject = VIDEO_SUBJECT_PREFIX + entityId;
-
-				// Get canvas context
-				const ctx = canvas.getContext('2d');
-
-				this.subscriptions.set(entityId, {
-					subId,
-					canvas,
-					ctx,
-					frameCount: 0,
-					lastFpsUpdate: Date.now()
-				});
-
-				// Send NATS SUB command
-				this.send(`SUB ${subject} ${subId}\r\n`);
-				console.log(`[NATS-WS] Subscribed to ${subject} (sid=${subId})`);
-			}
-
 			unsubscribe(entityId) {
-				const sub = this.subscriptions.get(entityId);
-				if (sub) {
-					this.send(`UNSUB ${sub.subId}\r\n`);
+				const subInfo = this.subscriptions.get(entityId);
+				if (subInfo) {
+					subInfo.sub.unsubscribe();
 					this.subscriptions.delete(entityId);
 					console.log(`[NATS-WS] Unsubscribed from ${entityId}`);
+				}
+			}
+
+			async close() {
+				if (this.nc) {
+					await this.nc.drain();
 				}
 			}
 		}
@@ -344,10 +356,7 @@ templ VideoWebSocketScript(natsAuthToken string) {
 				});
 
 				// Update connection status
-				const signals = document.querySelector('[data-signals]');
-				if (signals && window.ds) {
-					window.ds.apply(signals, { _isConnected: true });
-				}
+				videoStream.updateConnectionUI(true);
 			} catch (error) {
 				console.error('[NATS-WS] Failed to connect:', error);
 				// Fall back to MJPEG streams
@@ -360,7 +369,7 @@ templ VideoWebSocketScript(natsAuthToken string) {
 			}
 		}
 
-		// Observe for dynamically added video cards
+		// Observe for dynamically added video cards - only subscribe, never unsubscribe on DOM changes
 		const observer = new MutationObserver((mutations) => {
 			mutations.forEach(mutation => {
 				mutation.addedNodes.forEach(node => {
@@ -371,21 +380,8 @@ templ VideoWebSocketScript(natsAuthToken string) {
 						cards.forEach(card => {
 							const entityId = card.dataset.entityId;
 							const canvas = card.querySelector('.video-canvas');
-							if (entityId && canvas && !videoStream.subscriptions.has(entityId)) {
+							if (entityId && canvas) {
 								videoStream.subscribe(entityId, canvas);
-							}
-						});
-					}
-				});
-				mutation.removedNodes.forEach(node => {
-					if (node.nodeType === Node.ELEMENT_NODE) {
-						const cards = node.classList?.contains('video-card')
-							? [node]
-							: node.querySelectorAll?.('.video-card[data-entity-id]') || [];
-						cards.forEach(card => {
-							const entityId = card.dataset.entityId;
-							if (entityId) {
-								videoStream.unsubscribe(entityId);
 							}
 						});
 					}
