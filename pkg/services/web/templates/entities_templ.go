@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
 func EntitiesPage(organizations []ontology.Organization, selectedOrgID string, entities []ontology.Entity) templ.Component {

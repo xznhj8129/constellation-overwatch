@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
 func EntityForm(orgID string, entity *ontology.Entity, isEdit bool) templ.Component {

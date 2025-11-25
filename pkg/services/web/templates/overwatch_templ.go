@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 func OverwatchPage() templ.Component {

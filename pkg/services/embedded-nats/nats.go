@@ -27,8 +27,7 @@ type Config struct {
 	TLSCert         string
 	TLSKey          string
 	EnableAuth      bool
-	Username        string
-	Password        string
+	AuthToken       string
 }
 
 type EmbeddedNATS struct {
@@ -91,8 +90,7 @@ func DefaultConfig() *Config {
 		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
 		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
 		EnableAuth:      getEnv("NATS_ENABLE_AUTH", "false") == "true",
-		Username:        getEnv("NATS_USER", ""),
-		Password:        getEnv("NATS_PASSWORD", ""),
+		AuthToken:       getEnv("NATS_AUTH_TOKEN", ""),
 	}
 }
 
@@ -170,8 +168,7 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 
 	// Configure Authentication
 	if en.config.EnableAuth {
-		opts.Username = en.config.Username
-		opts.Password = en.config.Password
+		opts.Authorization = en.config.AuthToken
 	}
 
 	// Configure JetStream limits
@@ -273,7 +270,7 @@ func (en *EmbeddedNATS) connect() error {
 	}
 
 	if en.config.EnableAuth {
-		connectOpts = append(connectOpts, nats.UserInfo(en.config.Username, en.config.Password))
+		connectOpts = append(connectOpts, nats.Token(en.config.AuthToken))
 	}
 
 	nc, err := nats.Connect(url, connectOpts...)
