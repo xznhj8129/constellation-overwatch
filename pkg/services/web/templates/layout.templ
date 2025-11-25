@@ -55,6 +55,10 @@ templ Navigation(activeTab string) {
 				<span class="nav-icon">◉</span>
 				<span>Overwatch</span>
 			</a>
+			<a href="/video" class={ "nav-button", templ.KV("active", activeTab == "video") }>
+				<span class="nav-icon">▶</span>
+				<span>Video</span>
+			</a>
 			<div class="nav-footer">
 				<div class="nav-status">READY</div>
 			</div>

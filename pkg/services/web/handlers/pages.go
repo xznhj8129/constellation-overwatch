@@ -182,3 +182,34 @@ func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
 	component := templates.FleetPage(orgs, entities)
 	component.Render(r.Context(), w)
 }
+
+func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
+	// Fetch all entities to populate the dropdown
+	entities, err := h.entitySvc.ListAllEntities()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Extract entity IDs for the template
+	var entityIDs []string
+	for _, entity := range entities {
+		entityIDs = append(entityIDs, entity.EntityID)
+	}
+
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := templates.VideoPage(entityIDs)
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			logger.Infof("Error patching video page: %v", err)
+		}
+		return
+	}
+
+	component := templates.VideoPage(entityIDs)
+	component.Render(r.Context(), w)
+}

@@ -21,6 +21,7 @@ func NewRouter(
 	pageHandler := handlers.NewPageHandler(orgSvc, entitySvc)
 	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc)
 	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc)
+	videoHandler := handlers.NewVideoHandler(natsEmbedded)
 
 	// Serve static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("pkg/services/web/static"))))
@@ -38,6 +39,7 @@ func NewRouter(
 	mux.HandleFunc("/fleet", pageHandler.HandleFleetPage)
 	mux.HandleFunc("/fleet/edit/", datastarHandler.HandleFleetEdit)
 	mux.HandleFunc("/fleet/cancel/", datastarHandler.HandleFleetCancel)
+	mux.HandleFunc("/video", pageHandler.HandleVideoPage)
 
 	// Web API endpoints (for Datastar/SSE)
 	mux.HandleFunc("/api/organizations", datastarHandler.HandleAPIOrganizations)
@@ -54,6 +56,8 @@ func NewRouter(
 	mux.HandleFunc("/api/overwatch/kv", overwatchHandler.HandleAPIOverwatchKV)
 	mux.HandleFunc("/api/overwatch/kv/watch", overwatchHandler.HandleAPIOverwatchKVWatch)
 	mux.HandleFunc("/api/overwatch/kv/debug", overwatchHandler.HandleAPIOverwatchKVDebug)
+
+	mux.HandleFunc("/api/video/list", videoHandler.HandleAPIVideoList)
 
 	// Mount REST API
 	if apiHandler != nil {

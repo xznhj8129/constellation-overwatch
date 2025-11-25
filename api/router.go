@@ -24,6 +24,7 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 	orgHandler := handlers.NewOrganizationHandler(orgService)
 	entityHandler := handlers.NewEntityHandler(entityService)
 	monitorHandler := handlers.NewMonitorHandler()
+	videoHandler := handlers.NewVideoHandler(nats)
 
 	// Global Middleware
 	r.Use(middleware.CORS)
@@ -51,6 +52,12 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 			r.Post("/", entityHandler.Create)
 			r.Put("/", entityHandler.Update)
 			r.Delete("/", entityHandler.Delete)
+		})
+
+		// Video streams (no auth - streaming endpoints)
+		r.Route("/video", func(r chi.Router) {
+			r.Get("/list", videoHandler.List)
+			r.Get("/stream/*", videoHandler.Stream)
 		})
 	})
 
