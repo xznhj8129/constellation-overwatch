@@ -1,0 +1,35 @@
+# Git
+.git
+.github
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Data and build artifacts
+data/
+bin/
+*.test
+coverage.*
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (not needed in image)
+*.md
+prd/
+
+# Task and dev tools
+Taskfile.yml
+.air.toml
+
+# Certificates (should be mounted, not baked in)
+certs/
+*.pem
+*.crt
+*.key
