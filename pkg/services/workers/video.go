@@ -1,10 +1,12 @@
 package workers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -12,10 +14,17 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+// JPEG magic bytes: FF D8 FF
+var jpegMagic = []byte{0xFF, 0xD8, 0xFF}
+
+// PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+var pngMagic = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+
 // VideoWorker processes video frame messages from vision2constellation agents
 type VideoWorker struct {
 	*BaseWorker
-	registry *EntityRegistry
+	registry     *EntityRegistry
+	frameCounter uint64 // Atomic counter for generating sequence numbers
 }
 
 // NewVideoWorker creates a new video frame worker
@@ -47,11 +56,27 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 		return
 	}
 
-	// Parse video frame
 	var frame shared.VideoFrame
-	if err := json.Unmarshal(msg.Data, &frame); err != nil {
-		logger.Errorw("Failed to unmarshal video frame", "worker", w.Name(), "error", err)
-		return
+
+	// Detect message format: raw image bytes or JSON-wrapped VideoFrame
+	if w.isRawImage(msg.Data) {
+		// Raw image bytes (JPEG/PNG) - wrap in VideoFrame structure
+		frame = w.wrapRawImage(entityID, msg.Data)
+	} else {
+		// Try JSON unmarshal
+		if err := json.Unmarshal(msg.Data, &frame); err != nil {
+			// Log first few bytes to help debug
+			preview := msg.Data
+			if len(preview) > 20 {
+				preview = preview[:20]
+			}
+			logger.Warnw("Failed to unmarshal video frame (not JSON or raw image)",
+				"worker", w.Name(),
+				"error", err,
+				"data_length", len(msg.Data),
+				"first_bytes", fmt.Sprintf("%x", preview))
+			return
+		}
 	}
 
 	// Validate entity_id in message matches subject
@@ -60,7 +85,6 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 			"worker", w.Name(),
 			"subject_entity_id", entityID,
 			"message_entity_id", frame.EntityID)
-		// Use the subject's entity_id as authoritative
 	}
 	frame.EntityID = entityID
 
@@ -82,7 +106,6 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 		"format", frame.Format,
 		"dimensions", fmt.Sprintf("%dx%d", frame.Width, frame.Height),
 		"detections", len(frame.Detections),
-		"timestamp", frame.Timestamp.Format(time.RFC3339),
 	)
 
 	// TODO: Future enhancements:
@@ -90,6 +113,37 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 	// 2. Update entity state with latest frame metadata (not full frame)
 	// 3. Forward to analytics pipeline if needed
 	// 4. Implement frame sampling for high-frequency streams
+}
+
+// isRawImage checks if the data starts with known image magic bytes
+func (w *VideoWorker) isRawImage(data []byte) bool {
+	if len(data) < 8 {
+		return false
+	}
+	return bytes.HasPrefix(data, jpegMagic) || bytes.HasPrefix(data, pngMagic)
+}
+
+// wrapRawImage wraps raw image bytes in a VideoFrame structure
+func (w *VideoWorker) wrapRawImage(entityID string, data []byte) shared.VideoFrame {
+	format := "unknown"
+	if bytes.HasPrefix(data, jpegMagic) {
+		format = "jpeg"
+	} else if bytes.HasPrefix(data, pngMagic) {
+		format = "png"
+	}
+
+	seq := atomic.AddUint64(&w.frameCounter, 1)
+
+	return shared.VideoFrame{
+		EntityID:    entityID,
+		FrameID:     fmt.Sprintf("%s-%d", entityID, seq),
+		Timestamp:   time.Now(),
+		SequenceNum: seq,
+		Format:      format,
+		Encoding:    "binary",
+		Data:        data,
+		Priority:    1, // Normal priority
+	}
 }
 
 // parseSubject extracts entity_id from NATS subject
