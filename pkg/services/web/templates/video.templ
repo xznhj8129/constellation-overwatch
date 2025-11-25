@@ -1,5 +1,7 @@
 package templates
 
+import "github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+
 templ VideoPage(entityIDs []string) {
 	@Layout("Video Feeds") {
 		@Navigation("video") {
@@ -95,16 +97,22 @@ templ VideoPanel(entityIDs []string) {
 	</div>
 }
 
-templ VideoCard(entityID string) {
-	<div id={ "video-card-" + entityID } class="video-card" style="background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;">
+templ VideoCard(entity shared.EntityState) {
+	<div id={ "video-card-" + entity.EntityID } class="video-card" style="background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;">
 		<div class="video-card-header" style="padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;">
-			<span style="color: #0ff; font-weight: bold;">{ entityID }</span>
+			<span style="color: #0ff; font-weight: bold;">
+				if entity.Name != "" {
+					{ entity.Name }
+				} else {
+					{ entity.EntityID }
+				}
+			</span>
 			<span class="status-dot connected" style="width: 8px; height: 8px; background: #0f0; border-radius: 50%;"></span>
 		</div>
 		<div style="background: #000; position: relative;">
 			<img
-				src={ "/api/v1/video/stream/" + entityID }
-				alt={ "Video stream for " + entityID }
+				src={ "/api/v1/video/stream/" + entity.EntityID }
+				alt={ "Video stream for " + entity.EntityID }
 				style="width: 100%; height: auto; display: block;"
 				onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"/>
 			<div style="display: none; height: 240px; align-items: center; justify-content: center; color: #666;">

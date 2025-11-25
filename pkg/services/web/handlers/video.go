@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -109,21 +110,50 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 				if lastSeen.After(cutoff) {
 					currentActive = append(currentActive, entityID)
 
-					// If new stream, render card
-					if !knownStreams[entityID] {
-						var cardHTML strings.Builder
-						if err := templates.VideoCard(entityID).Render(context.Background(), &cardHTML); err == nil {
-							// Remove empty state if it's the first stream
-							if len(knownStreams) == 0 {
-								sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))
+					// Fetch entity details from KV
+					var entityName string
+					kv := h.natsEmbedded.KeyValue()
+					if kv != nil {
+						// Try to find entity name in KV
+						// We need to scan keys for this entity
+						keys, _ := kv.Keys()
+						for _, key := range keys {
+							if strings.HasPrefix(key, entityID+".") {
+								entry, _ := kv.Get(key)
+								var data map[string]interface{}
+								if err := json.Unmarshal(entry.Value(), &data); err == nil {
+									if name, ok := data["name"].(string); ok && name != "" {
+										entityName = name
+										break
+									}
+								}
 							}
-
-							sse.PatchElements(cardHTML.String(),
-								datastar.WithSelector("#video-grid"),
-								datastar.WithMode(datastar.ElementPatchModeAppend))
-
-							knownStreams[entityID] = true
 						}
+					}
+
+					var cardHTML strings.Builder
+					// Create a minimal EntityState for the card
+					entityState := shared.EntityState{
+						EntityID: entityID,
+						Name:     entityName,
+					}
+
+					if err := templates.VideoCard(entityState).Render(context.Background(), &cardHTML); err == nil {
+						// Remove empty state if it's the first stream
+						if len(knownStreams) == 0 {
+							sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))
+						}
+
+						// Remove existing card if present (prevents duplicates on reconnect)
+						sse.PatchElements("",
+							datastar.WithSelector(fmt.Sprintf("#video-card-%s", entityID)),
+							datastar.WithMode(datastar.ElementPatchModeRemove))
+
+						sse.PatchElements(cardHTML.String(),
+							datastar.WithSelector("#video-grid"),
+							datastar.WithMode(datastar.ElementPatchModeAppend))
+
+						knownStreams[entityID] = true
 					}
 				} else {
 					// Stream stale

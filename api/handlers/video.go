@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -77,13 +78,31 @@ func (h *VideoHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	var writeMutex sync.Mutex
 
 	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
-		// Only accept raw JPEG frames (starts with FF D8 FF)
+		// Check for JSON-encoded VideoFrame (starts with '{')
+		if len(msg.Data) > 0 && msg.Data[0] == '{' {
+			var videoFrame shared.VideoFrame
+			if err := json.Unmarshal(msg.Data, &videoFrame); err == nil {
+				if len(videoFrame.Data) > 0 {
+					select {
+					case frameChan <- videoFrame.Data:
+					default:
+						logger.Debugw("Dropping video frame (buffer full)", "entity_id", entityID)
+					}
+					return
+				}
+			}
+		}
+
+		// Fallback: Check for raw JPEG frames (starts with FF D8 FF)
 		if len(msg.Data) > 3 && bytes.HasPrefix(msg.Data, jpegMagicBytes) {
 			select {
 			case frameChan <- msg.Data:
 			default:
 				// Drop frame if buffer is full (prevents backpressure)
+				logger.Debugw("Dropping video frame (buffer full)", "entity_id", entityID)
 			}
+		} else {
+			logger.Debugw("Received invalid video frame", "entity_id", entityID, "len", len(msg.Data), "prefix", fmt.Sprintf("%X", msg.Data[:3]))
 		}
 	})
 
