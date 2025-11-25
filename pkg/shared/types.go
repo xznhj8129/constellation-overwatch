@@ -342,6 +342,53 @@ type MAVLinkTelemetry struct {
 	Timestamp   time.Time              `json:"timestamp"`
 }
 
+// ═══════════════════════════════════════════════════════════
+// VIDEO FRAME TYPES - Video stream data from vision2constellation
+// ═══════════════════════════════════════════════════════════
+
+// VideoFrame represents a video frame from an entity's camera
+type VideoFrame struct {
+	// Identity (entity-centric)
+	EntityID string `json:"entity_id"`
+
+	// Frame metadata
+	FrameID     string    `json:"frame_id"`
+	Timestamp   time.Time `json:"timestamp"`
+	SequenceNum uint64    `json:"sequence_num"`
+
+	// Source info
+	CameraID string `json:"camera_id,omitempty"`
+	StreamID string `json:"stream_id,omitempty"`
+
+	// Frame properties
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Format   string `json:"format"`   // "jpeg", "h264", "raw"
+	Encoding string `json:"encoding"` // "base64", "binary"
+
+	// Frame data
+	Data []byte `json:"data"`
+
+	// Optional: Detection overlay (from vision2constellation)
+	Detections []VideoDetectionBBox `json:"detections,omitempty"`
+
+	// Quality/Priority
+	Priority int `json:"priority,omitempty"` // 0=low, 1=normal, 2=high
+	Quality  int `json:"quality,omitempty"`  // JPEG quality 1-100
+}
+
+// VideoDetectionBBox represents a detection bounding box in a video frame
+type VideoDetectionBBox struct {
+	ClassID    int     `json:"class_id"`
+	ClassName  string  `json:"class_name"`
+	Confidence float64 `json:"confidence"`
+	X          int     `json:"x"`
+	Y          int     `json:"y"`
+	Width      int     `json:"width"`
+	Height     int     `json:"height"`
+	TrackID    string  `json:"track_id,omitempty"`
+}
+
 // Constants
 const (
 	// Entity Types

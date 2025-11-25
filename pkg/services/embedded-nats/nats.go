@@ -42,6 +42,7 @@ type EmbeddedNATS struct {
 type StreamConfig struct {
 	Name            string
 	Subjects        []string
+	Storage         nats.StorageType
 	Retention       nats.RetentionPolicy
 	MaxMsgs         int64
 	MaxBytes        int64
@@ -85,7 +86,7 @@ func DefaultConfig() *Config {
 		Port:            getEnvInt("NATS_PORT", 4222),
 		WSPort:          getEnvInt("NATS_WS_PORT", 8222),
 		DataDir:         getEnv("NATS_DATA_DIR", "./data/overwatch"),
-		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 256*1024*1024),        // 256MB
+		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB (increased for video streams)
 		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
 		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
 		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
@@ -236,6 +237,7 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
 		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
 		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
+		{shared.StreamVideoFrames, shared.ConsumerVideoProcessor, shared.SubjectVideoAll},
 	}
 
 	for _, c := range consumers {
@@ -301,6 +303,7 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 	config := &nats.StreamConfig{
 		Name:        streamConfig.Name,
 		Subjects:    streamConfig.Subjects,
+		Storage:     streamConfig.Storage,
 		Retention:   streamConfig.Retention,
 		MaxMsgs:     streamConfig.MaxMsgs,
 		MaxBytes:    streamConfig.MaxBytes,
@@ -396,6 +399,21 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			AllowRollup:     false,
 			AllowDirect:     false,           // Commands must go through stream
 			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
+		},
+		{
+			Name:            "CONSTELLATION_VIDEO_FRAMES",
+			Subjects:        []string{"constellation.video.>"},
+			Storage:         nats.MemoryStorage, // Memory-based for fast access, no persistence
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         0,                  // Unlimited messages (bounded by MaxBytes)
+			MaxBytes:        512 * 1024 * 1024,  // 512MB memory for swarm scale
+			MaxAge:          30 * time.Second,   // Short retention - video is ephemeral
+			MaxMsgSize:      2 * 1024 * 1024,    // 2MB per frame (HD frames with metadata)
+			Replicas:        1,
+			DuplicateWindow: 5 * time.Second,    // Short window for high-frequency frames
+			AllowRollup:     true,               // Support KV-style latest frame access
+			AllowDirect:     true,               // Enable direct get for latest frame
+			DiscardPolicy:   nats.DiscardOld,    // Drop oldest frames when full
 		},
 	}
 
