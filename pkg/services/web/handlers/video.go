@@ -112,28 +112,18 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 
 					// Only create card if not already known
 					if !knownStreams[entityID] {
-						// Fetch entity details from KV
+						// Fetch entity name from KV store (key is just entityID)
 						var entityName string
-						kv := h.natsEmbedded.KeyValue()
-						if kv != nil {
-							// Try to find entity name in KV
-							keys, _ := kv.Keys()
-							for _, key := range keys {
-								if strings.HasPrefix(key, entityID+".") {
-									entry, _ := kv.Get(key)
-									var data map[string]interface{}
-									if err := json.Unmarshal(entry.Value(), &data); err == nil {
-										if name, ok := data["name"].(string); ok && name != "" {
-											entityName = name
-											break
-										}
-									}
+						if kv := h.natsEmbedded.KeyValue(); kv != nil {
+							if entry, err := kv.Get(entityID); err == nil {
+								var state shared.EntityState
+								if json.Unmarshal(entry.Value(), &state) == nil && state.Name != "" {
+									entityName = state.Name
 								}
 							}
 						}
 
 						var cardHTML strings.Builder
-						// Create a minimal EntityState for the card
 						entityState := shared.EntityState{
 							EntityID: entityID,
 							Name:     entityName,
