@@ -103,13 +103,11 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 	state.UpdatedAt = time.Now()
 	state.IsLive = true
 
-	// Save to KV store
-	if err := w.saveEntityState(state); err != nil {
-		logger.Errorw("Failed to save entity state", "worker", w.Name(), "error", err)
-		return
-	}
+	// NOTE: KV writing is disabled - mavlink2constellation handles KV state updates
+	// Just update the local cache for any in-process lookups
+	w.updateCache(state)
 
-	logger.Debugw("Updated entity state", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
+	logger.Debugw("Processed telemetry (KV write disabled)", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
 }
 
 // parseSubject extracts entity_id and org_id from NATS subject
