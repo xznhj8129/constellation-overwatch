@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
+	"database/sql"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
-	"database/sql"
 )
 
 type HealthHandler struct {

@@ -1,13 +1,13 @@
 package services
 
 import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
-	"database/sql"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"

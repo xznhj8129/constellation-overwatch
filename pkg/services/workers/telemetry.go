@@ -1,12 +1,12 @@
 package workers
 
 import (
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"strings"
 	"sync"
 	"time"

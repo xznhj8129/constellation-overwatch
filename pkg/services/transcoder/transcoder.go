@@ -177,7 +177,7 @@ func newTranscoderSession(ctx context.Context, entityID string, nc *nats.Conn) (
 		"-vcodec", "mjpeg", // Output codec
 		"-q:v", "3", // Quality (2-31, lower is better)
 		"-r", "30", // Output framerate
-		"-an", // No audio
+		"-an",           // No audio
 		"-vsync", "vfr", // Variable framerate (drop frames if needed)
 		"pipe:1", // Write to stdout
 	)

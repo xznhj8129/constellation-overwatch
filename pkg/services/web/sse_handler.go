@@ -1,11 +1,11 @@
 package web
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 

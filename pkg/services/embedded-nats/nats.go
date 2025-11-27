@@ -17,19 +17,19 @@ import (
 )
 
 type Config struct {
-	Host            string
-	Port            int
-	WSPort          int
+	Host             string
+	Port             int
+	WSPort           int
 	WSAllowedOrigins []string // Empty = allow all
-	DataDir         string
-	MaxMemory       int64
-	MaxFileStore    int64
-	JetStreamDomain string
-	EnableTLS       bool
-	TLSCert         string
-	TLSKey          string
-	EnableAuth      bool
-	AuthToken       string
+	DataDir          string
+	MaxMemory        int64
+	MaxFileStore     int64
+	JetStreamDomain  string
+	EnableTLS        bool
+	TLSCert          string
+	TLSKey           string
+	EnableAuth       bool
+	AuthToken        string
 }
 
 type EmbeddedNATS struct {
@@ -429,15 +429,15 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Subjects:        []string{"constellation.video.>"},
 			Storage:         nats.MemoryStorage, // Memory-based for fast access, no persistence
 			Retention:       nats.LimitsPolicy,
-			MaxMsgs:         0,                  // Unlimited messages (bounded by MaxBytes)
-			MaxBytes:        512 * 1024 * 1024,  // 512MB memory for swarm scale
-			MaxAge:          30 * time.Second,   // Short retention - video is ephemeral
-			MaxMsgSize:      2 * 1024 * 1024,    // 2MB per frame (HD frames with metadata)
+			MaxMsgs:         0,                 // Unlimited messages (bounded by MaxBytes)
+			MaxBytes:        512 * 1024 * 1024, // 512MB memory for swarm scale
+			MaxAge:          30 * time.Second,  // Short retention - video is ephemeral
+			MaxMsgSize:      2 * 1024 * 1024,   // 2MB per frame (HD frames with metadata)
 			Replicas:        1,
-			DuplicateWindow: 5 * time.Second,    // Short window for high-frequency frames
-			AllowRollup:     true,               // Support KV-style latest frame access
-			AllowDirect:     true,               // Enable direct get for latest frame
-			DiscardPolicy:   nats.DiscardOld,    // Drop oldest frames when full
+			DuplicateWindow: 5 * time.Second, // Short window for high-frequency frames
+			AllowRollup:     true,            // Support KV-style latest frame access
+			AllowDirect:     true,            // Enable direct get for latest frame
+			DiscardPolicy:   nats.DiscardOld, // Drop oldest frames when full
 		},
 	}
 

@@ -137,17 +137,17 @@ templ VideoCard(entity shared.EntityState) {
 }
 
 // VideoWebSocketScript provides NATS WebSocket video streaming with multi-format support
-// Supports: JPEG, PNG (canvas), MPEG-TS/H.264 (jMuxer + MSE)
+// Supports: JPEG, PNG (canvas), MPEG-TS/H.264 (mux.js demux + MSE)
 templ VideoWebSocketScript(natsAuthToken string) {
 	<div id="nats-config" data-auth-token={ natsAuthToken } style="display:none;"></div>
-	<!-- jMuxer for MPEG-TS/H.264 demuxing and MSE playback -->
-	<script src="https://cdn.jsdelivr.net/npm/jmuxer@2.0.5/dist/jmuxer.min.js"></script>
+	<!-- mux.js for MPEG-TS demuxing to fMP4 for MSE playback -->
+	<script src="https://cdn.jsdelivr.net/npm/mux.js@7.0.3/dist/mux.min.js"></script>
 	<script type="module">
 		// Import official NATS.js WebSocket client from CDN
 		import { wsconnect } from "https://esm.run/@nats-io/nats-core";
 
 		// NATS WebSocket Video Stream Manager
-		// Supports multiple formats: JPEG/PNG (canvas) and MPEG-TS/H.264 (jMuxer + MSE)
+		// Supports multiple formats: JPEG/PNG (canvas) and MPEG-TS/H.264 (mux.js + MSE)
 
 		const NATS_WS_URL = `ws://${window.location.hostname}:8222`;
 		const NATS_AUTH_TOKEN = document.getElementById('nats-config')?.dataset.authToken || '';
@@ -254,8 +254,13 @@ templ VideoWebSocketScript(natsAuthToken string) {
 					formatIndicator,
 					ctx: canvas?.getContext('2d'),
 					format: null, // Will be detected on first frame
-					jmuxer: null, // For MPEG-TS streams
-					tsBuffer: [], // Buffer for MPEG-TS chunks
+					// MSE + mux.js state
+					mediaSource: null,
+					sourceBuffer: null,
+					transmuxer: null,
+					segmentQueue: [],
+					isAppending: false,
+					mseInitialized: false,
 					frameCount: 0,
 					lastFpsUpdate: Date.now(),
 				};
@@ -326,70 +331,166 @@ templ VideoWebSocketScript(natsAuthToken string) {
 				}
 
 				if (newFormat === 'mpegts') {
-					// Switch to video element with jMuxer
+					// Switch to video element with MSE
 					if (sub.canvas) sub.canvas.style.display = 'none';
 					if (sub.video) {
 						sub.video.style.display = 'block';
-						this.initJMuxer(sub);
+						this.initMSE(sub);
 					}
 				} else {
 					// Switch to canvas
 					if (sub.video) sub.video.style.display = 'none';
 					if (sub.canvas) sub.canvas.style.display = 'block';
-					this.destroyJMuxer(sub);
+					this.destroyMSE(sub);
 				}
 			}
 
-			initJMuxer(sub) {
-				if (sub.jmuxer) return;
+			initMSE(sub) {
+				if (sub.mseInitialized) return;
+
+				if (!window.muxjs) {
+					console.error('[NATS-WS] mux.js not loaded');
+					return;
+				}
+
+				if (!MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"')) {
+					console.error('[NATS-WS] H.264 not supported by browser');
+					return;
+				}
 
 				try {
-					sub.jmuxer = new JMuxer({
-						node: sub.video,
-						mode: 'video',
-						flushingTime: 0, // Immediate playback for low latency
-						fps: 30,
-						debug: false,
-						onReady: () => {
-							console.log(`[NATS-WS] jMuxer ready for ${sub.entityId}`);
-						},
-						onError: (err) => {
-							console.error(`[NATS-WS] jMuxer error for ${sub.entityId}:`, err);
-						}
+					// Create MediaSource
+					sub.mediaSource = new MediaSource();
+					sub.video.src = URL.createObjectURL(sub.mediaSource);
+
+					sub.mediaSource.addEventListener('sourceopen', () => {
+						console.log(`[NATS-WS] MediaSource opened for ${sub.entityId}`);
+
+						// Create transmuxer (MPEG-TS to fMP4)
+						sub.transmuxer = new muxjs.mp4.Transmuxer({
+							keepOriginalTimestamps: false,
+							remux: true,
+						});
+
+						// Handle transmuxed data
+						sub.transmuxer.on('data', (segment) => {
+							// First segment includes init segment
+							const data = new Uint8Array(segment.initSegment.byteLength + segment.data.byteLength);
+							data.set(segment.initSegment, 0);
+							data.set(segment.data, segment.initSegment.byteLength);
+
+							// Queue segment for appending
+							this.appendToSourceBuffer(sub, data);
+						});
+
+						sub.transmuxer.on('done', () => {
+							// Flush is complete
+						});
+
+						// Create SourceBuffer after first data arrives
+						sub.mseInitialized = true;
 					});
-					console.log(`[NATS-WS] Initialized jMuxer for ${sub.entityId}`);
+
+					sub.mediaSource.addEventListener('sourceended', () => {
+						console.log(`[NATS-WS] MediaSource ended for ${sub.entityId}`);
+					});
+
+					sub.mediaSource.addEventListener('error', (e) => {
+						console.error(`[NATS-WS] MediaSource error for ${sub.entityId}:`, e);
+					});
+
 				} catch (err) {
-					console.error(`[NATS-WS] Failed to init jMuxer for ${sub.entityId}:`, err);
+					console.error(`[NATS-WS] Failed to init MSE for ${sub.entityId}:`, err);
 				}
 			}
 
-			destroyJMuxer(sub) {
-				if (sub.jmuxer) {
+			appendToSourceBuffer(sub, data) {
+				// Queue the segment
+				sub.segmentQueue.push(data);
+				this.processSegmentQueue(sub);
+			}
+
+			processSegmentQueue(sub) {
+				if (sub.isAppending || sub.segmentQueue.length === 0) return;
+				if (!sub.mediaSource || sub.mediaSource.readyState !== 'open') return;
+
+				// Create SourceBuffer on first append
+				if (!sub.sourceBuffer) {
 					try {
-						sub.jmuxer.destroy();
-					} catch (e) {}
-					sub.jmuxer = null;
+						sub.sourceBuffer = sub.mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+						sub.sourceBuffer.mode = 'sequence';
+
+						sub.sourceBuffer.addEventListener('updateend', () => {
+							sub.isAppending = false;
+							this.processSegmentQueue(sub);
+
+							// Keep buffer trimmed for low latency
+							if (sub.sourceBuffer && sub.video.currentTime > 2) {
+								try {
+									sub.sourceBuffer.remove(0, sub.video.currentTime - 1);
+								} catch (e) {}
+							}
+						});
+
+						sub.sourceBuffer.addEventListener('error', (e) => {
+							console.error(`[NATS-WS] SourceBuffer error for ${sub.entityId}:`, e);
+							sub.isAppending = false;
+						});
+					} catch (err) {
+						console.error(`[NATS-WS] Failed to create SourceBuffer for ${sub.entityId}:`, err);
+						return;
+					}
 				}
-				sub.tsBuffer = [];
+
+				// Append next segment
+				const segment = sub.segmentQueue.shift();
+				if (segment && sub.sourceBuffer && !sub.sourceBuffer.updating) {
+					try {
+						sub.isAppending = true;
+						sub.sourceBuffer.appendBuffer(segment);
+					} catch (err) {
+						console.error(`[NATS-WS] Failed to append for ${sub.entityId}:`, err);
+						sub.isAppending = false;
+					}
+				}
+			}
+
+			destroyMSE(sub) {
+				if (sub.transmuxer) {
+					try {
+						sub.transmuxer.dispose();
+					} catch (e) {}
+					sub.transmuxer = null;
+				}
+				if (sub.mediaSource && sub.mediaSource.readyState === 'open') {
+					try {
+						sub.mediaSource.endOfStream();
+					} catch (e) {}
+				}
+				if (sub.video && sub.video.src) {
+					URL.revokeObjectURL(sub.video.src);
+					sub.video.src = '';
+				}
+				sub.mediaSource = null;
+				sub.sourceBuffer = null;
+				sub.segmentQueue = [];
+				sub.isAppending = false;
+				sub.mseInitialized = false;
 			}
 
 			feedMpegTS(sub, data) {
-				if (!sub.jmuxer) {
-					this.initJMuxer(sub);
+				if (!sub.mseInitialized || !sub.transmuxer) {
+					this.initMSE(sub);
+					// Queue data for when MSE is ready
+					if (!sub.transmuxer) return;
 				}
 
-				if (sub.jmuxer) {
-					try {
-						// Extract H.264 NAL units from MPEG-TS
-						// jMuxer expects raw H.264 NAL units, so we need to demux
-						// For now, accumulate and feed raw TS data
-						// jMuxer v2 can handle TS directly with some configuration
-						sub.jmuxer.feed({
-							video: new Uint8Array(data)
-						});
-					} catch (err) {
-						// Silent fail for corrupted frames
-					}
+				try {
+					// Push MPEG-TS data through transmuxer
+					sub.transmuxer.push(new Uint8Array(data));
+					sub.transmuxer.flush();
+				} catch (err) {
+					// Silent fail for corrupted frames
 				}
 			}
 
@@ -414,7 +515,7 @@ templ VideoWebSocketScript(natsAuthToken string) {
 			cleanupSubscription(entityId) {
 				const sub = this.subscriptions.get(entityId);
 				if (sub) {
-					this.destroyJMuxer(sub);
+					this.destroyMSE(sub);
 					this.subscriptions.delete(entityId);
 				}
 			}
