@@ -269,7 +269,7 @@ cp .env.example .env
 
 Configuration options:
 
-- `API_BEARER_TOKEN` - Bearer token for API authentication (default: `constellation-dev-token`)
+- `API_BEARER_TOKEN` - Bearer token for API authentication (default: `reindustrialize-dev-token`)
 - `PORT` - HTTP server port (default: `8080`)
 - `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
 - `NATS_PORT` - NATS server port (default: `4222`)
@@ -279,7 +279,7 @@ Configuration options:
 Example `.env` file:
 
 ```bash
-API_BEARER_TOKEN=constellation-dev-token
+API_BEARER_TOKEN=reindustrialize-dev-token
 PORT=8080
 DB_PATH=./db/constellation.db
 NATS_PORT=4222
@@ -312,7 +312,7 @@ Leave `WEB_UI_PASSWORD` empty or unset. The dashboard will be accessible without
 All REST API endpoints (`/api/v1/*`) require Bearer token authentication:
 
 ```bash
-curl -H "Authorization: Bearer constellation-dev-token" \
+curl -H "Authorization: Bearer reindustrialize-dev-token" \
      http://localhost:8080/api/v1/organizations
 ```
 
@@ -327,7 +327,7 @@ Once the server is running, provision an organization and create entities:
 **Step 1: Set your API token**
 
 ```bash
-export TOKEN="constellation-dev-token"  # or your custom token from .env
+export TOKEN="reindustrialize-dev-token"  # or your custom token from .env
 ```
 
 **Step 2: Create an organization**
