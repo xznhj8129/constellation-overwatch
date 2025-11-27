@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,11 +21,40 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var version = "dev"
+
 func main() {
-	// Load .env file
-	if err := godotenv.Load(); err != nil {
-		logger.Info("No .env file found, using environment variables")
+	// CLI flags
+	var (
+		showVersion = flag.Bool("version", false, "Print version and exit")
+		showHelp    = flag.Bool("help", false, "Show help message")
+		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
+		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
+		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
+		apiToken    = flag.String("api-token", "", "API bearer token")
+		natsToken   = flag.String("nats-token", "", "NATS auth token")
+		dataDir     = flag.String("data-dir", "", "Data directory (default: ./data)")
+		envFile     = flag.String("env", ".env", "Path to .env file")
+	)
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("overwatch %s\n", version)
+		os.Exit(0)
 	}
+
+	if *showHelp {
+		printHelp()
+		os.Exit(0)
+	}
+
+	// Load .env file (flags override env vars)
+	if err := godotenv.Load(*envFile); err != nil {
+		logger.Info("No .env file found, using environment variables and flags")
+	}
+
+	// Apply CLI flag overrides to environment (flags take precedence)
+	applyFlagOverrides(*port, *host, *natsPort, *apiToken, *natsToken, *dataDir)
 
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
@@ -117,4 +148,70 @@ func main() {
 	// Give services time to shut down
 	time.Sleep(2 * time.Second)
 	logger.Info("Shutdown complete")
+}
+
+func printHelp() {
+	fmt.Println(`Constellation Overwatch - Edge C4ISR Server Mesh
+
+USAGE:
+    overwatch [OPTIONS]
+
+OPTIONS:
+    -port <PORT>          Web UI and API port (default: 8080)
+    -host <HOST>          Bind address (default: 0.0.0.0)
+    -nats-port <PORT>     NATS server port (default: 4222)
+    -api-token <TOKEN>    API bearer token (default: constellation-dev-token)
+    -nats-token <TOKEN>   NATS auth token (default: reindustrialize-america)
+    -data-dir <PATH>      Data directory (default: ./data)
+    -env <PATH>           Path to .env file (default: .env)
+    -version              Print version and exit
+    -help                 Show this help message
+
+QUICK START:
+    # Run with defaults (creates .env from .env.example if needed)
+    overwatch
+
+    # Run on a different port
+    overwatch -port 9090
+
+    # Run with custom tokens
+    overwatch -api-token mytoken -nats-token mytoken
+
+ENVIRONMENT:
+    All options can also be set via environment variables or .env file:
+    PORT, HOST, NATS_PORT, API_BEARER_TOKEN, NATS_AUTH_TOKEN, NATS_DATA_DIR, DB_PATH
+
+    Priority: CLI flags > environment variables > .env file > defaults
+
+ENDPOINTS:
+    Web UI:     http://localhost:8080
+    REST API:   http://localhost:8080/api/v1/
+    NATS:       nats://localhost:4222 (with token auth)
+    Health:     http://localhost:8080/health
+
+DOCUMENTATION:
+    https://github.com/Constellation-Overwatch/constellation-overwatch`)
+}
+
+func applyFlagOverrides(port, host, natsPort, apiToken, natsToken, dataDir string) {
+	if port != "" {
+		os.Setenv("PORT", port)
+	}
+	if host != "" {
+		os.Setenv("HOST", host)
+	}
+	if natsPort != "" {
+		os.Setenv("NATS_PORT", natsPort)
+	}
+	if apiToken != "" {
+		os.Setenv("API_BEARER_TOKEN", apiToken)
+	}
+	if natsToken != "" {
+		os.Setenv("NATS_AUTH_TOKEN", natsToken)
+		os.Setenv("NATS_ENABLE_AUTH", "true")
+	}
+	if dataDir != "" {
+		os.Setenv("NATS_DATA_DIR", dataDir+"/overwatch")
+		os.Setenv("DB_PATH", dataDir+"/db/constellation.db")
+	}
 }
