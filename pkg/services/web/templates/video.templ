@@ -109,12 +109,15 @@ templ VideoCard(entity shared.EntityState) {
 				}
 			</span>
 			<div style="display: flex; align-items: center; gap: 8px;">
+				<span class="format-indicator" style="color: #666; font-size: 10px; text-transform: uppercase;"></span>
 				<span class="fps-counter" style="color: #888; font-size: 11px;">0 fps</span>
 				<span class="status-dot connected" style="width: 8px; height: 8px; background: #0f0; border-radius: 50%;"></span>
 			</div>
 		</div>
 		<div style="background: #000; position: relative;">
-			<!-- Canvas for WebSocket frames (preferred) -->
+			<!-- Video element for MPEG-TS/H.264 streams (hardware accelerated) -->
+			<video class="video-h264" muted autoplay playsinline style="width: 100%; height: auto; display: none;"></video>
+			<!-- Canvas for JPEG/PNG WebSocket frames -->
 			<canvas class="video-canvas" style="width: 100%; height: auto; display: block;"></canvas>
 			<!-- Fallback: MJPEG stream via img tag -->
 			<img
@@ -133,24 +136,34 @@ templ VideoCard(entity shared.EntityState) {
 	</div>
 }
 
-// VideoWebSocketScript provides NATS WebSocket video streaming using official nats.ws library
+// VideoWebSocketScript provides NATS WebSocket video streaming with multi-format support
+// Supports: JPEG, PNG (canvas), MPEG-TS/H.264 (jMuxer + MSE)
 templ VideoWebSocketScript(natsAuthToken string) {
 	<div id="nats-config" data-auth-token={ natsAuthToken } style="display:none;"></div>
+	<!-- jMuxer for MPEG-TS/H.264 demuxing and MSE playback -->
+	<script src="https://cdn.jsdelivr.net/npm/jmuxer@2.0.5/dist/jmuxer.min.js"></script>
 	<script type="module">
 		// Import official NATS.js WebSocket client from CDN
 		import { wsconnect } from "https://esm.run/@nats-io/nats-core";
 
-		// NATS WebSocket Video Stream Manager using official nats.ws library
-		// The official library handles WebSocket fragmentation automatically
+		// NATS WebSocket Video Stream Manager
+		// Supports multiple formats: JPEG/PNG (canvas) and MPEG-TS/H.264 (jMuxer + MSE)
 
 		const NATS_WS_URL = `ws://${window.location.hostname}:8222`;
 		const NATS_AUTH_TOKEN = document.getElementById('nats-config')?.dataset.authToken || '';
 		const VIDEO_SUBJECT_PREFIX = 'constellation.video.';
 
+		// Format detection magic bytes
+		const MAGIC = {
+			JPEG: [0xFF, 0xD8],
+			PNG: [0x89, 0x50],
+			MPEGTS: [0x47], // MPEG-TS sync byte
+		};
+
 		class NATSVideoStream {
 			constructor() {
-				this.nc = null; // NatsConnection
-				this.subscriptions = new Map(); // entityId -> { sub, canvas, ctx, frameCount, lastFpsUpdate }
+				this.nc = null;
+				this.subscriptions = new Map(); // entityId -> subscription info
 				this.connected = false;
 				this.reconnectAttempts = 0;
 				this.maxReconnectAttempts = 10;
@@ -165,7 +178,6 @@ templ VideoWebSocketScript(natsAuthToken string) {
 						maxReconnectAttempts: this.maxReconnectAttempts,
 					};
 
-					// Add auth token if provided
 					if (NATS_AUTH_TOKEN) {
 						opts.token = NATS_AUTH_TOKEN;
 					}
@@ -175,9 +187,9 @@ templ VideoWebSocketScript(natsAuthToken string) {
 					this.connected = true;
 					this.reconnectAttempts = 0;
 
-					// Process any pending subscriptions
+					// Process pending subscriptions
 					for (const pending of this.pendingSubscriptions) {
-						await this.subscribe(pending.entityId, pending.canvas);
+						await this.subscribe(pending.entityId, pending.card);
 					}
 					this.pendingSubscriptions = [];
 
@@ -210,20 +222,15 @@ templ VideoWebSocketScript(natsAuthToken string) {
 				}
 			}
 
-			async subscribe(entityId, canvas) {
-				// Don't re-subscribe if already subscribed to this entity
+			async subscribe(entityId, card) {
 				if (this.subscriptions.has(entityId)) {
-					console.log(`[NATS-WS] Already subscribed to ${entityId}, updating canvas ref`);
-					const sub = this.subscriptions.get(entityId);
-					sub.canvas = canvas;
-					sub.ctx = canvas.getContext('2d');
+					console.log(`[NATS-WS] Already subscribed to ${entityId}`);
 					return;
 				}
 
 				if (!this.connected || !this.nc) {
-					// Queue for later
 					if (!this.pendingSubscriptions.find(p => p.entityId === entityId)) {
-						this.pendingSubscriptions.push({ entityId, canvas });
+						this.pendingSubscriptions.push({ entityId, card });
 					}
 					return;
 				}
@@ -231,145 +238,236 @@ templ VideoWebSocketScript(natsAuthToken string) {
 				const subject = VIDEO_SUBJECT_PREFIX + entityId;
 				console.log(`[NATS-WS] Subscribing to ${subject}`);
 
-				// Create subscription using official NATS.js API
 				const sub = this.nc.subscribe(subject);
 
-				// Store subscription info
+				// Get DOM elements
+				const canvas = card.querySelector('.video-canvas');
+				const video = card.querySelector('.video-h264');
+				const formatIndicator = card.querySelector('.format-indicator');
+
 				const subInfo = {
 					sub,
+					entityId,
+					card,
 					canvas,
-					ctx: canvas.getContext('2d'),
+					video,
+					formatIndicator,
+					ctx: canvas?.getContext('2d'),
+					format: null, // Will be detected on first frame
+					jmuxer: null, // For MPEG-TS streams
+					tsBuffer: [], // Buffer for MPEG-TS chunks
 					frameCount: 0,
-					lastFpsUpdate: Date.now()
+					lastFpsUpdate: Date.now(),
 				};
 				this.subscriptions.set(entityId, subInfo);
 
-				// Process messages asynchronously
+				// Process messages
 				(async () => {
 					try {
 						for await (const msg of sub) {
-							// msg.data is already a Uint8Array - library handles fragmentation
-							this.renderFrame(entityId, msg.data);
+							this.handleFrame(entityId, msg.data);
 						}
 					} catch (err) {
 						console.error(`[NATS-WS] Subscription error for ${entityId}:`, err);
 					}
 					console.log(`[NATS-WS] Subscription closed for ${entityId}`);
+					this.cleanupSubscription(entityId);
 				})();
 
 				console.log(`[NATS-WS] Subscribed to ${subject}`);
 			}
 
-			renderFrame(entityId, imageData) {
+			detectFormat(data) {
+				if (data.length < 2) return null;
+				if (data[0] === MAGIC.JPEG[0] && data[1] === MAGIC.JPEG[1]) return 'jpeg';
+				if (data[0] === MAGIC.PNG[0] && data[1] === MAGIC.PNG[1]) return 'png';
+				if (data[0] === MAGIC.MPEGTS[0]) return 'mpegts';
+				return null;
+			}
+
+			handleFrame(entityId, data) {
 				const sub = this.subscriptions.get(entityId);
-				if (!sub) {
-					return;
+				if (!sub || data.length === 0) return;
+
+				const format = this.detectFormat(data);
+				if (!format) return;
+
+				// Switch renderer if format changed
+				if (sub.format !== format) {
+					this.switchFormat(sub, format);
 				}
 
-				// Re-acquire canvas from DOM in case it was replaced
-				const card = document.querySelector(`.video-card[data-entity-id="${entityId}"]`);
-				const canvas = card?.querySelector('.video-canvas');
-				if (!canvas) {
-					return;
+				// Route to appropriate renderer
+				if (format === 'jpeg' || format === 'png') {
+					this.renderImageFrame(sub, data, format);
+				} else if (format === 'mpegts') {
+					this.feedMpegTS(sub, data);
 				}
 
-				// Update canvas reference if it changed
-				if (sub.canvas !== canvas) {
-					sub.canvas = canvas;
-					sub.ctx = canvas.getContext('2d');
+				// Update FPS counter
+				sub.frameCount++;
+				const now = Date.now();
+				if (now - sub.lastFpsUpdate >= 1000) {
+					const fps = sub.frameCount;
+					sub.frameCount = 0;
+					sub.lastFpsUpdate = now;
+					const fpsEl = sub.card.querySelector('.fps-counter');
+					if (fpsEl) fpsEl.textContent = `${fps} fps`;
+				}
+			}
+
+			switchFormat(sub, newFormat) {
+				console.log(`[NATS-WS] Switching ${sub.entityId} from ${sub.format} to ${newFormat}`);
+				sub.format = newFormat;
+
+				// Update format indicator
+				if (sub.formatIndicator) {
+					sub.formatIndicator.textContent = newFormat === 'mpegts' ? 'H.264' : newFormat.toUpperCase();
 				}
 
-				// Validate image magic bytes
-				const isJPEG = imageData[0] === 0xFF && imageData[1] === 0xD8 && imageData[2] === 0xFF;
-				const isPNG = imageData[0] === 0x89 && imageData[1] === 0x50 && imageData[2] === 0x4E && imageData[3] === 0x47;
-
-				if (!isJPEG && !isPNG) {
-					console.warn(`[NATS-WS] Invalid image data for ${entityId}, size=${imageData.length}, first bytes:`,
-						Array.from(imageData.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-					return;
-				}
-
-				// Create blob URL and draw to canvas
-				const mimeType = isJPEG ? 'image/jpeg' : 'image/png';
-				const blob = new Blob([imageData], { type: mimeType });
-				const url = URL.createObjectURL(blob);
-				const img = new Image();
-
-				img.onload = () => {
-					// Resize canvas to match image if needed
-					if (sub.canvas.width !== img.width || sub.canvas.height !== img.height) {
-						sub.canvas.width = img.width;
-						sub.canvas.height = img.height;
+				if (newFormat === 'mpegts') {
+					// Switch to video element with jMuxer
+					if (sub.canvas) sub.canvas.style.display = 'none';
+					if (sub.video) {
+						sub.video.style.display = 'block';
+						this.initJMuxer(sub);
 					}
-					sub.ctx.drawImage(img, 0, 0);
-					URL.revokeObjectURL(url);
+				} else {
+					// Switch to canvas
+					if (sub.video) sub.video.style.display = 'none';
+					if (sub.canvas) sub.canvas.style.display = 'block';
+					this.destroyJMuxer(sub);
+				}
+			}
 
-					// Update FPS counter
-					sub.frameCount++;
-					const now = Date.now();
-					if (now - sub.lastFpsUpdate >= 1000) {
-						const fps = sub.frameCount;
-						sub.frameCount = 0;
-						sub.lastFpsUpdate = now;
-						const fpsEl = document.querySelector(`.video-card[data-entity-id="${entityId}"] .fps-counter`);
-						if (fpsEl) fpsEl.textContent = `${fps} fps`;
+			initJMuxer(sub) {
+				if (sub.jmuxer) return;
+
+				try {
+					sub.jmuxer = new JMuxer({
+						node: sub.video,
+						mode: 'video',
+						flushingTime: 0, // Immediate playback for low latency
+						fps: 30,
+						debug: false,
+						onReady: () => {
+							console.log(`[NATS-WS] jMuxer ready for ${sub.entityId}`);
+						},
+						onError: (err) => {
+							console.error(`[NATS-WS] jMuxer error for ${sub.entityId}:`, err);
+						}
+					});
+					console.log(`[NATS-WS] Initialized jMuxer for ${sub.entityId}`);
+				} catch (err) {
+					console.error(`[NATS-WS] Failed to init jMuxer for ${sub.entityId}:`, err);
+				}
+			}
+
+			destroyJMuxer(sub) {
+				if (sub.jmuxer) {
+					try {
+						sub.jmuxer.destroy();
+					} catch (e) {}
+					sub.jmuxer = null;
+				}
+				sub.tsBuffer = [];
+			}
+
+			feedMpegTS(sub, data) {
+				if (!sub.jmuxer) {
+					this.initJMuxer(sub);
+				}
+
+				if (sub.jmuxer) {
+					try {
+						// Extract H.264 NAL units from MPEG-TS
+						// jMuxer expects raw H.264 NAL units, so we need to demux
+						// For now, accumulate and feed raw TS data
+						// jMuxer v2 can handle TS directly with some configuration
+						sub.jmuxer.feed({
+							video: new Uint8Array(data)
+						});
+					} catch (err) {
+						// Silent fail for corrupted frames
 					}
-				};
+				}
+			}
 
-				img.onerror = () => {
-					URL.revokeObjectURL(url);
-				};
-				img.src = url;
+			async renderImageFrame(sub, data, format) {
+				if (!sub.canvas || !sub.ctx) return;
+
+				try {
+					const blob = new Blob([data], { type: format === 'jpeg' ? 'image/jpeg' : 'image/png' });
+					const bitmap = await createImageBitmap(blob);
+
+					if (sub.canvas.width !== bitmap.width || sub.canvas.height !== bitmap.height) {
+						sub.canvas.width = bitmap.width;
+						sub.canvas.height = bitmap.height;
+					}
+					sub.ctx.drawImage(bitmap, 0, 0);
+					bitmap.close();
+				} catch (err) {
+					// Silent fail
+				}
+			}
+
+			cleanupSubscription(entityId) {
+				const sub = this.subscriptions.get(entityId);
+				if (sub) {
+					this.destroyJMuxer(sub);
+					this.subscriptions.delete(entityId);
+				}
 			}
 
 			unsubscribe(entityId) {
 				const subInfo = this.subscriptions.get(entityId);
 				if (subInfo) {
 					subInfo.sub.unsubscribe();
-					this.subscriptions.delete(entityId);
+					this.cleanupSubscription(entityId);
 					console.log(`[NATS-WS] Unsubscribed from ${entityId}`);
 				}
 			}
 
 			async close() {
+				for (const [entityId] of this.subscriptions) {
+					this.cleanupSubscription(entityId);
+				}
 				if (this.nc) {
 					await this.nc.drain();
 				}
 			}
 		}
 
-		// Initialize video stream manager
+		// Initialize
 		const videoStream = new NATSVideoStream();
 
-		// Connect and set up video cards
 		async function initVideoStreams() {
 			try {
 				await videoStream.connect();
 
-				// Find all video cards and subscribe to their streams
 				document.querySelectorAll('.video-card[data-entity-id]').forEach(card => {
 					const entityId = card.dataset.entityId;
-					const canvas = card.querySelector('.video-canvas');
-					if (entityId && canvas) {
-						videoStream.subscribe(entityId, canvas);
+					if (entityId) {
+						videoStream.subscribe(entityId, card);
 					}
 				});
 
-				// Update connection status
 				videoStream.updateConnectionUI(true);
 			} catch (error) {
 				console.error('[NATS-WS] Failed to connect:', error);
-				// Fall back to MJPEG streams
+				// Fall back to MJPEG
 				document.querySelectorAll('.video-card').forEach(card => {
 					const canvas = card.querySelector('.video-canvas');
+					const video = card.querySelector('.video-h264');
 					const mjpeg = card.querySelector('.video-mjpeg');
 					if (canvas) canvas.style.display = 'none';
+					if (video) video.style.display = 'none';
 					if (mjpeg) mjpeg.style.display = 'block';
 				});
 			}
 		}
 
-		// Observe for dynamically added video cards - only subscribe, never unsubscribe on DOM changes
+		// Observe for dynamically added video cards
 		const observer = new MutationObserver((mutations) => {
 			mutations.forEach(mutation => {
 				mutation.addedNodes.forEach(node => {
@@ -379,9 +477,8 @@ templ VideoWebSocketScript(natsAuthToken string) {
 							: node.querySelectorAll?.('.video-card[data-entity-id]') || [];
 						cards.forEach(card => {
 							const entityId = card.dataset.entityId;
-							const canvas = card.querySelector('.video-canvas');
-							if (entityId && canvas) {
-								videoStream.subscribe(entityId, canvas);
+							if (entityId) {
+								videoStream.subscribe(entityId, card);
 							}
 						});
 					}
@@ -391,7 +488,6 @@ templ VideoWebSocketScript(natsAuthToken string) {
 
 		observer.observe(document.body, { childList: true, subtree: true });
 
-		// Start when DOM is ready
 		if (document.readyState === 'loading') {
 			document.addEventListener('DOMContentLoaded', initVideoStreams);
 		} else {

@@ -11,6 +11,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/transcoder"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
 
@@ -73,6 +74,16 @@ func main() {
 	}
 	defer workerManager.Stop(ctx)
 	logger.Info("Workers started")
+
+	// 3b. Initialize Video Transcoder (converts MPEG-TS to JPEG)
+	logger.Info("Initializing video transcoder...")
+	videoTranscoder := transcoder.New(nc)
+	go func() {
+		if err := videoTranscoder.Start(ctx); err != nil {
+			logger.Errorw("Video transcoder error", "error", err)
+		}
+	}()
+	logger.Info("Video transcoder started")
 
 	// 4. Initialize API Router
 	logger.Info("Initializing API router...")

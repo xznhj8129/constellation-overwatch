@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
@@ -75,9 +76,9 @@ func (h *VideoHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	// Subscribe to video frames for this entity
 	subject := shared.VideoFrameSubject(entityID)
 
-	// Channel to receive frames - buffer for burst tolerance
-	frameChan := make(chan []byte, 15)
-	var writeMutex sync.Mutex
+	// Atomic pointer for latest frame - zero contention, always shows newest frame
+	var latestFrame atomic.Pointer[[]byte]
+	var frameReady = make(chan struct{}, 1) // Signal channel for new frames
 
 	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
 		// Validate raw image frames (JPEG or PNG)
@@ -103,11 +104,15 @@ func (h *VideoHandler) Stream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Copy frame data (NATS reuses buffers)
+		frame := make([]byte, len(msg.Data))
+		copy(frame, msg.Data)
+		latestFrame.Store(&frame)
+
+		// Non-blocking signal that a new frame is ready
 		select {
-		case frameChan <- msg.Data:
+		case frameReady <- struct{}{}:
 		default:
-			// Drop frame if buffer is full (prevents backpressure)
-			logger.Debugw("Dropping video frame (buffer full)", "entity_id", entityID)
 		}
 	})
 
@@ -132,22 +137,25 @@ func (h *VideoHandler) Stream(w http.ResponseWriter, r *http.Request) {
 			logger.Infow("MJPEG stream ended", "component", "VideoHandler", "entity_id", entityID, "remote_addr", r.RemoteAddr)
 			return
 
-		case frame := <-frameChan:
+		case <-frameReady:
+			// Get latest frame (may skip frames if consumer is slow - that's intentional)
+			framePtr := latestFrame.Load()
+			if framePtr == nil {
+				continue
+			}
+			frame := *framePtr
 			lastFrame = time.Now()
-			writeMutex.Lock()
+
 			// Detect content type from magic bytes
 			contentType := "image/jpeg"
 			if bytes.HasPrefix(frame, pngMagic) {
 				contentType = "image/png"
 			}
-			// Write multipart frame boundary and headers
-			fmt.Fprintf(w, "--frame\r\n")
-			fmt.Fprintf(w, "Content-Type: %s\r\n", contentType)
-			fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", len(frame))
+			// Write multipart frame with single fprintf call for efficiency
+			fmt.Fprintf(w, "--frame\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n", contentType, len(frame))
 			w.Write(frame)
 			fmt.Fprintf(w, "\r\n")
 			flusher.Flush()
-			writeMutex.Unlock()
 
 		case <-ticker.C:
 			// Check for frame timeout

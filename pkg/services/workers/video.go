@@ -20,6 +20,9 @@ var jpegMagic = []byte{0xFF, 0xD8, 0xFF}
 // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
 var pngMagic = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 
+// MPEG-TS sync byte (0x47) - these are handled by the transcoder service
+var mpegTSSync = byte(0x47)
+
 // VideoWorker processes video frame messages from vision2constellation agents
 type VideoWorker struct {
 	*BaseWorker
@@ -58,21 +61,28 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 
 	var frame shared.VideoFrame
 
-	// Detect message format: raw image bytes or JSON-wrapped VideoFrame
+	// Detect message format: raw image bytes, MPEG-TS, or JSON-wrapped VideoFrame
 	if w.isRawImage(msg.Data) {
 		// Raw image bytes (JPEG/PNG) - wrap in VideoFrame structure
 		frame = w.wrapRawImage(entityID, msg.Data)
+	} else if w.isMPEGTS(msg.Data) {
+		// MPEG-TS data - handled by transcoder service, skip silently
+		return
 	} else {
 		// Try JSON unmarshal
 		if err := json.Unmarshal(msg.Data, &frame); err != nil {
-			// Log first few bytes to help debug
+			// Empty data or other unrecognized format - skip silently
+			// The transcoder or other services may handle these
+			if len(msg.Data) == 0 {
+				return
+			}
+			// Log first few bytes to help debug (only for non-empty unknown formats)
 			preview := msg.Data
 			if len(preview) > 20 {
 				preview = preview[:20]
 			}
-			logger.Warnw("Failed to unmarshal video frame (not JSON or raw image)",
+			logger.Debugw("Skipping unknown video frame format",
 				"worker", w.Name(),
-				"error", err,
 				"data_length", len(msg.Data),
 				"first_bytes", fmt.Sprintf("%x", preview))
 			return
@@ -121,6 +131,15 @@ func (w *VideoWorker) isRawImage(data []byte) bool {
 		return false
 	}
 	return bytes.HasPrefix(data, jpegMagic) || bytes.HasPrefix(data, pngMagic)
+}
+
+// isMPEGTS checks if the data looks like MPEG-TS format
+func (w *VideoWorker) isMPEGTS(data []byte) bool {
+	if len(data) < 1 {
+		return false
+	}
+	// MPEG-TS packets start with 0x47 sync byte
+	return data[0] == mpegTSSync
 }
 
 // wrapRawImage wraps raw image bytes in a VideoFrame structure
