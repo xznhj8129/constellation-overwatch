@@ -60,6 +60,15 @@ body {
     animation: scan 8s linear infinite;
 }
 
+.header img {
+    width: 48px;
+    height: 48px;
+    max-width: 48px;
+    max-height: 48px;
+    display: block;
+    margin: 0 auto 8px auto;
+}
+
 @keyframes scan {
     to { left: 100%; }
 }

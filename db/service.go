@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	_ "github.com/tursodatabase/go-libsql"
+	_ "github.com/tursodatabase/turso-go"
 	"go.uber.org/zap"
 )
 
@@ -75,10 +75,10 @@ func New(config *Config) (*Service, error) {
 		return nil, fmt.Errorf("failed to resolve absolute path for database: %w", err)
 	}
 
-	connStr := "file:" + absPath
+	connStr := "file:" + absPath + "?_foreign_keys=on"
 
 	logger.Infow("Opening database connection", "connection_string", connStr)
-	db, err := sql.Open("libsql", connStr)
+	db, err := sql.Open("turso", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -179,7 +179,7 @@ func (s *Service) InitializeSchema() error {
 		if strings.HasSuffix(trimmedLine, ";") {
 			// If we are in a trigger, only execute if we see END;
 			if inTrigger {
-				if strings.HasSuffix(strings.ToUpper(trimmedLine), "END;") {
+				if strings.ToUpper(trimmedLine) == "END;" {
 					inTrigger = false
 				} else {
 					continue
@@ -187,6 +187,11 @@ func (s *Service) InitializeSchema() error {
 			}
 
 			stmt := currentStmt.String()
+			// Trim whitespace to avoid sending empty statements
+			if strings.TrimSpace(stmt) == "" {
+				currentStmt.Reset()
+				continue
+			}
 
 			if _, err := s.DB.Exec(stmt); err != nil {
 				logger.Errorw("Failed to execute schema statement", "statement", stmt, "line", i+1)

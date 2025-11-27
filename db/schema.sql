@@ -2,7 +2,7 @@
 -- Multi-Organization Common Operating Picture Database
 -- Converted from PostgreSQL schema
 
-PRAGMA foreign_keys = ON;
+
 
 -- ============================================================================
 -- CORE TABLES

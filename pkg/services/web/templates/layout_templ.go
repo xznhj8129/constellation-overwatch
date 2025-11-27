@@ -42,7 +42,7 @@ func Layout(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - Constellation Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"><script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js\"></script></head><body><div class=\"container\"><header class=\"header\"><img href=\"/static/images/favicon.svg\" alt=\"Constellation Overwatch\"><div class=\"subtitle\">Edge Awareness Kit</div><div class=\"status-bar\"><span class=\"status-item\">🦅🐉</span> <span class=\"status-item\">SYSTEM: ONLINE</span> <span class=\"status-item\">TIME: <span id=\"time\">--:--:--</span></span></div></header><div class=\"main-layout\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - Constellation Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"><script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js\"></script></head><body><div class=\"container\"><header class=\"header\"><img src=\"/static/images/favicon.svg\" alt=\"Constellation Overwatch\"><div class=\"subtitle\">Edge Awareness Kit</div><div class=\"status-bar\"><span class=\"status-item\">SYSTEM: ONLINE</span> <span class=\"status-item\">🦅🐉</span> <span class=\"status-item\">TIME: <span id=\"time\">--:--:--</span></span></div></header><div class=\"main-layout\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
