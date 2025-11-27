@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	_ "github.com/tursodatabase/turso-go"
+	_ "github.com/tursodatabase/go-libsql"
 	"go.uber.org/zap"
 )
 
@@ -78,7 +78,7 @@ func New(config *Config) (*Service, error) {
 	connStr := "file:" + absPath + "?_foreign_keys=on"
 
 	logger.Infow("Opening database connection", "connection_string", connStr)
-	db, err := sql.Open("turso", connStr)
+	db, err := sql.Open("libsql", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -154,12 +154,45 @@ func (s *Service) InitializeSchema() error {
 	// Execute schema
 	logger.Infow("Executing schema SQL", "bytes", len(schemaSQL))
 
-	// Parse and execute schema line by line to handle comments and splitting correctly
-	var currentStmt strings.Builder
-	lines := strings.Split(string(schemaSQL), "\n")
-	inTrigger := false
+	// Parse and execute schema statement by statement
+	// We need to handle triggers specially as they contain internal semicolons
+	statements := splitSQLStatements(string(schemaSQL))
 
-	for i, line := range lines {
+	for i, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+
+		// For triggers, collapse to single line (turso driver workaround)
+		upperStmt := strings.ToUpper(stmt)
+		if strings.HasPrefix(upperStmt, "CREATE TRIGGER") {
+			// Normalize whitespace - collapse multiple spaces/newlines to single space
+			stmt = strings.Join(strings.Fields(stmt), " ")
+		}
+
+		if _, err := s.DB.Exec(stmt); err != nil {
+			logger.Errorw("Failed to execute schema statement", "statement", stmt, "index", i)
+			return fmt.Errorf("failed to execute schema statement %d: %w", i, err)
+		}
+	}
+
+	logger.Info("Schema execution completed")
+
+	return nil
+}
+
+// splitSQLStatements splits a SQL script into individual statements,
+// correctly handling triggers (which contain internal semicolons)
+func splitSQLStatements(sql string) []string {
+	var statements []string
+	var currentStmt strings.Builder
+
+	lines := strings.Split(sql, "\n")
+	inTrigger := false
+	inView := false
+
+	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 
 		// Skip empty lines and full-line comments
@@ -167,44 +200,50 @@ func (s *Service) InitializeSchema() error {
 			continue
 		}
 
+		upperLine := strings.ToUpper(trimmedLine)
+
 		// Detect start of a trigger definition
-		if strings.HasPrefix(strings.ToUpper(trimmedLine), "CREATE TRIGGER") {
+		if strings.HasPrefix(upperLine, "CREATE TRIGGER") {
 			inTrigger = true
+		}
+
+		// Detect start of a view definition (may span multiple lines)
+		if strings.HasPrefix(upperLine, "CREATE VIEW") {
+			inView = true
 		}
 
 		currentStmt.WriteString(line)
 		currentStmt.WriteString("\n")
 
-		// If line ends with semicolon, check if we should execute
+		// Check if we should finalize this statement
 		if strings.HasSuffix(trimmedLine, ";") {
-			// If we are in a trigger, only execute if we see END;
 			if inTrigger {
-				if strings.ToUpper(trimmedLine) == "END;" {
+				// For triggers, only finalize when we see END;
+				if upperLine == "END;" {
 					inTrigger = false
-				} else {
-					continue
+					statements = append(statements, currentStmt.String())
+					currentStmt.Reset()
 				}
-			}
-
-			stmt := currentStmt.String()
-			// Trim whitespace to avoid sending empty statements
-			if strings.TrimSpace(stmt) == "" {
+				// Otherwise continue accumulating the trigger
+			} else if inView {
+				// Views end with the closing semicolon after the SELECT
+				inView = false
+				statements = append(statements, currentStmt.String())
 				currentStmt.Reset()
-				continue
+			} else {
+				// Regular statement
+				statements = append(statements, currentStmt.String())
+				currentStmt.Reset()
 			}
-
-			if _, err := s.DB.Exec(stmt); err != nil {
-				logger.Errorw("Failed to execute schema statement", "statement", stmt, "line", i+1)
-				return fmt.Errorf("failed to execute schema statement ending at line %d: %w", i+1, err)
-			}
-
-			currentStmt.Reset()
 		}
 	}
 
-	logger.Info("Schema execution completed")
+	// Handle any remaining statement
+	if remaining := strings.TrimSpace(currentStmt.String()); remaining != "" {
+		statements = append(statements, remaining)
+	}
 
-	return nil
+	return statements
 }
 
 // VerifySchema checks if the database schema is properly initialized
