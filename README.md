@@ -274,6 +274,7 @@ Configuration options:
 - `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
 - `NATS_PORT` - NATS server port (default: `4222`)
 - `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
+- `WEB_UI_PASSWORD` - Password for Web UI access (leave empty to disable)
 
 Example `.env` file:
 
@@ -283,11 +284,32 @@ PORT=8080
 DB_PATH=./db/constellation.db
 NATS_PORT=4222
 NATS_DATA_DIR=./data/overwatch
+WEB_UI_PASSWORD=your-secure-password
 ```
+
+### Web UI Authentication
+
+The Web UI supports optional password-based authentication. When `WEB_UI_PASSWORD` is set in your `.env` file, users must authenticate before accessing the dashboard.
+
+**To enable Web UI authentication:**
+
+```bash
+# In your .env file
+WEB_UI_PASSWORD=your-secure-password
+```
+
+When enabled:
+- Accessing any protected route redirects to `/login`
+- Sessions are stored in-memory with 24-hour expiration
+- Logout is available at `/logout`
+
+**To disable Web UI authentication:**
+
+Leave `WEB_UI_PASSWORD` empty or unset. The dashboard will be accessible without login.
 
 ### API Authentication
 
-All API endpoints require Bearer token authentication:
+All REST API endpoints (`/api/v1/*`) require Bearer token authentication:
 
 ```bash
 curl -H "Authorization: Bearer constellation-dev-token" \

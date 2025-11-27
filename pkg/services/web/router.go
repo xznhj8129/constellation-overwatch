@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/handlers"
@@ -14,6 +15,7 @@ func NewRouter(
 	natsEmbedded *embeddednats.EmbeddedNATS,
 	sseHandler *SSEHandler,
 	apiHandler http.Handler,
+	sessionAuth *middleware.SessionAuth,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -22,52 +24,62 @@ func NewRouter(
 	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc)
 	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc)
 	videoHandler := handlers.NewVideoHandler(natsEmbedded)
+	authHandler := handlers.NewAuthHandler(sessionAuth)
 
-	// Serve static files
+	// Serve static files (no auth required)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("pkg/services/web/static"))))
 
-	// Pages
-	mux.HandleFunc("/", pageHandler.HandleEntitiesPage)
-	mux.HandleFunc("/organizations", pageHandler.HandleEntitiesPage)
-	mux.HandleFunc("/organizations/entities/new", pageHandler.HandleEntityForm)
-	mux.HandleFunc("/organizations/entities/edit", pageHandler.HandleEntityForm)
-	mux.HandleFunc("/organizations/new", pageHandler.HandleOrganizationForm)
-	mux.HandleFunc("/organizations/edit/", datastarHandler.HandleOrganizationEdit)
-	mux.HandleFunc("/organizations/cancel/", datastarHandler.HandleOrganizationCancel)
-	mux.HandleFunc("/streams", pageHandler.HandleStreamsPage)
-	mux.HandleFunc("/overwatch", pageHandler.HandleOverwatchPage)
-	mux.HandleFunc("/fleet", pageHandler.HandleFleetPage)
-	mux.HandleFunc("/fleet/edit/", datastarHandler.HandleFleetEdit)
-	mux.HandleFunc("/fleet/cancel/", datastarHandler.HandleFleetCancel)
-	mux.HandleFunc("/video", pageHandler.HandleVideoPage)
+	// Auth routes (no auth required)
+	mux.HandleFunc("/login", authHandler.HandleLogin)
+	mux.HandleFunc("/logout", authHandler.HandleLogout)
 
-	// Web API endpoints (for Datastar/SSE)
-	mux.HandleFunc("/api/organizations", datastarHandler.HandleAPIOrganizations)
-	mux.HandleFunc("/api/organizations/", datastarHandler.HandleAPIOrganization) // Handles PUT/DELETE for specific org
-	mux.HandleFunc("/api/organizations/update", datastarHandler.HandleAPIOrganizationUpdate)
+	// Helper to wrap handlers with session auth
+	protect := func(h http.HandlerFunc) http.Handler {
+		return sessionAuth.RequireSession(http.HandlerFunc(h))
+	}
 
-	mux.HandleFunc("/api/entities", datastarHandler.HandleAPIEntities)
-	mux.HandleFunc("/api/entities/", datastarHandler.HandleAPIEntity) // Handles PUT/DELETE for specific entity
+	// Protected Pages
+	mux.Handle("/", protect(pageHandler.HandleEntitiesPage))
+	mux.Handle("/organizations", protect(pageHandler.HandleEntitiesPage))
+	mux.Handle("/organizations/entities/new", protect(pageHandler.HandleEntityForm))
+	mux.Handle("/organizations/entities/edit", protect(pageHandler.HandleEntityForm))
+	mux.Handle("/organizations/new", protect(pageHandler.HandleOrganizationForm))
+	mux.Handle("/organizations/edit/", protect(datastarHandler.HandleOrganizationEdit))
+	mux.Handle("/organizations/cancel/", protect(datastarHandler.HandleOrganizationCancel))
+	mux.Handle("/streams", protect(pageHandler.HandleStreamsPage))
+	mux.Handle("/overwatch", protect(pageHandler.HandleOverwatchPage))
+	mux.Handle("/fleet", protect(pageHandler.HandleFleetPage))
+	mux.Handle("/fleet/edit/", protect(datastarHandler.HandleFleetEdit))
+	mux.Handle("/fleet/cancel/", protect(datastarHandler.HandleFleetCancel))
+	mux.Handle("/video", protect(pageHandler.HandleVideoPage))
 
-	mux.HandleFunc("/api/fleet", datastarHandler.HandleAPIFleet)
-	mux.HandleFunc("/api/fleet/update", datastarHandler.HandleAPIFleetUpdate)
-	mux.HandleFunc("/api/fleet/", datastarHandler.HandleAPIFleetEntity) // Delete fleet entity
+	// Protected Web API endpoints (for Datastar/SSE)
+	mux.Handle("/api/organizations", protect(datastarHandler.HandleAPIOrganizations))
+	mux.Handle("/api/organizations/", protect(datastarHandler.HandleAPIOrganization))
+	mux.Handle("/api/organizations/update", protect(datastarHandler.HandleAPIOrganizationUpdate))
 
-	mux.HandleFunc("/api/overwatch/kv", overwatchHandler.HandleAPIOverwatchKV)
-	mux.HandleFunc("/api/overwatch/kv/watch", overwatchHandler.HandleAPIOverwatchKVWatch)
-	mux.HandleFunc("/api/overwatch/kv/debug", overwatchHandler.HandleAPIOverwatchKVDebug)
+	mux.Handle("/api/entities", protect(datastarHandler.HandleAPIEntities))
+	mux.Handle("/api/entities/", protect(datastarHandler.HandleAPIEntity))
 
-	mux.HandleFunc("/api/video/list", videoHandler.HandleAPIVideoList)
+	mux.Handle("/api/fleet", protect(datastarHandler.HandleAPIFleet))
+	mux.Handle("/api/fleet/update", protect(datastarHandler.HandleAPIFleetUpdate))
+	mux.Handle("/api/fleet/", protect(datastarHandler.HandleAPIFleetEntity))
 
-	// Mount REST API
+	mux.Handle("/api/overwatch/kv", protect(overwatchHandler.HandleAPIOverwatchKV))
+	mux.Handle("/api/overwatch/kv/watch", protect(overwatchHandler.HandleAPIOverwatchKVWatch))
+	mux.Handle("/api/overwatch/kv/debug", protect(overwatchHandler.HandleAPIOverwatchKVDebug))
+
+	mux.Handle("/api/video/list", protect(videoHandler.HandleAPIVideoList))
+
+	// Mount REST API (has its own Bearer token auth)
 	if apiHandler != nil {
 		mux.Handle("/api/", http.StripPrefix("/api", apiHandler))
 	}
 
-	// SSE endpoint for streams
-	mux.HandleFunc("/api/streams/sse", func(w http.ResponseWriter, r *http.Request) {
+	// Protected SSE endpoint for streams
+	mux.Handle("/api/streams/sse", protect(func(w http.ResponseWriter, r *http.Request) {
 		sseHandler.StreamMessages(w, r)
-	})
+	}))
 
 	return mux
 }

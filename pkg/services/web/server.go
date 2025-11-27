@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
@@ -41,8 +42,11 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
 	}
 
+	// Initialize session auth
+	sessionAuth := middleware.NewSessionAuth()
+
 	// Initialize the router
-	s.mux = NewRouter(s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler, s.apiHandler)
+	s.mux = NewRouter(s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler, s.apiHandler, sessionAuth)
 
 	return s, nil
 }
