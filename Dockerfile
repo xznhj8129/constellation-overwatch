@@ -46,9 +46,7 @@ COPY --from=builder /app/bin/overwatch /app/overwatch
 # Copy configuration files
 COPY nats.conf /app/nats.conf
 
-
-# Copy static assets
-COPY pkg/services/web/static /app/pkg/services/web/static
+# Note: Static assets are embedded in the binary via go:embed, no separate copy needed
 
 # Expose ports
 # 4222: NATS Client

@@ -26,8 +26,8 @@ func NewRouter(
 	videoHandler := handlers.NewVideoHandler(natsEmbedded)
 	authHandler := handlers.NewAuthHandler(sessionAuth)
 
-	// Serve static files (no auth required)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("pkg/services/web/static"))))
+	// Serve static files (no auth required) - uses embedded filesystem
+	mux.Handle("/static/", http.StripPrefix("/static/", StaticFileServer()))
 
 	// Auth routes (no auth required)
 	mux.HandleFunc("/login", authHandler.HandleLogin)
