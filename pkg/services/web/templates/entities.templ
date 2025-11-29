@@ -101,9 +101,12 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 				data-on:click={ "@get('/organizations/edit/" + org.OrgID + "')" }>
 				Edit
 			</button>
+			<!-- Copy button with fallback for non-secure contexts (HTTP) -->
+			<!-- TODO: For production, serve over HTTPS to use navigator.clipboard directly -->
+			<!-- Option 1: Configure TLS in the server or use nginx/caddy with SSL termination -->
 			<button class="action-btn small"
 				data-org-id={ org.OrgID }
-				onclick="navigator.clipboard.writeText(this.dataset.orgId).then(() => { const orig = this.textContent; this.textContent = 'Copied!'; setTimeout(() => this.textContent = orig, 1500); })"
+				onclick="(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.orgId)"
 				title="Copy org_id for fleet device registration">
 				Copy
 			</button>
