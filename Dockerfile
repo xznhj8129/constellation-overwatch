@@ -28,9 +28,6 @@ RUN apk add --no-cache ca-certificates tzdata && \
 # Copy binary from builder
 COPY --from=builder /app/bin/overwatch /app/overwatch
 
-# Copy configuration files
-COPY nats.conf /app/nats.conf
-
 # Set default environment for embedded DB
 ENV DB_PATH=/data/constellation.db
 ENV NATS_DATA_DIR=/data/nats
