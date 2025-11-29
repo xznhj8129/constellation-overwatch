@@ -21,7 +21,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var version = "dev"
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 func main() {
 	// CLI flags
@@ -39,7 +43,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("overwatch %s\n", version)
+		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
 		os.Exit(0)
 	}
 

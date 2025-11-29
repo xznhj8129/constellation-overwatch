@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	_ "github.com/tursodatabase/go-libsql"
+	_ "modernc.org/sqlite"
 	"go.uber.org/zap"
 )
 
@@ -75,10 +75,10 @@ func New(config *Config) (*Service, error) {
 		return nil, fmt.Errorf("failed to resolve absolute path for database: %w", err)
 	}
 
-	connStr := "file:" + absPath + "?_foreign_keys=on"
+	connStr := "file:" + absPath + "?_pragma=foreign_keys(1)"
 
 	logger.Infow("Opening database connection", "connection_string", connStr)
-	db, err := sql.Open("libsql", connStr)
+	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

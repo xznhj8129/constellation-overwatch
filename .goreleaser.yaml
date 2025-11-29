@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: overwatch
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod verify
+
+builds:
+  - id: overwatch
+    main: ./cmd/microlith
+    binary: overwatch
+
+    # Critical: Disable CGO for static, portable binaries
+    env:
+      - CGO_ENABLED=0
+
+    # All 6 target platforms
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+    # Build flags for reproducibility and size optimization
+    flags:
+      - -trimpath
+
+    # Version injection and binary optimization
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.CommitDate}}
+
+    # Reproducible builds: use commit timestamp
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+
+    # Windows gets zip format
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+    # Include documentation
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: "🚀 Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "📦 Other Changes"
+      order: 999
+
+release:
+  github:
+    owner: Constellation-Overwatch
+    name: constellation-overwatch
+
+  name_template: "{{ .ProjectName }} {{ .Tag }}"
+
+  # Auto-detect pre-releases from tag (v0.0.5-beta marked as pre-release)
+  prerelease: auto
+
+  draft: false
+
+  header: |
+    ## Constellation Overwatch {{ .Tag }}
+
+    Cross-platform binaries for Linux, macOS, and Windows.
+
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/Constellation-Overwatch/constellation-overwatch/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ### Installation
+
+    **Linux/macOS:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/Constellation-Overwatch/constellation-overwatch/main/install.sh | bash
+    ```
+
+    **Windows (PowerShell):**
+    ```powershell
+    irm https://raw.githubusercontent.com/Constellation-Overwatch/constellation-overwatch/main/install.ps1 | iex
+    ```
