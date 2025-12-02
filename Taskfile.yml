@@ -7,6 +7,7 @@ vars:
 tasks:
   build:
     desc: Build the binary
+    deps: [swagger-generate]
     cmds:
       - echo "Building {{.BINARY_NAME}}..."
       - go build -o bin/{{.BINARY_NAME}} ./cmd/microlith
@@ -43,6 +44,7 @@ tasks:
       - rm -rf bin/
       - rm -rf data/
       - rm -rf logs/
+      - rm -rf docs/
 
   generate-certs:
     desc: Generate self-signed certificates for development
@@ -66,8 +68,21 @@ tasks:
       - echo "Starting templ file watcher..."
       - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false
 
+  swagger-generate:
+    desc: Generate Swagger documentation
+    cmds:
+      - echo "Generating Swagger documentation..."
+      - go run github.com/swaggo/swag/cmd/swag@latest init --generalInfo ./cmd/microlith/main.go --parseDependency --parseInternal
+
+  swagger-clean:
+    desc: Clean generated Swagger documentation
+    cmds:
+      - echo "Cleaning Swagger documentation..."
+      - rm -rf docs/
+
   dev:
     desc: Start development mode (build and run)
+    deps: [swagger-generate]
     cmds:
       - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith"
 

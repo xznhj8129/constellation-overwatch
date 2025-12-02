@@ -1,3 +1,24 @@
+// @title Constellation Overwatch API
+// @version 1.0
+// @description C4ISR (Command, Control, Communications, and Intelligence) server mesh for drone/robotic communication
+// @termsOfService https://github.com/Constellation-Overwatch/constellation-overwatch
+
+// @contact.name Constellation Overwatch Support
+// @contact.url https://github.com/Constellation-Overwatch/constellation-overwatch/issues
+// @contact.email support@constellation-overwatch.com
+
+// @license.name MIT
+// @license.url https://github.com/Constellation-Overwatch/constellation-overwatch/blob/main/LICENSE
+
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http https
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter the token with the `Bearer: ` prefix, e.g. "Bearer abcde12345"
+
 package main
 
 import (

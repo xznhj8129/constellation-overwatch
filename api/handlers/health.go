@@ -22,6 +22,15 @@ func NewHealthHandler(db *sql.DB, nats *embeddednats.EmbeddedNATS) *HealthHandle
 	}
 }
 
+// Check godoc
+// @Summary Health check
+// @Description Get the health status of the API and its dependencies
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 503 {object} map[string]interface{}
+// @Router /health [get]
 func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
 	health := shared.HealthStatus{
 		Status:    "healthy",

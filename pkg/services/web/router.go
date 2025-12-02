@@ -25,6 +25,7 @@ func NewRouter(
 	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc)
 	videoHandler := handlers.NewVideoHandler(natsEmbedded)
 	authHandler := handlers.NewAuthHandler(sessionAuth)
+	docsHandler := handlers.NewDocsHandler()
 
 	// Serve static files (no auth required) - uses embedded filesystem
 	mux.Handle("/static/", http.StripPrefix("/static/", StaticFileServer()))
@@ -52,6 +53,7 @@ func NewRouter(
 	mux.Handle("/fleet/edit/", protect(datastarHandler.HandleFleetEdit))
 	mux.Handle("/fleet/cancel/", protect(datastarHandler.HandleFleetCancel))
 	mux.Handle("/video", protect(pageHandler.HandleVideoPage))
+	mux.Handle("/docs", protect(docsHandler.HandleDocsPage))
 
 	// Protected Web API endpoints (for Datastar/SSE)
 	mux.Handle("/api/organizations", protect(datastarHandler.HandleAPIOrganizations))
