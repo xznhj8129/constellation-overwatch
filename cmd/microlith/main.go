@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -26,6 +27,39 @@ var (
 	commit  = "none"
 	date    = "unknown"
 )
+
+func findEnvFile(flagPath string) string {
+	// 1. Explicit -env flag wins (unless it's the default)
+	if flagPath != "" && flagPath != ".env" {
+		return flagPath
+	}
+	
+	// 2. Current directory .env (dev workflow)
+	if _, err := os.Stat(".env"); err == nil {
+		return ".env"
+	}
+	
+	// 3. OVERWATCH_HOME/.env (binary install)
+	if home := os.Getenv("OVERWATCH_HOME"); home != "" {
+		if path := filepath.Join(home, ".env"); fileExists(path) {
+			return path
+		}
+	}
+	
+	// 4. Default ~/.overwatch/.env
+	if userHome, err := os.UserHomeDir(); err == nil {
+		if path := filepath.Join(userHome, ".overwatch", ".env"); fileExists(path) {
+			return path
+		}
+	}
+	
+	return "" // No config found, rely on env vars + flags
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
 func main() {
 	// CLI flags
@@ -53,8 +87,14 @@ func main() {
 	}
 
 	// Load .env file (flags override env vars)
-	if err := godotenv.Load(*envFile); err != nil {
-		logger.Info("No .env file found, using environment variables and flags")
+	if envPath := findEnvFile(*envFile); envPath != "" {
+		if err := godotenv.Load(envPath); err != nil {
+			logger.Warnw("Failed to load config", "path", envPath, "error", err)
+		} else {
+			logger.Infow("Loaded config", "path", envPath)
+		}
+	} else {
+		logger.Info("No .env found, using environment variables and flags")
 	}
 
 	// Apply CLI flag overrides to environment (flags take precedence)
