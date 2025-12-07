@@ -49,6 +49,17 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 	sse.PatchSignals(map[string]interface{}{
 		"_isConnected": true,
 	})
+
+	// Reset the grid to empty state to prevent duplicates on reconnection
+	emptyState := `<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
+						<div style="font-size: 48px; margin-bottom: 10px;">📹</div>
+						<p>No active video streams detected.</p>
+						<p style="font-size: 12px; margin-top: 10px;">Waiting for video frames on constellation.video.* subjects...</p>
+					</div>`
+	sse.PatchElements(emptyState,
+		datastar.WithSelector("#video-grid"),
+		datastar.WithMode(datastar.ElementPatchModeInner))
+
 	flusher.Flush()
 
 	// Track active streams

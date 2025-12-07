@@ -3,240 +3,28 @@ package templates
 templ DocsPage() {
 	@Layout("API Documentation") {
 		@Navigation("docs") {
-			<div class="panel">
-		<div class="panel-header">
-			<h2>🛰️ API Documentation</h2>
-			<div class="status-badge active">Ready</div>
-		</div>
-		
-		<div class="info-box">
-			<div class="info-icon">ℹ</div>
-			<div class="info-text">
-				Constellation Overwatch REST API provides programmatic access to all C4ISR operations.
-				Use the interactive documentation below or download specs for client generation.
-			</div>
-		</div>
-
-		<div class="docs-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px;">
-			<div class="panel">
-				<div class="panel-header">
-					<h3>📊 Interactive Documentation</h3>
-					<div class="status-badge active">Swagger UI</div>
-				</div>
-				<p>Explore and test API endpoints with full request/response examples and authentication support.</p>
-				<div style="margin: 15px 0;">
-					<a href="/api/v1/docs/index.html" class="action-btn primary" target="_blank" rel="noopener noreferrer">
-						Open Swagger UI
-					</a>
-				</div>
-				<div class="feature-tags">
-					<span class="status-badge">✓ Interactive Testing</span>
-					<span class="status-badge">✓ Bearer Auth</span>
-					<span class="status-badge">✓ Live Examples</span>
-				</div>
-			</div>
-
-			<div class="panel">
-				<div class="panel-header">
-					<h3>📄 OpenAPI Specifications</h3>
-				</div>
-				<p>Download raw API specifications for SDK generation and automated tooling.</p>
-				<div style="margin: 15px 0; display: flex; gap: 10px;">
-					<a href="/api/v1/docs/swagger.json" class="action-btn" target="_blank">JSON</a>
-					<a href="/api/v1/docs/swagger.yaml" class="action-btn" target="_blank">YAML</a>
-				</div>
-				<div class="feature-tags">
-					<span class="status-badge">✓ OpenAPI 3.0</span>
-					<span class="status-badge">✓ Client Generation</span>
-				</div>
-			</div>
-		</div>
-
-		<div class="panel" style="margin-top: 20px;">
-			<div class="panel-header">
-				<h3>🔐 Authentication</h3>
-			</div>
-			<p>All API endpoints require Bearer token authentication:</p>
-			<div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; margin: 15px 0;">
-				<code style="color: var(--text-secondary);">Authorization: Bearer YOUR_TOKEN_HERE</code>
-			</div>
-			<div class="info-box">
-				<div class="info-icon">!</div>
-				<div class="info-text">Contact your system administrator to obtain API access tokens.</div>
-			</div>
-		</div>
-
-		<div class="panel" style="margin-top: 20px;">
-			<div class="panel-header">
-				<h3>🛣️ Available Endpoints</h3>
-			</div>
-			
-			<div class="endpoint-section" style="margin: 15px 0;">
-				<h4 style="color: var(--text-secondary); margin-bottom: 10px;">Health & Monitoring</h4>
-				<div class="data-table-container">
-					<table class="data-table">
-						<tr>
-							<td><span class="status-badge active">GET</span></td>
-							<td><span class="inline-code">/api/v1/health</span></td>
-							<td>System health check</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge active">GET</span></td>
-							<td><span class="inline-code">/api/v1/sys/monitor/sse</span></td>
-							<td>System monitoring stream</td>
-						</tr>
-					</table>
-				</div>
-			</div>
-
-			<div class="endpoint-section" style="margin: 15px 0;">
-				<h4 style="color: var(--text-secondary); margin-bottom: 10px;">Organizations</h4>
-				<div class="data-table-container">
-					<table class="data-table">
-						<tr>
-							<td><span class="status-badge active">GET</span></td>
-							<td><span class="inline-code">/api/v1/organizations</span></td>
-							<td>List organizations</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge unknown">POST</span></td>
-							<td><span class="inline-code">/api/v1/organizations</span></td>
-							<td>Create organization</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge inactive">DELETE</span></td>
-							<td><span class="inline-code">/api/v1/organizations</span></td>
-							<td>Delete organization</td>
-						</tr>
-					</table>
-				</div>
-			</div>
-
-			<div class="endpoint-section" style="margin: 15px 0;">
-				<h4 style="color: var(--text-secondary); margin-bottom: 10px;">Entities</h4>
-				<div class="data-table-container">
-					<table class="data-table">
-						<tr>
-							<td><span class="status-badge active">GET</span></td>
-							<td><span class="inline-code">/api/v1/entities</span></td>
-							<td>List entities</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge unknown">POST</span></td>
-							<td><span class="inline-code">/api/v1/entities</span></td>
-							<td>Create entity</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge unknown">PUT</span></td>
-							<td><span class="inline-code">/api/v1/entities</span></td>
-							<td>Update entity</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge inactive">DELETE</span></td>
-							<td><span class="inline-code">/api/v1/entities</span></td>
-							<td>Delete entity</td>
-						</tr>
-					</table>
-				</div>
-			</div>
-
-			<div class="endpoint-section" style="margin: 15px 0;">
-				<h4 style="color: var(--text-secondary); margin-bottom: 10px;">Video Streaming</h4>
-				<div class="data-table-container">
-					<table class="data-table">
-						<tr>
-							<td><span class="status-badge active">GET</span></td>
-							<td><span class="inline-code">/api/v1/video/list</span></td>
-							<td>List video streams (SSE)</td>
-						</tr>
-						<tr>
-							<td><span class="status-badge active">GET</span></td>
-							<td><span class="inline-code">/api/v1/video/stream/{ "{entity_id}" }</span></td>
-							<td>MJPEG video stream</td>
-						</tr>
-					</table>
-				</div>
-			</div>
-		</div>
-
-		<div class="panel" style="margin-top: 20px;">
-			<div class="panel-header">
-				<h3>🚀 Quick Start</h3>
-			</div>
-			<div class="quick-start-steps">
-				<div class="step" style="display: flex; align-items: center; margin: 10px 0;">
-					<span class="status-badge active">1</span>
-					<span style="margin-left: 10px;">Obtain API token from administrator</span>
-				</div>
-				<div class="step" style="display: flex; align-items: center; margin: 10px 0;">
-					<span class="status-badge active">2</span>
-					<span style="margin-left: 10px;">Test with health endpoint: <span class="inline-code">GET /api/v1/health</span></span>
-				</div>
-				<div class="step" style="display: flex; align-items: center; margin: 10px 0;">
-					<span class="status-badge active">3</span>
-					<span style="margin-left: 10px;">Explore interactive documentation</span>
-				</div>
-				<div class="step" style="display: flex; align-items: center; margin: 10px 0;">
-					<span class="status-badge active">4</span>
-					<span style="margin-left: 10px;">Build your C4ISR integration</span>
-				</div>
-			</div>
-
-			<div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; margin: 20px 0;">
-				<h5 style="color: var(--text-secondary); margin-bottom: 10px;">Example Health Check:</h5>
-				<code style="color: var(--text-primary);">curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/api/v1/health</code>
-			</div>
-		</div>
-
-		<div class="panel" style="margin-top: 20px;">
-			<div class="panel-header">
-				<h3>📋 Response Format</h3>
-			</div>
-			<p>All API responses follow this consistent structure:</p>
-			<div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; margin: 15px 0;">
-				<pre style="color: var(--text-primary); margin: 0;">{ `{
-  "success": true,
-  "data": { ... },
-  "error": null
-}` }</pre>
-			</div>
-			<div class="info-box">
-				<div class="info-icon">!</div>
-				<div class="info-text">
-					Error responses have <span class="inline-code">success: false</span> with details in the <span class="inline-code">error</span> field.
-				</div>
-			</div>
-		</div>
-
-	<style>
-		.feature-tags {
-			display: flex;
-			flex-wrap: wrap;
-			gap: 5px;
-			margin-top: 10px;
-		}
-
-		.endpoint-section {
-			margin: 20px 0;
-		}
-
-		.data-table-container {
-			overflow-x: auto;
-		}
-
-		.step {
-			padding: 8px 0;
-		}
-
-		.step .status-badge {
-			min-width: 24px;
-			height: 24px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			border-radius: 50%;
-		}
-	</style>
+			<div class="panel" style="height: calc(100vh - 100px); padding: 0; overflow: hidden;">
+				<script src="/static/lib/redoc.standalone.js"></script>
+				<redoc spec-url="/api/openapi.json"></redoc>
+				<script>
+					// Initialize Redoc
+					Redoc.init('/api/openapi.json', {
+						scrollYOffset: 50,
+						theme: {
+							colors: {
+								primary: {
+									main: '#3498db'
+								}
+							},
+							typography: {
+								fontFamily: 'Inter, sans-serif',
+								headings: {
+									fontFamily: 'Inter, sans-serif'
+								}
+							}
+						}
+					}, document.querySelector('redoc'));
+				</script>
 			</div>
 		}
 	}

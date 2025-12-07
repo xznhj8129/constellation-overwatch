@@ -123,6 +123,16 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// Send an immediate comment to establish the SSE stream in the browser
 	writeMutex.Lock()
 	fmt.Fprintf(w, ": SSE connection established\n\n")
+
+	// Reset the entities container to empty state to prevent duplicates on reconnection
+	emptyState := `<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
+					<p>No entity states in global store. Waiting for telemetry data...</p>
+					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
+				</div>`
+	sse.PatchElements(emptyState,
+		datastar.WithSelector("#entities-container"),
+		datastar.WithMode(datastar.ElementPatchModeInner))
+
 	flusher.Flush()
 	writeMutex.Unlock()
 	logger.Infow("SSE client connected", "component", "Overwatch", "remote_addr", r.RemoteAddr)
