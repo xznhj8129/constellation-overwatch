@@ -8,8 +8,7 @@ templ VideoPage(entityIDs []string, natsAuthToken string) {
 			<div class="tab-content">
 				@VideoPanel(entityIDs)
 			</div>
-			@VideoWebSocketScript(natsAuthToken)
-			@VideoWebRTCScript()
+			@VideoClientScript()
 		}
 	}
 }
@@ -137,437 +136,138 @@ templ VideoCard(entity shared.EntityState) {
 	</div>
 }
 
-// VideoWebSocketScript provides NATS WebSocket video streaming with multi-format support
-// Supports: JPEG, PNG (canvas), MPEG-TS/H.264 (mux.js demux + MSE)
-templ VideoWebSocketScript(natsAuthToken string) {
-	<div id="nats-config" data-auth-token={ natsAuthToken } style="display:none;"></div>
-	<!-- mux.js for MPEG-TS demuxing to fMP4 for MSE playback -->
-	<script src="https://cdn.jsdelivr.net/npm/mux.js@7.0.3/dist/mux.min.js"></script>
+// VideoClientScript handles WebRTC video streaming and FPS monitoring
+templ VideoClientScript() {
 	<script type="module">
-		// Import official NATS.js WebSocket client from CDN
-		import { wsconnect } from "https://esm.run/@nats-io/nats-core";
-
-		// NATS WebSocket Video Stream Manager
-		// Supports multiple formats: JPEG/PNG (canvas) and MPEG-TS/H.264 (mux.js + MSE)
-
-		const NATS_WS_URL = `ws://${window.location.hostname}:8222`;
-		const NATS_AUTH_TOKEN = document.getElementById('nats-config')?.dataset.authToken || '';
-		const VIDEO_SUBJECT_PREFIX = 'constellation.video.';
-
-		// Format detection magic bytes
-		const MAGIC = {
-			JPEG: [0xFF, 0xD8],
-			PNG: [0x89, 0x50],
-			MPEGTS: [0x47], // MPEG-TS sync byte
-		};
-
-		class NATSVideoStream {
+		class WebRTCStreamManager {
 			constructor() {
-				this.nc = null;
-				this.subscriptions = new Map(); // entityId -> subscription info
-				this.connected = false;
-				this.reconnectAttempts = 0;
-				this.maxReconnectAttempts = 10;
-				this.pendingSubscriptions = [];
-			}
-
-			async connect() {
-				console.log('[NATS-WS] Connecting to', NATS_WS_URL);
-				try {
-					const opts = {
-						servers: NATS_WS_URL,
-						maxReconnectAttempts: this.maxReconnectAttempts,
-					};
-
-					if (NATS_AUTH_TOKEN) {
-						opts.token = NATS_AUTH_TOKEN;
-					}
-
-					this.nc = await wsconnect(opts);
-					console.log('[NATS-WS] Connected to', this.nc.getServer());
-					this.connected = true;
-					this.reconnectAttempts = 0;
-
-					// Process pending subscriptions
-					for (const pending of this.pendingSubscriptions) {
-						await this.subscribe(pending.entityId, pending.card);
-					}
-					this.pendingSubscriptions = [];
-
-					// Handle connection status changes
-					(async () => {
-						for await (const status of this.nc.status()) {
-							console.log('[NATS-WS] Status:', status.type, status.data);
-							if (status.type === 'disconnect' || status.type === 'error') {
-								this.connected = false;
-								this.updateConnectionUI(false);
-							} else if (status.type === 'reconnect') {
-								this.connected = true;
-								this.updateConnectionUI(true);
-							}
-						}
-					})();
-
-					return this.nc;
-				} catch (error) {
-					console.error('[NATS-WS] Connection failed:', error);
-					this.connected = false;
-					throw error;
-				}
-			}
-
-			updateConnectionUI(connected) {
-				const signals = document.querySelector('[data-signals]');
-				if (signals && window.ds) {
-					window.ds.apply(signals, { _isConnected: connected });
-				}
+				this.streams = new Map(); // entityId -> { pc, videoEl, fpsInterval }
 			}
 
 			async subscribe(entityId, card) {
-				if (this.subscriptions.has(entityId)) {
-					console.log(`[NATS-WS] Already subscribed to ${entityId}`);
-					return;
-				}
+				if (this.streams.has(entityId)) return;
 
-				if (!this.connected || !this.nc) {
-					if (!this.pendingSubscriptions.find(p => p.entityId === entityId)) {
-						this.pendingSubscriptions.push({ entityId, card });
-					}
-					return;
-				}
-
-				const subject = VIDEO_SUBJECT_PREFIX + entityId;
-				console.log(`[NATS-WS] Subscribing to ${subject}`);
-
-				const sub = this.nc.subscribe(subject);
-
-				// Get DOM elements
+				console.log(`[WebRTC] Subscribing to ${entityId}`);
+				const videoEl = card.querySelector('.video-h264');
+				const fpsEl = card.querySelector('.fps-counter');
+				const statusDot = card.querySelector('.status-dot');
 				const canvas = card.querySelector('.video-canvas');
-				const video = card.querySelector('.video-h264');
-				const formatIndicator = card.querySelector('.format-indicator');
+				const mjpeg = card.querySelector('.video-mjpeg');
 
-				const subInfo = {
-					sub,
-					entityId,
-					card,
-					canvas,
-					video,
-					formatIndicator,
-					ctx: canvas?.getContext('2d'),
-					format: null, // Will be detected on first frame
-					// MSE + mux.js state
-					mediaSource: null,
-					sourceBuffer: null,
-					transmuxer: null,
-					segmentQueue: [],
-					isAppending: false,
-					mseInitialized: false,
-					frameCount: 0,
-					lastFpsUpdate: Date.now(),
+				// UI Setup
+				if (canvas) canvas.style.display = 'none';
+				if (mjpeg) mjpeg.style.display = 'none';
+				if (videoEl) videoEl.style.display = 'block';
+
+				const pc = new RTCPeerConnection({
+					iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+				});
+
+				// Add transceiver to receive video
+				pc.addTransceiver('video', { direction: 'recvonly' });
+
+				pc.ontrack = (event) => {
+					console.log(`[WebRTC] Track received for ${entityId}`);
+					if (videoEl.srcObject !== event.streams[0]) {
+						videoEl.srcObject = event.streams[0];
+						videoEl.play().catch(e => console.error("Play error:", e));
+						
+						// Start FPS counter
+						this.startFPSCounter(entityId, videoEl, fpsEl);
+					}
 				};
-				this.subscriptions.set(entityId, subInfo);
 
-				// Process messages
-				(async () => {
-					try {
-						for await (const msg of sub) {
-							this.handleFrame(entityId, msg.data);
+				pc.onconnectionstatechange = () => {
+					console.log(`[WebRTC] Connection state for ${entityId}: ${pc.connectionState}`);
+					if (pc.connectionState === 'connected') {
+						if (statusDot) {
+							statusDot.classList.remove('disconnected');
+							statusDot.classList.add('connected');
+							statusDot.style.background = '#0f0';
 						}
-					} catch (err) {
-						console.error(`[NATS-WS] Subscription error for ${entityId}:`, err);
+					} else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+						if (statusDot) {
+							statusDot.classList.remove('connected');
+							statusDot.classList.add('disconnected');
+							statusDot.style.background = '#f00';
+						}
 					}
-					console.log(`[NATS-WS] Subscription closed for ${entityId}`);
-					this.cleanupSubscription(entityId);
-				})();
+				};
 
-				console.log(`[NATS-WS] Subscribed to ${subject}`);
-			}
+				try {
+					const offer = await pc.createOffer();
+					await pc.setLocalDescription(offer);
 
-			detectFormat(data) {
-				if (data.length < 2) return null;
-				if (data[0] === MAGIC.JPEG[0] && data[1] === MAGIC.JPEG[1]) return 'jpeg';
-				if (data[0] === MAGIC.PNG[0] && data[1] === MAGIC.PNG[1]) return 'png';
-				if (data[0] === MAGIC.MPEGTS[0]) return 'mpegts';
-				return null;
-			}
+					// Send offer to server
+					const response = await fetch('/api/v1/webrtc/signal', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							offer: offer,
+							entity_id: entityId
+						})
+					});
 
-			handleFrame(entityId, data) {
-				const sub = this.subscriptions.get(entityId);
-				if (!sub || data.length === 0) return;
-
-				const format = this.detectFormat(data);
-				if (!format) return;
-
-				// Switch renderer if format changed
-				if (sub.format !== format) {
-					this.switchFormat(sub, format);
-				}
-
-				// Route to appropriate renderer
-				if (format === 'jpeg' || format === 'png') {
-					this.renderImageFrame(sub, data, format);
-				} else if (format === 'mpegts') {
-					this.feedMpegTS(sub, data);
-				}
-
-				// Update FPS counter
-				sub.frameCount++;
-				const now = Date.now();
-				if (now - sub.lastFpsUpdate >= 1000) {
-					const fps = sub.frameCount;
-					sub.frameCount = 0;
-					sub.lastFpsUpdate = now;
-					const fpsEl = sub.card.querySelector('.fps-counter');
-					if (fpsEl) fpsEl.textContent = `${fps} fps`;
-				}
-			}
-
-			switchFormat(sub, newFormat) {
-				console.log(`[NATS-WS] Switching ${sub.entityId} from ${sub.format} to ${newFormat}`);
-				sub.format = newFormat;
-
-				// Update format indicator
-				if (sub.formatIndicator) {
-					sub.formatIndicator.textContent = newFormat === 'mpegts' ? 'H.264' : newFormat.toUpperCase();
-				}
-
-				if (newFormat === 'mpegts') {
-					// Switch to video element with MSE
-					if (sub.canvas) sub.canvas.style.display = 'none';
-					if (sub.video) {
-						sub.video.style.display = 'block';
-						this.initMSE(sub);
+					if (!response.ok) {
+						throw new Error(`Signaling failed: ${response.statusText}`);
 					}
+
+					const answer = await response.json();
+					await pc.setRemoteDescription(answer);
+
+					this.streams.set(entityId, { pc, videoEl, fpsEl });
+				} catch (err) {
+					console.error(`[WebRTC] Failed to subscribe to ${entityId}:`, err);
+					pc.close();
+				}
+			}
+
+			startFPSCounter(entityId, videoEl, fpsEl) {
+				let lastTime = performance.now();
+				let frames = 0;
+
+				const loop = (now, metadata) => {
+					const stream = this.streams.get(entityId);
+					if (!stream) return; // Stopped
+
+					frames++;
+					const elapsed = now - lastTime;
+					
+					if (elapsed >= 1000) {
+						const fps = Math.round((frames * 1000) / elapsed);
+						if (fpsEl) fpsEl.textContent = `${fps} fps`;
+						frames = 0;
+						lastTime = now;
+					}
+
+					if (videoEl.requestVideoFrameCallback) {
+						videoEl.requestVideoFrameCallback(loop);
+					} else {
+						// Fallback for browsers without requestVideoFrameCallback (less accurate)
+						requestAnimationFrame(() => loop(performance.now()));
+					}
+				};
+
+				if (videoEl.requestVideoFrameCallback) {
+					videoEl.requestVideoFrameCallback(loop);
 				} else {
-					// Switch to canvas
-					if (sub.video) sub.video.style.display = 'none';
-					if (sub.canvas) sub.canvas.style.display = 'block';
-					this.destroyMSE(sub);
-				}
-			}
-
-			initMSE(sub) {
-				if (sub.mseInitialized) return;
-
-				if (!window.muxjs) {
-					console.error('[NATS-WS] mux.js not loaded');
-					return;
-				}
-
-				if (!MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"')) {
-					console.error('[NATS-WS] H.264 not supported by browser');
-					return;
-				}
-
-				try {
-					// Create MediaSource
-					sub.mediaSource = new MediaSource();
-					sub.video.src = URL.createObjectURL(sub.mediaSource);
-
-					sub.mediaSource.addEventListener('sourceopen', () => {
-						console.log(`[NATS-WS] MediaSource opened for ${sub.entityId}`);
-
-						// Create transmuxer (MPEG-TS to fMP4)
-						sub.transmuxer = new muxjs.mp4.Transmuxer({
-							keepOriginalTimestamps: false,
-							remux: true,
-						});
-
-						// Handle transmuxed data
-						sub.transmuxer.on('data', (segment) => {
-							// First segment includes init segment
-							const data = new Uint8Array(segment.initSegment.byteLength + segment.data.byteLength);
-							data.set(segment.initSegment, 0);
-							data.set(segment.data, segment.initSegment.byteLength);
-
-							// Queue segment for appending
-							this.appendToSourceBuffer(sub, data);
-						});
-
-						sub.transmuxer.on('done', () => {
-							// Flush is complete
-						});
-
-						// Create SourceBuffer after first data arrives
-						sub.mseInitialized = true;
-					});
-
-					sub.mediaSource.addEventListener('sourceended', () => {
-						console.log(`[NATS-WS] MediaSource ended for ${sub.entityId}`);
-					});
-
-					sub.mediaSource.addEventListener('error', (e) => {
-						console.error(`[NATS-WS] MediaSource error for ${sub.entityId}:`, e);
-					});
-
-				} catch (err) {
-					console.error(`[NATS-WS] Failed to init MSE for ${sub.entityId}:`, err);
-				}
-			}
-
-			appendToSourceBuffer(sub, data) {
-				// Queue the segment
-				sub.segmentQueue.push(data);
-				this.processSegmentQueue(sub);
-			}
-
-			processSegmentQueue(sub) {
-				if (sub.isAppending || sub.segmentQueue.length === 0) return;
-				if (!sub.mediaSource || sub.mediaSource.readyState !== 'open') return;
-
-				// Create SourceBuffer on first append
-				if (!sub.sourceBuffer) {
-					try {
-						sub.sourceBuffer = sub.mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
-						sub.sourceBuffer.mode = 'sequence';
-
-						sub.sourceBuffer.addEventListener('updateend', () => {
-							sub.isAppending = false;
-							this.processSegmentQueue(sub);
-
-							// Keep buffer trimmed for low latency
-							if (sub.sourceBuffer && sub.video.currentTime > 2) {
-								try {
-									sub.sourceBuffer.remove(0, sub.video.currentTime - 1);
-								} catch (e) {}
-							}
-						});
-
-						sub.sourceBuffer.addEventListener('error', (e) => {
-							console.error(`[NATS-WS] SourceBuffer error for ${sub.entityId}:`, e);
-							sub.isAppending = false;
-						});
-					} catch (err) {
-						console.error(`[NATS-WS] Failed to create SourceBuffer for ${sub.entityId}:`, err);
-						return;
-					}
-				}
-
-				// Append next segment
-				const segment = sub.segmentQueue.shift();
-				if (segment && sub.sourceBuffer && !sub.sourceBuffer.updating) {
-					try {
-						sub.isAppending = true;
-						sub.sourceBuffer.appendBuffer(segment);
-					} catch (err) {
-						console.error(`[NATS-WS] Failed to append for ${sub.entityId}:`, err);
-						sub.isAppending = false;
-					}
-				}
-			}
-
-			destroyMSE(sub) {
-				if (sub.transmuxer) {
-					try {
-						sub.transmuxer.dispose();
-					} catch (e) {}
-					sub.transmuxer = null;
-				}
-				if (sub.mediaSource && sub.mediaSource.readyState === 'open') {
-					try {
-						sub.mediaSource.endOfStream();
-					} catch (e) {}
-				}
-				if (sub.video && sub.video.src) {
-					URL.revokeObjectURL(sub.video.src);
-					sub.video.src = '';
-				}
-				sub.mediaSource = null;
-				sub.sourceBuffer = null;
-				sub.segmentQueue = [];
-				sub.isAppending = false;
-				sub.mseInitialized = false;
-			}
-
-			feedMpegTS(sub, data) {
-				if (!sub.mseInitialized || !sub.transmuxer) {
-					this.initMSE(sub);
-					// Queue data for when MSE is ready
-					if (!sub.transmuxer) return;
-				}
-
-				try {
-					// Push MPEG-TS data through transmuxer
-					sub.transmuxer.push(new Uint8Array(data));
-					sub.transmuxer.flush();
-				} catch (err) {
-					// Silent fail for corrupted frames
-				}
-			}
-
-			async renderImageFrame(sub, data, format) {
-				if (!sub.canvas || !sub.ctx) return;
-
-				try {
-					const blob = new Blob([data], { type: format === 'jpeg' ? 'image/jpeg' : 'image/png' });
-					const bitmap = await createImageBitmap(blob);
-
-					if (sub.canvas.width !== bitmap.width || sub.canvas.height !== bitmap.height) {
-						sub.canvas.width = bitmap.width;
-						sub.canvas.height = bitmap.height;
-					}
-					sub.ctx.drawImage(bitmap, 0, 0);
-					bitmap.close();
-				} catch (err) {
-					// Silent fail
-				}
-			}
-
-			cleanupSubscription(entityId) {
-				const sub = this.subscriptions.get(entityId);
-				if (sub) {
-					this.destroyMSE(sub);
-					this.subscriptions.delete(entityId);
+					requestAnimationFrame(() => loop(performance.now()));
 				}
 			}
 
 			unsubscribe(entityId) {
-				const subInfo = this.subscriptions.get(entityId);
-				if (subInfo) {
-					subInfo.sub.unsubscribe();
-					this.cleanupSubscription(entityId);
-					console.log(`[NATS-WS] Unsubscribed from ${entityId}`);
-				}
-			}
-
-			async close() {
-				for (const [entityId] of this.subscriptions) {
-					this.cleanupSubscription(entityId);
-				}
-				if (this.nc) {
-					await this.nc.drain();
+				const stream = this.streams.get(entityId);
+				if (stream) {
+					console.log(`[WebRTC] Unsubscribing from ${entityId}`);
+					stream.pc.close();
+					this.streams.delete(entityId);
 				}
 			}
 		}
 
 		// Initialize
-		const videoStream = new NATSVideoStream();
-
-		async function initVideoStreams() {
-			try {
-				await videoStream.connect();
-
-				document.querySelectorAll('.video-card[data-entity-id]').forEach(card => {
-					const entityId = card.dataset.entityId;
-					if (entityId) {
-						videoStream.subscribe(entityId, card);
-					}
-				});
-
-				videoStream.updateConnectionUI(true);
-			} catch (error) {
-				console.error('[NATS-WS] Failed to connect:', error);
-				// Fall back to MJPEG
-				document.querySelectorAll('.video-card').forEach(card => {
-					const canvas = card.querySelector('.video-canvas');
-					const video = card.querySelector('.video-h264');
-					const mjpeg = card.querySelector('.video-mjpeg');
-					if (canvas) canvas.style.display = 'none';
-					if (video) video.style.display = 'none';
-					if (mjpeg) mjpeg.style.display = 'block';
-				});
-			}
-		}
+		const streamManager = new WebRTCStreamManager();
+		window.streamManager = streamManager; // Expose for debugging
 
 		// Observe for dynamically added video cards
 		const observer = new MutationObserver((mutations) => {
@@ -580,7 +280,22 @@ templ VideoWebSocketScript(natsAuthToken string) {
 						cards.forEach(card => {
 							const entityId = card.dataset.entityId;
 							if (entityId) {
-								videoStream.subscribe(entityId, card);
+								streamManager.subscribe(entityId, card);
+							}
+						});
+					}
+				});
+				
+				// Handle removed nodes
+				mutation.removedNodes.forEach(node => {
+					if (node.nodeType === Node.ELEMENT_NODE) {
+						const cards = node.classList?.contains('video-card')
+							? [node]
+							: node.querySelectorAll?.('.video-card[data-entity-id]') || [];
+						cards.forEach(card => {
+							const entityId = card.dataset.entityId;
+							if (entityId) {
+								streamManager.unsubscribe(entityId);
 							}
 						});
 					}
@@ -590,10 +305,14 @@ templ VideoWebSocketScript(natsAuthToken string) {
 
 		observer.observe(document.body, { childList: true, subtree: true });
 
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', initVideoStreams);
-		} else {
-			initVideoStreams();
-		}
+		// Initial load
+		document.addEventListener('DOMContentLoaded', () => {
+			document.querySelectorAll('.video-card[data-entity-id]').forEach(card => {
+				const entityId = card.dataset.entityId;
+				if (entityId) {
+					streamManager.subscribe(entityId, card);
+				}
+			});
+		});
 	</script>
 }

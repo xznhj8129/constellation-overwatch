@@ -183,6 +183,13 @@ func (h *WebRTCHandler) Start() error {
 	// Subscribe to all video subjects
 	// We assume the source sends MPEG-TS packets on constellation.video.>
 	_, err := nc.Subscribe("constellation.video.>", func(msg *nats.Msg) {
+		// Recover from panics in the demuxer (e.g. out of range errors)
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Errorw("Panic in WebRTC video handler", "error", r, "subject", msg.Subject, "data_len", len(msg.Data))
+			}
+		}()
+
 		// Extract entity ID
 		parts := strings.Split(msg.Subject, ".")
 		if len(parts) < 3 {
@@ -196,6 +203,13 @@ func (h *WebRTCHandler) Start() error {
 		h.tracksMu.RUnlock()
 
 		if !exists {
+			return
+		}
+
+		// Check for MPEG-TS sync byte (0x47)
+		if len(msg.Data) < 188 || msg.Data[0] != 0x47 {
+			// Not an MPEG-TS packet (likely MJPEG or JSON)
+			// We only want to process MPEG-TS for WebRTC
 			return
 		}
 
