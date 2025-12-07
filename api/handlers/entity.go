@@ -19,6 +19,20 @@ func NewEntityHandler(service *services.EntityService) *EntityHandler {
 	}
 }
 
+// Create godoc
+// @Summary Create entity
+// @Description Create a new entity within an organization
+// @Tags Entities
+// @Accept json
+// @Produce json
+// @Param org_id query string true "Organization ID"
+// @Param entity body ontology.CreateEntityRequest true "Entity data"
+// @Success 201 {object} ontology.Entity
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /entities [post]
 func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
 	if orgID == "" {
@@ -41,6 +55,19 @@ func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	responses.SendSuccess(w, http.StatusCreated, entity)
 }
 
+// List godoc
+// @Summary List entities
+// @Description Get a list of entities for an organization
+// @Tags Entities
+// @Accept json
+// @Produce json
+// @Param org_id query string true "Organization ID"
+// @Success 200 {array} ontology.Entity
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /entities [get]
 func (h *EntityHandler) List(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
 	if orgID == "" {
@@ -79,6 +106,22 @@ func (h *EntityHandler) Get(w http.ResponseWriter, r *http.Request) {
 	responses.SendSuccess(w, http.StatusOK, entity)
 }
 
+// Update godoc
+// @Summary Update entity
+// @Description Update an existing entity
+// @Tags Entities
+// @Accept json
+// @Produce json
+// @Param org_id query string true "Organization ID"
+// @Param entity_id query string true "Entity ID"
+// @Param updates body object true "Fields to update"
+// @Success 200 {object} ontology.Entity
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /entities [put]
 func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
 	entityID := r.URL.Query().Get("entity_id")
@@ -107,6 +150,21 @@ func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 	responses.SendSuccess(w, http.StatusOK, entity)
 }
 
+// Delete godoc
+// @Summary Delete entity
+// @Description Delete an entity by ID
+// @Tags Entities
+// @Accept json
+// @Produce json
+// @Param org_id query string true "Organization ID"
+// @Param entity_id query string true "Entity ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /entities [delete]
 func (h *EntityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
 	entityID := r.URL.Query().Get("entity_id")

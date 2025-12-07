@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   BINARY_NAME: overwatch
@@ -43,6 +43,7 @@ tasks:
       - rm -rf bin/
       - rm -rf data/
       - rm -rf logs/
+      - rm -rf docs/
 
   generate-certs:
     desc: Generate self-signed certificates for development
@@ -58,18 +59,18 @@ tasks:
     desc: Generate templ files
     cmds:
       - echo "Generating templ files..."
-      - go run github.com/a-h/templ/cmd/templ@latest generate
+      - $(go env GOPATH)/bin/templ generate
 
   templ-watch:
     desc: Start templ file watcher
     cmds:
       - echo "Starting templ file watcher..."
-      - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false
+      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false
 
   dev:
     desc: Start development mode (build and run)
     cmds:
-      - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith"
+      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith/main.go"
 
   default:
     desc: Show available tasks

@@ -157,19 +157,17 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		JetStream: true,
 		StoreDir:  en.config.DataDir,
 
-		// Connection limits optimized for telemetry
+		// Connection limits optimized for video streaming
 		MaxConn:        2000,
 		MaxSubs:        0,                 // Unlimited subscriptions
-		MaxPayload:     2 * 1024 * 1024,   // 2MB max payload
-		MaxPending:     256 * 1024 * 1024, // 256MB pending data (Increased for performance)
+		MaxPayload:     512 * 1024,        // 512KB max payload (matches video chunk size)
+		MaxPending:     512 * 1024 * 1024, // 512MB pending data for video bursts
 		MaxControlLine: 4096,
-		WriteDeadline:  5 * time.Second,
+		WriteDeadline:  2 * time.Second, // Faster failure detection for real-time video
 
-		// Ping settings for better connection health monitoring
-		PingInterval: 2 * time.Minute,
+		// Ping settings for connection health
+		PingInterval: 30 * time.Second, // More frequent pings for real-time apps
 		MaxPingsOut:  3,
-
-		// Slow consumer settings
 
 		// Disable debug logging by default
 		Debug:   false,
@@ -429,15 +427,15 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Subjects:        []string{"constellation.video.>"},
 			Storage:         nats.MemoryStorage, // Memory-based for fast access, no persistence
 			Retention:       nats.LimitsPolicy,
-			MaxMsgs:         0,                 // Unlimited messages (bounded by MaxBytes)
-			MaxBytes:        512 * 1024 * 1024, // 512MB memory for swarm scale
-			MaxAge:          30 * time.Second,  // Short retention - video is ephemeral
-			MaxMsgSize:      2 * 1024 * 1024,   // 2MB per frame (HD frames with metadata)
+			MaxMsgs:         0,                  // Unlimited messages (bounded by MaxBytes)
+			MaxBytes:        1024 * 1024 * 1024, // 1GB memory for larger swarms
+			MaxAge:          10 * time.Second,   // Reduced - video is ephemeral, prevents stale frame buildup
+			MaxMsgSize:      256 * 1024,         // 256KB per chunk (2-3 GOP packets, not full frames)
 			Replicas:        1,
-			DuplicateWindow: 5 * time.Second, // Short window for high-frequency frames
-			AllowRollup:     true,            // Support KV-style latest frame access
-			AllowDirect:     true,            // Enable direct get for latest frame
-			DiscardPolicy:   nats.DiscardOld, // Drop oldest frames when full
+			DuplicateWindow: 500 * time.Millisecond, // Frame-level dedup (prevents duplicate MPEG-TS packets)
+			AllowRollup:     true,                   // Support KV-style latest frame access
+			AllowDirect:     true,                   // Enable direct get for latest frame
+			DiscardPolicy:   nats.DiscardOld,        // Drop oldest frames when full
 		},
 	}
 

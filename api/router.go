@@ -25,6 +25,14 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 	entityHandler := handlers.NewEntityHandler(entityService)
 	monitorHandler := handlers.NewMonitorHandler()
 	videoHandler := handlers.NewVideoHandler(nats)
+	webrtcHandler := handlers.NewWebRTCHandler(nats)
+	go func() {
+		if err := webrtcHandler.Start(); err != nil {
+			// Log error (using fmt for now as we don't have a logger passed in)
+			// In a real app, we should pass a logger
+			println("WebRTC Handler Start Error:", err.Error())
+		}
+	}()
 
 	// Global Middleware
 	r.Use(middleware.CORS)
@@ -59,6 +67,9 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 			r.Get("/list", videoHandler.List)
 			r.Get("/stream/*", videoHandler.Stream)
 		})
+
+		// WebRTC Signaling
+		r.Post("/webrtc/signal", webrtcHandler.Signal)
 	})
 
 	return r

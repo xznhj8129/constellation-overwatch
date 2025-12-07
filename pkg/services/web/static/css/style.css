@@ -177,6 +177,39 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+.nav-docs-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    margin-bottom: 15px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.3s ease;
+    border-radius: 4px;
+    position: relative;
+}
+
+.nav-docs-link:hover {
+    color: var(--text-secondary);
+    background: rgba(0, 212, 255, 0.1);
+    padding-left: 8px;
+    transform: translateX(4px);
+}
+
+.nav-docs-link .nav-icon {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+}
+
+.nav-docs-link:hover .nav-icon {
+    transform: scale(1.1);
+}
+
 .nav-status {
     text-align: center;
     color: var(--success);

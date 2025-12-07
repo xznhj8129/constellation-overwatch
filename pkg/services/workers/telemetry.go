@@ -76,10 +76,10 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 		}
 	}
 
-	// Check if entity is registered - reject unregistered entities
+	// Check if entity is registered - auto-register MAVLink entities
 	if !w.registry.IsRegistered(entityID) {
-		logger.Warnw("Rejecting telemetry for unregistered entity", "worker", w.Name(), "entity_id", entityID)
-		return
+		logger.Infow("Auto-registering MAVLink entity", "worker", w.Name(), "entity_id", entityID)
+		w.registry.Register(entityID)
 	}
 
 	// Get or create entity state

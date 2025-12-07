@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	_ "modernc.org/sqlite"
 	"go.uber.org/zap"
+	_ "modernc.org/sqlite"
 )
 
 //go:embed schema.sql

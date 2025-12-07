@@ -19,6 +19,19 @@ func NewOrganizationHandler(service *services.OrganizationService) *Organization
 	}
 }
 
+// Create godoc
+// @Summary Create organization
+// @Description Create a new organization
+// @Tags Organizations
+// @Accept json
+// @Produce json
+// @Param organization body ontology.CreateOrganizationRequest true "Organization data"
+// @Success 201 {object} ontology.Organization
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /organizations [post]
 func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req ontology.CreateOrganizationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -35,6 +48,17 @@ func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	responses.SendSuccess(w, http.StatusCreated, org)
 }
 
+// List godoc
+// @Summary List organizations
+// @Description Get a list of all organizations
+// @Tags Organizations
+// @Accept json
+// @Produce json
+// @Success 200 {array} ontology.Organization
+// @Failure 401 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /organizations [get]
 func (h *OrganizationHandler) List(w http.ResponseWriter, r *http.Request) {
 	orgs, err := h.service.ListOrganizations()
 	if err != nil {
@@ -65,6 +89,20 @@ func (h *OrganizationHandler) Get(w http.ResponseWriter, r *http.Request) {
 	responses.SendSuccess(w, http.StatusOK, org)
 }
 
+// Delete godoc
+// @Summary Delete organization
+// @Description Delete an organization by ID
+// @Tags Organizations
+// @Accept json
+// @Produce json
+// @Param org_id query string true "Organization ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /organizations [delete]
 func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
 	if orgID == "" {

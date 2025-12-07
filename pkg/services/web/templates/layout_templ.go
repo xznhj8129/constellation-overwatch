@@ -189,7 +189,7 @@ func Navigation(activeTab string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"><span class=\"nav-icon\">▶</span> <span>Video</span></a><div class=\"nav-footer\"><div class=\"nav-status\">READY</div></div></div></nav><main class=\"content-area\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"><span class=\"nav-icon\">▶</span> <span>Video</span></a><div class=\"nav-footer\"><a href=\"/docs\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"nav-docs-link\"><span class=\"nav-icon\">📖</span> <span>Docs</span></a><div class=\"nav-status\">READY</div></div></div></nav><main class=\"content-area\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
