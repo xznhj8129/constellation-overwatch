@@ -59,11 +59,11 @@ templ Navigation(activeTab string) {
 				<span class="nav-icon">▶</span>
 				<span>Video</span>
 			</a>
-			<a href="/docs" class={ "nav-button", templ.KV("active", activeTab == "docs") }>
-				<span class="nav-icon">📋</span>
-				<span>API Docs</span>
-			</a>
 			<div class="nav-footer">
+				<a href="/api/v1/docs" target="_blank" rel="noopener noreferrer" class="nav-docs-link">
+					<span class="nav-icon">📖</span>
+					<span>Docs</span>
+				</a>
 				<div class="nav-status">READY</div>
 			</div>
 		</div>

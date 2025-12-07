@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   BINARY_NAME: overwatch
@@ -7,7 +7,6 @@ vars:
 tasks:
   build:
     desc: Build the binary
-    deps: [swagger-generate]
     cmds:
       - echo "Building {{.BINARY_NAME}}..."
       - go build -o bin/{{.BINARY_NAME}} ./cmd/microlith
@@ -60,31 +59,18 @@ tasks:
     desc: Generate templ files
     cmds:
       - echo "Generating templ files..."
-      - go run github.com/a-h/templ/cmd/templ@latest generate
+      - $(go env GOPATH)/bin/templ generate
 
   templ-watch:
     desc: Start templ file watcher
     cmds:
       - echo "Starting templ file watcher..."
-      - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false
-
-  swagger-generate:
-    desc: Generate Swagger documentation
-    cmds:
-      - echo "Generating Swagger documentation..."
-      - go run github.com/swaggo/swag/cmd/swag@latest init --generalInfo ./cmd/microlith/main.go --parseDependency --parseInternal
-
-  swagger-clean:
-    desc: Clean generated Swagger documentation
-    cmds:
-      - echo "Cleaning Swagger documentation..."
-      - rm -rf docs/
+      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false
 
   dev:
     desc: Start development mode (build and run)
-    deps: [swagger-generate]
     cmds:
-      - go run github.com/a-h/templ/cmd/templ@latest generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith"
+      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith/main.go"
 
   default:
     desc: Show available tasks

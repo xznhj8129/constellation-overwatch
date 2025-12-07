@@ -9,6 +9,7 @@ templ VideoPage(entityIDs []string, natsAuthToken string) {
 				@VideoPanel(entityIDs)
 			</div>
 			@VideoWebSocketScript(natsAuthToken)
+			@VideoWebRTCScript()
 		}
 	}
 }
