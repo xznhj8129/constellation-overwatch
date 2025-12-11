@@ -441,7 +441,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"entity-section\"><h4>📍 Position (GlobalPositionInt)</h4><div class=\"data-grid\"><div><span style=\"color: #888;\">Latitude:</span><!-- NEW: Server-rendered with proper unit conversion from degE7 --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"entity-section\"><h4>Position (GlobalPositionInt)</h4><div class=\"data-grid\"><div><span style=\"color: #888;\">Latitude:</span><!-- NEW: Server-rendered with proper unit conversion from degE7 --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -668,7 +668,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"entity-section\"><h4>⚡ Power & Battery</h4><div class=\"data-grid\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"entity-section\"><h4>Power & Battery</h4><div class=\"data-grid\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -855,7 +855,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\" class=\"entity-section\"><h4>✈️ Flight Status (VFR_HUD)</h4><div class=\"data-grid\"><div><span style=\"color: #888;\">Ground Speed:</span><!-- NEW: Direct value in m/s (already converted by server) --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\" class=\"entity-section\"><h4>Flight Status (VFR_HUD)</h4><div class=\"data-grid\"><div><span style=\"color: #888;\">Ground Speed:</span><!-- NEW: Direct value in m/s (already converted by server) --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -998,7 +998,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" class=\"entity-section\"><h4>🧭 Attitude</h4><div class=\"data-grid\" style=\"grid-template-columns: repeat(3, 1fr);\"><div><span style=\"color: #888;\">Pitch:</span><!-- NEW: Server-rendered with proper unit conversion from radians --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" class=\"entity-section\"><h4>Attitude</h4><div class=\"data-grid\" style=\"grid-template-columns: repeat(3, 1fr);\"><div><span style=\"color: #888;\">Pitch:</span><!-- NEW: Server-rendered with proper unit conversion from radians --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
