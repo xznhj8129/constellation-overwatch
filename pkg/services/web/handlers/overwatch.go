@@ -374,6 +374,15 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					}
 					localEntityCache[entityID][key] = value
 					logger.Debugw("[Overwatch] Updated entity signal", "entity_id", entityID, "key", key, "size", len(value))
+					
+					// Log mavlink data for debugging
+					if strings.HasSuffix(key, ".mavlink") {
+						previewLen := 200
+						if len(value) < previewLen {
+							previewLen = len(value)
+						}
+						logger.Infow("[Overwatch] NEW MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
+					}
 				}
 			}
 
@@ -633,18 +642,9 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 			h.mergeAnalytics(&state, rawData)
 		} else if strings.Contains(key, ".c4isr.threat_intelligence") {
 			h.mergeThreatIntel(&state, rawData)
-		} else if strings.Contains(key, ".mavlink.heartbeat") {
-			h.mergeMAVLinkHeartbeat(&state, rawData)
-		} else if strings.Contains(key, ".mavlink.position") {
-			h.mergeMAVLinkPosition(&state, rawData)
-		} else if strings.Contains(key, ".mavlink.power") {
-			h.mergeMAVLinkPower(&state, rawData)
-		} else if strings.Contains(key, ".mavlink.attitude") {
-			h.mergeMAVLinkAttitude(&state, rawData)
-		} else if strings.Contains(key, ".mavlink.status") {
-			h.mergeMAVLinkStatus(&state, rawData)
-		} else if strings.Contains(key, ".mavlink.flight") {
-			h.mergeMAVLinkFlight(&state, rawData)
+		} else if strings.HasSuffix(key, ".mavlink") {
+			// NEW: Handle flattened mavlink data (entity_id.mavlink)
+			h.mergeNewMAVLinkData(&state, rawData)
 		} else if !strings.Contains(key, ".") {
 			// Single-key entity state (like device.1.1 or full EntityState)
 			h.mergeFullState(&state, rawData)
@@ -865,6 +865,113 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 }
 
 // MAVLink signal merge functions for modular telemetry streams
+
+// mergeNewMAVLinkData merges the new flattened mavlink data format
+func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data map[string]interface{}) {
+	logger.Debugw("[Overwatch] Merging new flattened MAVLink data", "entity_id", state.EntityID)
+	
+	// Extract SystemID and ComponentID
+	if systemID, ok := data["system_id"].(float64); ok {
+		state.SystemID = uint8(systemID)
+	}
+	if componentID, ok := data["component_id"].(float64); ok {
+		state.ComponentID = uint8(componentID)
+	}
+	
+	// Merge Attitude data (pitch, roll, yaw in radians)
+	if pitch, hasPitch := data["pitch"].(float64); hasPitch {
+		if state.Attitude == nil {
+			state.Attitude = &shared.AttitudeState{}
+		}
+		if state.Attitude.Euler == nil {
+			state.Attitude.Euler = &shared.EulerAttitude{}
+		}
+		
+		state.Attitude.Euler.Pitch = pitch
+		
+		if roll, ok := data["roll"].(float64); ok {
+			state.Attitude.Euler.Roll = roll
+		}
+		if yaw, ok := data["yaw"].(float64); ok {
+			state.Attitude.Euler.Yaw = yaw
+		}
+		if pitchSpeed, ok := data["pitch_speed"].(float64); ok {
+			state.Attitude.Euler.PitchSpeed = pitchSpeed
+		}
+		if rollSpeed, ok := data["roll_speed"].(float64); ok {
+			state.Attitude.Euler.RollSpeed = rollSpeed
+		}
+		if yawSpeed, ok := data["yaw_speed"].(float64); ok {
+			state.Attitude.Euler.YawSpeed = yawSpeed
+		}
+		
+		state.Attitude.Euler.Timestamp = time.Now()
+		logger.Debugw("[Overwatch] Merged attitude data", "entity_id", state.EntityID, "pitch", pitch, "roll", state.Attitude.Euler.Roll, "yaw", state.Attitude.Euler.Yaw)
+	}
+	
+	// Merge Power/Battery data
+	if batteryRemaining, hasBattery := data["battery_remaining"].(float64); hasBattery {
+		if state.Power == nil {
+			state.Power = &shared.PowerState{}
+		}
+		
+		state.Power.BatteryRemain = int8(batteryRemaining)
+		
+		// voltage_battery is in mV, convert to volts
+		if voltageBattery, ok := data["voltage_battery"].(float64); ok {
+			state.Power.Voltage = voltageBattery / 1000.0 // Convert mV to V
+		}
+		
+		state.Power.Timestamp = time.Now()
+		logger.Debugw("[Overwatch] Merged power data", "entity_id", state.EntityID, "battery", batteryRemaining, "voltage", state.Power.Voltage)
+	}
+	
+	// Merge VFR/Flight data
+	if groundSpeed, hasGroundSpeed := data["ground_speed"].(float64); hasGroundSpeed {
+		if state.VFR == nil {
+			state.VFR = &shared.VFRState{}
+		}
+		
+		state.VFR.Groundspeed = groundSpeed
+		
+		if throttle, ok := data["throttle"].(float64); ok {
+			state.VFR.Throttle = uint16(throttle)
+		}
+		if climbRate, ok := data["climb_rate"].(float64); ok {
+			state.VFR.ClimbRate = climbRate
+		}
+		
+		state.VFR.Timestamp = time.Now()
+		logger.Debugw("[Overwatch] Merged VFR data", "entity_id", state.EntityID, "ground_speed", groundSpeed, "throttle", state.VFR.Throttle, "climb_rate", state.VFR.ClimbRate)
+	}
+	
+	// Merge Vehicle Status data 
+	if load, hasLoad := data["load"].(float64); hasLoad {
+		if state.VehicleStatus == nil {
+			state.VehicleStatus = &shared.VehicleStatusState{}
+		}
+		
+		state.VehicleStatus.Load = uint16(load)
+		
+		// Extract vehicle type from last_msg_type or vehicle_type fields
+		if vehicleType, ok := data["vehicle_type"].(string); ok {
+			state.VehicleStatus.Mode = vehicleType // Store vehicle type in mode for display
+		}
+		
+		state.VehicleStatus.Timestamp = time.Now()
+		logger.Debugw("[Overwatch] Merged vehicle status", "entity_id", state.EntityID, "load", load, "vehicle_type", state.VehicleStatus.Mode)
+	}
+	
+	// Update entity metadata from mavlink data
+	if source, ok := data["source"].(string); ok && source != "" {
+		state.Name = source
+	}
+	if lastSeen, ok := data["last_seen"].(string); ok {
+		if ts, err := time.Parse(time.RFC3339, lastSeen); err == nil {
+			state.UpdatedAt = ts
+		}
+	}
+}
 
 // mergeMAVLinkHeartbeat merges heartbeat data into VehicleStatus
 func (h *OverwatchHandler) mergeMAVLinkHeartbeat(state *shared.EntityState, data map[string]interface{}) {
