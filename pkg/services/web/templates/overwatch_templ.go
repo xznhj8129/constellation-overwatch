@@ -107,7 +107,7 @@ func OverwatchPanel() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\" data-signals=\"{\n\t\t\tentityStatesByOrg: {},\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\ttotalEntities: 0,\n\t\t\ttotalOrgs: 0,\n\t\t\tdebugMode: false\n\t\t}\" data-init=\"@get('/api/overwatch/kv/watch')\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$totalOrgs + ' orgs'\"></span> <span data-text=\"' • ' + $totalEntities + ' entities'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span> <button data-on:click=\"$debugMode = !$debugMode\" style=\"margin-left: 20px; padding: 4px 8px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 3px;\"><span data-text=\"$debugMode ? 'Hide Debug' : 'Show Debug'\"></span></button></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- Debug Panel - Uses signals for display only --><div data-show=\"$debugMode\" style=\"background: #1a1a1a; padding: 15px; margin: 10px 20px; border-radius: 4px; border: 1px solid #333;\"><h4 style=\"color: #0f0; margin-top: 0;\">Signal Store Debug</h4><div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;\"><div><strong style=\"color: #888;\">Total Orgs:</strong> <span style=\"color: #fff;\" data-text=\"$totalOrgs\"></span></div><div><strong style=\"color: #888;\">Total Entities:</strong> <span style=\"color: #fff;\" data-text=\"$totalEntities\"></span></div><div><strong style=\"color: #888;\">Connected:</strong> <span style=\"color: #fff;\" data-text=\"$_isConnected ? 'Yes' : 'No'\"></span></div><div><strong style=\"color: #888;\">Last Update:</strong> <span style=\"color: #fff;\" data-text=\"$lastUpdate || 'Never'\"></span></div></div><details style=\"margin-top: 10px;\"><summary style=\"color: #0ff; cursor: pointer; margin-bottom: 10px;\">View Raw Signal Data</summary><pre data-text=\"JSON.stringify($entityStatesByOrg, null, 2)\" style=\"color: #888; font-size: 10px; max-height: 400px; overflow: auto; background: #0a0a0a; padding: 10px; border-radius: 3px;\"></pre></details></div><!-- Entities Container - Server-rendered HTML only, no client-side loops --><div id=\"entities-container\" class=\"entities-grid\" style=\"padding: 20px;\"><!-- This will be populated by server via SSE PatchElements (inner mode) --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center;\"><p>No entity states in global store. Waiting for telemetry data...</p><p style=\"font-size: 10px; margin-top: 10px;\">Server-side rendering via SSE</p></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"overwatch-panel\" class=\"panel\" data-signals=\"{\n\t\t\tentityStatesByOrg: {},\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\ttotalEntities: 0,\n\t\t\ttotalOrgs: 0,\n\t\t\tdebugMode: false\n\t\t}\" data-init=\"@get('/api/overwatch/kv/watch')\"><div class=\"panel-header\"><h2>Global State Monitor</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$totalOrgs + ' orgs'\"></span> <span data-text=\"' • ' + $totalEntities + ' entities'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span> <button data-on:click=\"$debugMode = !$debugMode\" style=\"margin-left: 20px; padding: 4px 8px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 3px;\"><span data-text=\"$debugMode ? 'Hide Debug' : 'Show Debug'\"></span></button></div></div><div id=\"overwatch-content\" class=\"overwatch-content\"><!-- Debug Panel - Uses signals for display only --><div data-show=\"$debugMode\" style=\"background: #1a1a1a; padding: 15px; margin: 10px 20px; border-radius: 4px; border: 1px solid #333;\"><h4 style=\"color: #0f0; margin-top: 0;\">Signal Store Debug</h4><div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;\"><div><strong style=\"color: #888;\">Total Orgs:</strong> <span style=\"color: #fff;\" data-text=\"$totalOrgs\"></span></div><div><strong style=\"color: #888;\">Total Entities:</strong> <span style=\"color: #fff;\" data-text=\"$totalEntities\"></span></div><div><strong style=\"color: #888;\">Connected:</strong> <span style=\"color: #fff;\" data-text=\"$_isConnected ? 'Yes' : 'No'\"></span></div><div><strong style=\"color: #888;\">Last Update:</strong> <span style=\"color: #fff;\" data-text=\"$lastUpdate || 'Never'\"></span></div></div><details style=\"margin-top: 10px;\"><summary style=\"color: #0ff; cursor: pointer; margin-bottom: 10px;\">View Raw Signal Data</summary><pre data-text=\"JSON.stringify($entityStatesByOrg, null, 2)\" style=\"color: #888; font-size: 10px; max-height: 400px; overflow: auto; background: #0a0a0a; padding: 10px; border-radius: 3px;\"></pre></details></div><!-- Entities Container - Server-rendered HTML only, no client-side loops --><div id=\"entities-container\" class=\"entities-grid\"><!-- This will be populated by server via SSE PatchElements (inner mode) --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center;\"><p>No entity states in global store. Waiting for telemetry data...</p><p style=\"font-size: 10px; margin-top: 10px;\">Server-side rendering via SSE</p></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -154,12 +154,12 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("margin: 5px; padding: 10px; border: 2px solid " +
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("border-color: " +
 			templ.SafeCSSProperty(func() string {
 				if entity.Analytics != nil && entity.Analytics.ActiveThreatCount > 0 {
 					return "#f00"
 				}
-				return "#f0f"
+				return "rgba(0, 212, 255, 0.3)"
 			}()))
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/templates/overwatch.templ`, Line: 94, Col: 7}
@@ -181,7 +181,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" class=\"entity-header\" style=\"margin-bottom: 15px;\"><div style=\"color: #0ff; font-size: 18px; font-weight: bold;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" class=\"entity-header\"><div style=\"color: #0ff; font-size: 18px; font-weight: bold;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -313,7 +313,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">Vehicle Status</h4><div class=\"data-grid\" style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"entity-section\"><h4>Vehicle Status</h4><div class=\"data-grid\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -441,7 +441,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">📍 Position (GlobalPositionInt)</h4><div class=\"data-grid\" style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;\"><div><span style=\"color: #888;\">Latitude:</span><!-- NEW: Server-rendered with proper unit conversion from degE7 --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"entity-section\"><h4>📍 Position (GlobalPositionInt)</h4><div class=\"data-grid\"><div><span style=\"color: #888;\">Latitude:</span><!-- NEW: Server-rendered with proper unit conversion from degE7 --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -668,7 +668,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">⚡ Power & Battery</h4><div class=\"data-grid\" style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"entity-section\"><h4>⚡ Power & Battery</h4><div class=\"data-grid\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -855,7 +855,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">✈️ Flight Status (VFR_HUD)</h4><div class=\"data-grid\" style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;\"><div><span style=\"color: #888;\">Ground Speed:</span><!-- NEW: Direct value in m/s (already converted by server) --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\" class=\"entity-section\"><h4>✈️ Flight Status (VFR_HUD)</h4><div class=\"data-grid\"><div><span style=\"color: #888;\">Ground Speed:</span><!-- NEW: Direct value in m/s (already converted by server) --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -998,7 +998,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">🧭 Attitude</h4><div class=\"data-grid\" style=\"display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;\"><div><span style=\"color: #888;\">Pitch:</span><!-- NEW: Server-rendered with proper unit conversion from radians --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" class=\"entity-section\"><h4>🧭 Attitude</h4><div class=\"data-grid\" style=\"grid-template-columns: repeat(3, 1fr);\"><div><span style=\"color: #888;\">Pitch:</span><!-- NEW: Server-rendered with proper unit conversion from radians --><span style=\"color: #fff; font-weight: bold;\" data-text=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1099,7 +1099,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">Analytics</h4><div class=\"data-grid\" style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;\"><div id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "\" class=\"entity-section\"><h4>Analytics</h4><div class=\"data-grid\"><div id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1226,7 +1226,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">Tracked Objects</h4><div class=\"tracked-objects\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "\" class=\"entity-section\"><h4>Tracked Objects</h4><div class=\"tracked-objects\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1645,7 +1645,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, "\" class=\"entity-section\" style=\"margin-top: 15px;\"><h4 style=\"color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;\">Threat Intelligence</h4><div style=\"background: #1a1a1a; padding: 15px; border-radius: 3px;\"><div style=\"margin-bottom: 10px;\"><span style=\"color: #888;\">Alert Level:</span> <span style=\"color: #ff0; font-weight: bold; font-size: 16px; margin-left: 10px;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, "\" class=\"entity-section\"><h4>Threat Intelligence</h4><div style=\"background: #1a1a1a; padding: 15px; border-radius: 3px;\"><div style=\"margin-bottom: 10px;\"><span style=\"color: #888;\">Alert Level:</span> <span style=\"color: #ff0; font-weight: bold; font-size: 16px; margin-left: 10px;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1689,7 +1689,7 @@ func EntityCard(entity shared.EntityState) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 145, "\" style=\"margin-top: 15px; padding-top: 10px; border-top: 1px solid #444; color: #666; font-size: 11px;\"><span>Updated: ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 145, "\" class=\"entity-footer\"><span>Updated: ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

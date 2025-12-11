@@ -72,7 +72,7 @@ templ OverwatchPanel() {
 				</details>
 			</div>
 			<!-- Entities Container - Server-rendered HTML only, no client-side loops -->
-			<div id="entities-container" class="entities-grid" style="padding: 20px;">
+			<div id="entities-container" class="entities-grid">
 				<!-- This will be populated by server via SSE PatchElements (inner mode) -->
 				<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
 					<p>No entity states in global store. Waiting for telemetry data...</p>
@@ -85,16 +85,16 @@ templ OverwatchPanel() {
 
 templ EntityCard(entity shared.EntityState) {
 	<div id={ "entity-" + entity.EntityID } class="entity-card" 
-		style={ "margin: 5px; padding: 10px; border: 2px solid " + 
+		style={ "border-color: " + 
 			templ.SafeCSSProperty(func() string {
 				if entity.Analytics != nil && entity.Analytics.ActiveThreatCount > 0 {
 					return "#f00"
 				}
-				return "#f0f"
+				return "rgba(0, 212, 255, 0.3)"
 			}()) }>
 		<div class="entity-card-inner">
 			<!-- Header -->
-			<div id={ "entity-header-" + entity.EntityID } class="entity-header" style="margin-bottom: 15px;">
+			<div id={ "entity-header-" + entity.EntityID } class="entity-header">
 				<div style="color: #0ff; font-size: 18px; font-weight: bold;">
 					if entity.Name != "" {
 						{ entity.Name }
@@ -125,9 +125,9 @@ templ EntityCard(entity shared.EntityState) {
 			</div>
 			<!-- MAVLink Vehicle Status -->
 			if entity.VehicleStatus != nil {
-				<div id={ "vehicle-status-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Vehicle Status</h4>
-					<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+				<div id={ "vehicle-status-" + entity.EntityID } class="entity-section">
+					<h4>Vehicle Status</h4>
+					<div class="data-grid">
 						if entity.VehicleStatus.Mode != "" {
 							<div>
 								<span style="color: #888;">Mode:</span>
@@ -160,9 +160,9 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- NEW: Flattened MAVLink Position Data (GlobalPositionInt) -->
 			if entity.Position != nil && entity.Position.Global != nil {
-				<div id={ "position-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">📍 Position (GlobalPositionInt)</h4>
-					<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+				<div id={ "position-" + entity.EntityID } class="entity-section">
+					<h4>📍 Position (GlobalPositionInt)</h4>
+					<div class="data-grid">
 						<div>
 							<span style="color: #888;">Latitude:</span>
 							<!-- NEW: Server-rendered with proper unit conversion from degE7 -->
@@ -216,9 +216,9 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- NEW: Flattened MAVLink Power & Battery Data -->
 			if entity.Power != nil {
-				<div id={ "power-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">⚡ Power & Battery</h4>
-					<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+				<div id={ "power-" + entity.EntityID } class="entity-section">
+					<h4>⚡ Power & Battery</h4>
+					<div class="data-grid">
 						if entity.Power.BatteryRemain > 0 {
 							<div>
 								<span style="color: #888;">Battery:</span>
@@ -261,9 +261,9 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- NEW: Flattened MAVLink Flight Data (VFR_HUD) -->
 			if entity.VFR != nil {
-				<div id={ "flight-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">✈️ Flight Status (VFR_HUD)</h4>
-					<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+				<div id={ "flight-" + entity.EntityID } class="entity-section">
+					<h4>✈️ Flight Status (VFR_HUD)</h4>
+					<div class="data-grid">
 						<div>
 							<span style="color: #888;">Ground Speed:</span>
 							<!-- NEW: Direct value in m/s (already converted by server) -->
@@ -297,9 +297,9 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- NEW: Flattened MAVLink Attitude Data -->
 			if entity.Attitude != nil && entity.Attitude.Euler != nil {
-				<div id={ "attitude-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0aa; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">🧭 Attitude</h4>
-					<div class="data-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+				<div id={ "attitude-" + entity.EntityID } class="entity-section">
+					<h4>🧭 Attitude</h4>
+					<div class="data-grid" style="grid-template-columns: repeat(3, 1fr);">
 						<div>
 							<span style="color: #888;">Pitch:</span>
 							<!-- NEW: Server-rendered with proper unit conversion from radians -->
@@ -323,9 +323,9 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- Analytics -->
 			if entity.Analytics != nil {
-				<div id={ "analytics-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Analytics</h4>
-					<div class="data-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+				<div id={ "analytics-" + entity.EntityID } class="entity-section">
+					<h4>Analytics</h4>
+					<div class="data-grid">
 						<div id={ "analytics-tracked-" + entity.EntityID }>
 							<span style="color: #888;">Tracked:</span>
 							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
@@ -347,8 +347,8 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- Tracked Objects -->
 			if entity.Detections != nil && entity.Detections.TrackedObjects != nil && len(entity.Detections.TrackedObjects) > 0 {
-				<div id={ "detections-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Tracked Objects</h4>
+				<div id={ "detections-" + entity.EntityID } class="entity-section">
+					<h4>Tracked Objects</h4>
 					<div class="tracked-objects">
 						for trackID, obj := range entity.Detections.TrackedObjects {
 							if obj.IsActive {
@@ -400,8 +400,8 @@ templ EntityCard(entity shared.EntityState) {
 			}
 			<!-- Threat Intelligence -->
 			if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
-				<div id={ "threat-intel-" + entity.EntityID } class="entity-section" style="margin-top: 15px;">
-					<h4 style="color: #0f0; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px;">Threat Intelligence</h4>
+				<div id={ "threat-intel-" + entity.EntityID } class="entity-section">
+					<h4>Threat Intelligence</h4>
 					<div style="background: #1a1a1a; padding: 15px; border-radius: 3px;">
 						<div style="margin-bottom: 10px;">
 							<span style="color: #888;">Alert Level:</span>
@@ -415,7 +415,7 @@ templ EntityCard(entity shared.EntityState) {
 				</div>
 			}
 			<!-- Footer -->
-			<div id={ "entity-footer-" + entity.EntityID } style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #444; color: #666; font-size: 11px;">
+			<div id={ "entity-footer-" + entity.EntityID } class="entity-footer">
 				<span>Updated: { entity.UpdatedAt.Format("15:04:05") }</span>
 			</div>
 		</div>

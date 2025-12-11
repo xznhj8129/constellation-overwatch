@@ -440,7 +440,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				if entityState.OrgName != "" {
 					orgName = entityState.OrgName
 				}
-				orgHTML.WriteString(fmt.Sprintf(`<div style="margin-bottom: 30px;"><h3 style="color: #0ff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 15px;">Organization: %s</h3><div id="org-cards-%s" class="entity-cards-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 15px;"></div></div>`, orgName, entityState.OrgID))
+				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
 
 				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector("#entities-container"), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
@@ -458,7 +458,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			}
 
 			patchMode = datastar.ElementPatchModeAppend
-			selector = fmt.Sprintf("#org-cards-%s", entityState.OrgID)
+			selector = "#entities-container"
 			knownEntities[entityID] = true
 		} else {
 			patchMode = datastar.ElementPatchModeMorph

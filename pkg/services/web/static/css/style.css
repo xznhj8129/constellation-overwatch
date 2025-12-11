@@ -225,7 +225,7 @@ body {
 .content-area {
     flex: 1;
     overflow: auto;
-    padding: 20px;
+    padding: 16px;
 }
 
 /* Panels */
@@ -778,32 +778,32 @@ tr.selected {
 /* ============================================ */
 
 .overwatch-content {
-    padding: 20px 0;
+    padding: 16px 0;
 }
 
 /* Organization Sections */
 .org-section {
-    margin-bottom: 40px;
+    margin-bottom: 28px;
     animation: fadeIn 0.5s ease;
 }
 
 .org-header {
     color: var(--text-secondary);
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
     border-bottom: 2px solid rgba(0, 212, 255, 0.3);
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
 }
 
 .org-header::before {
     content: '';
-    width: 6px;
-    height: 30px;
+    width: 5px;
+    height: 24px;
     background: linear-gradient(180deg, var(--text-primary), var(--text-secondary));
     border-radius: 3px;
 }
@@ -811,9 +811,10 @@ tr.selected {
 /* Entity Cards Grid */
 .entities-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+    padding: 0 4px;
 }
 
 .entity-card {
@@ -832,7 +833,7 @@ tr.selected {
 }
 
 .entity-card-inner {
-    padding: 15px;
+    padding: 12px;
 }
 
 /* Entity Header */
@@ -840,8 +841,8 @@ tr.selected {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
     border-bottom: 1px solid rgba(0, 212, 255, 0.2);
 }
 
@@ -862,9 +863,9 @@ tr.selected {
 /* Status Row */
 .entity-status-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 .badge {
@@ -935,8 +936,8 @@ tr.selected {
 
 /* Entity Sections */
 .entity-section {
-    margin-bottom: 15px;
-    padding: 12px;
+    margin-bottom: 12px;
+    padding: 10px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 6px;
     border-left: 3px solid rgba(0, 212, 255, 0.3);
@@ -947,14 +948,14 @@ tr.selected {
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     font-weight: 700;
 }
 
 .entity-section .data-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
 }
 
 .data-item {
@@ -1059,20 +1060,131 @@ tr.selected {
     font-size: 0.9rem;
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
+/* Enhanced Responsive Design */
+@media (min-width: 1920px) {
     .entities-grid {
         grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 18px;
+    }
+}
+
+@media (max-width: 1400px) {
+    .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 14px;
+    }
+    
+    .content-area {
+        padding: 14px;
+    }
+    
+    .org-section {
+        margin-bottom: 24px;
+    }
+    
+    .org-header {
+        margin-bottom: 14px;
+        font-size: 1.3rem;
+    }
+    
+    .overwatch-content {
+        padding: 14px 0;
+    }
+}
+
+@media (max-width: 1024px) {
+    .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+    }
+    
+    .content-area {
+        padding: 12px;
+    }
+    
+    .org-section {
+        margin-bottom: 20px;
+    }
+    
+    .org-header {
+        margin-bottom: 12px;
+        font-size: 1.2rem;
+        gap: 10px;
+    }
+    
+    .overwatch-content {
+        padding: 12px 0;
     }
 }
 
 @media (max-width: 768px) {
     .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 10px;
+        padding: 0 2px;
+    }
+
+    .entity-section .data-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 6px;
+    }
+    
+    .content-area {
+        padding: 10px;
+    }
+    
+    .org-section {
+        margin-bottom: 18px;
+    }
+    
+    .org-header {
+        margin-bottom: 10px;
+        font-size: 1.1rem;
+        gap: 8px;
+    }
+    
+    .org-header::before {
+        width: 4px;
+        height: 20px;
+    }
+    
+    .overwatch-content {
+        padding: 10px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .entities-grid {
         grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 0;
     }
 
     .entity-section .data-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .content-area {
+        padding: 8px;
+    }
+    
+    .org-section {
+        margin-bottom: 16px;
+    }
+    
+    .org-header {
+        margin-bottom: 8px;
+        font-size: 1rem;
+        gap: 6px;
+    }
+    
+    .org-header::before {
+        width: 3px;
+        height: 18px;
+    }
+    
+    .overwatch-content {
+        padding: 8px 0;
     }
 }
 
