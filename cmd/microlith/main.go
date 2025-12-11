@@ -54,26 +54,26 @@ func findEnvFile(flagPath string) string {
 	if flagPath != "" && flagPath != ".env" {
 		return flagPath
 	}
-	
+
 	// 2. Current directory .env (dev workflow)
 	if _, err := os.Stat(".env"); err == nil {
 		return ".env"
 	}
-	
+
 	// 3. OVERWATCH_HOME/.env (binary install)
 	if home := os.Getenv("OVERWATCH_HOME"); home != "" {
 		if path := filepath.Join(home, ".env"); fileExists(path) {
 			return path
 		}
 	}
-	
+
 	// 4. Default ~/.overwatch/.env
 	if userHome, err := os.UserHomeDir(); err == nil {
 		if path := filepath.Join(userHome, ".overwatch", ".env"); fileExists(path) {
 			return path
 		}
 	}
-	
+
 	return "" // No config found, rely on env vars + flags
 }
 

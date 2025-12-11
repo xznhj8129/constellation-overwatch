@@ -374,7 +374,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					}
 					localEntityCache[entityID][key] = value
 					logger.Debugw("[Overwatch] Updated entity signal", "entity_id", entityID, "key", key, "size", len(value))
-					
+
 					// Log mavlink data for debugging
 					if strings.HasSuffix(key, ".mavlink") {
 						previewLen := 200
@@ -869,7 +869,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 // mergeNewMAVLinkData merges the new flattened mavlink data format
 func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data map[string]interface{}) {
 	logger.Debugw("[Overwatch] Merging new flattened MAVLink data", "entity_id", state.EntityID)
-	
+
 	// Extract SystemID and ComponentID
 	if systemID, ok := data["system_id"].(float64); ok {
 		state.SystemID = uint8(systemID)
@@ -877,7 +877,7 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 	if componentID, ok := data["component_id"].(float64); ok {
 		state.ComponentID = uint8(componentID)
 	}
-	
+
 	// Merge Attitude data (pitch, roll, yaw in radians)
 	if pitch, hasPitch := data["pitch"].(float64); hasPitch {
 		if state.Attitude == nil {
@@ -886,9 +886,9 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 		if state.Attitude.Euler == nil {
 			state.Attitude.Euler = &shared.EulerAttitude{}
 		}
-		
+
 		state.Attitude.Euler.Pitch = pitch
-		
+
 		if roll, ok := data["roll"].(float64); ok {
 			state.Attitude.Euler.Roll = roll
 		}
@@ -904,64 +904,114 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 		if yawSpeed, ok := data["yaw_speed"].(float64); ok {
 			state.Attitude.Euler.YawSpeed = yawSpeed
 		}
-		
+
 		state.Attitude.Euler.Timestamp = time.Now()
 		logger.Debugw("[Overwatch] Merged attitude data", "entity_id", state.EntityID, "pitch", pitch, "roll", state.Attitude.Euler.Roll, "yaw", state.Attitude.Euler.Yaw)
 	}
-	
+
 	// Merge Power/Battery data
 	if batteryRemaining, hasBattery := data["battery_remaining"].(float64); hasBattery {
 		if state.Power == nil {
 			state.Power = &shared.PowerState{}
 		}
-		
+
 		state.Power.BatteryRemain = int8(batteryRemaining)
-		
+
 		// voltage_battery is in mV, convert to volts
 		if voltageBattery, ok := data["voltage_battery"].(float64); ok {
 			state.Power.Voltage = voltageBattery / 1000.0 // Convert mV to V
 		}
-		
+
 		state.Power.Timestamp = time.Now()
 		logger.Debugw("[Overwatch] Merged power data", "entity_id", state.EntityID, "battery", batteryRemaining, "voltage", state.Power.Voltage)
 	}
-	
+
+	// Merge Position data (GlobalPositionInt)
+	if latitude, hasLatitude := data["latitude"].(float64); hasLatitude {
+		if state.Position == nil {
+			state.Position = &shared.PositionState{}
+		}
+		if state.Position.Global == nil {
+			state.Position.Global = &shared.GlobalPosition{}
+		}
+		if state.Position.Local == nil {
+			state.Position.Local = &shared.LocalPosition{}
+		}
+
+		// Convert latitude from degE7 to degrees
+		state.Position.Global.Latitude = latitude / 1e7
+
+		// Convert longitude from degE7 to degrees
+		if longitude, ok := data["longitude"].(float64); ok {
+			state.Position.Global.Longitude = longitude / 1e7
+		}
+
+		// Convert altitude from mm to meters
+		if altitude, ok := data["altitude"].(float64); ok {
+			state.Position.Global.AltitudeMSL = altitude / 1000.0
+		}
+
+		// Convert relative altitude from mm to meters
+		if relativeAlt, ok := data["relative_alt"].(float64); ok {
+			state.Position.Global.AltitudeRelative = relativeAlt / 1000.0
+		}
+
+		// Convert velocities from cm/s to m/s
+		if vx, ok := data["vx"].(float64); ok {
+			state.Position.Local.VX = vx / 100.0
+		}
+		if vy, ok := data["vy"].(float64); ok {
+			state.Position.Local.VY = vy / 100.0
+		}
+		if vz, ok := data["vz"].(float64); ok {
+			state.Position.Local.VZ = vz / 100.0
+		}
+
+		state.Position.Global.Timestamp = time.Now()
+		state.Position.Local.Timestamp = time.Now()
+		logger.Debugw("[Overwatch] Merged position data", "entity_id", state.EntityID, "lat", state.Position.Global.Latitude, "lon", state.Position.Global.Longitude, "alt_msl", state.Position.Global.AltitudeMSL, "alt_rel", state.Position.Global.AltitudeRelative)
+	}
+
 	// Merge VFR/Flight data
 	if groundSpeed, hasGroundSpeed := data["ground_speed"].(float64); hasGroundSpeed {
 		if state.VFR == nil {
 			state.VFR = &shared.VFRState{}
 		}
-		
+
 		state.VFR.Groundspeed = groundSpeed
-		
+
 		if throttle, ok := data["throttle"].(float64); ok {
 			state.VFR.Throttle = uint16(throttle)
 		}
 		if climbRate, ok := data["climb_rate"].(float64); ok {
 			state.VFR.ClimbRate = climbRate
 		}
-		
+		// Convert heading from centidegrees to degrees
+		if heading, ok := data["heading"].(float64); ok {
+			state.VFR.Heading = int16(heading / 100.0)
+		}
+
 		state.VFR.Timestamp = time.Now()
-		logger.Debugw("[Overwatch] Merged VFR data", "entity_id", state.EntityID, "ground_speed", groundSpeed, "throttle", state.VFR.Throttle, "climb_rate", state.VFR.ClimbRate)
+		logger.Debugw("[Overwatch] Merged VFR data", "entity_id", state.EntityID, "ground_speed", groundSpeed, "throttle", state.VFR.Throttle, "climb_rate", state.VFR.ClimbRate, "heading", state.VFR.Heading)
 	}
-	
-	// Merge Vehicle Status data 
+
+	// Merge Vehicle Status data
 	if load, hasLoad := data["load"].(float64); hasLoad {
 		if state.VehicleStatus == nil {
 			state.VehicleStatus = &shared.VehicleStatusState{}
 		}
-		
+
 		state.VehicleStatus.Load = uint16(load)
-		
+
 		// Extract vehicle type from last_msg_type or vehicle_type fields
 		if vehicleType, ok := data["vehicle_type"].(string); ok {
 			state.VehicleStatus.Mode = vehicleType // Store vehicle type in mode for display
 		}
-		
+
 		state.VehicleStatus.Timestamp = time.Now()
 		logger.Debugw("[Overwatch] Merged vehicle status", "entity_id", state.EntityID, "load", load, "vehicle_type", state.VehicleStatus.Mode)
 	}
-	
+
 	// Update entity metadata from mavlink data
 	if source, ok := data["source"].(string); ok && source != "" {
 		state.Name = source
