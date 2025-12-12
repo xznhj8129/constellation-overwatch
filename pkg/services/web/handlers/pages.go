@@ -10,6 +10,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	docs_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/docs/pages"
 	fleet_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/pages"
+	map_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/pages"
 	org_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/pages"
 	overwatch_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/pages"
 	streams_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/streams/pages"
@@ -226,5 +227,23 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *PageHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
 	component := docs_pages.DocsPage()
+	component.Render(r.Context(), w)
+}
+
+func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := map_pages.MapPage()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			logger.Infof("Error patching map page: %v", err)
+		}
+		return
+	}
+
+	component := map_pages.MapPage()
 	component.Render(r.Context(), w)
 }

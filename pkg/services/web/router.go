@@ -53,6 +53,7 @@ func NewRouter(
 	mux.Handle("/fleet", protect(pageHandler.HandleFleetPage))
 	mux.Handle("/fleet/edit/", protect(datastarHandler.HandleFleetEdit))
 	mux.Handle("/fleet/cancel/", protect(datastarHandler.HandleFleetCancel))
+	mux.Handle("/map", protect(pageHandler.HandleMapPage))
 	mux.Handle("/video", protect(pageHandler.HandleVideoPage))
 	mux.Handle("/docs", protect(docsHandler.HandleDocsPage))
 

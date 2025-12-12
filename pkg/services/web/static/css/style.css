@@ -109,31 +109,59 @@ body {
 
 /* C5 Brand Header */
 .nav-brand {
-    padding: 24px 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid rgba(0, 212, 255, 0.2);
     text-align: center;
     background: rgba(0, 0, 0, 0.3);
 }
 
+.brand-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.brand-logo {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
 .brand-text {
-    font-size: 2.5rem;
+    font-size: 1.4rem;
     font-weight: 900;
     background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    letter-spacing: 0.08em;
+}
+
+.brand-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.brand-title {
+    font-size: 0.6rem;
+    color: rgba(0, 212, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
     display: block;
-    letter-spacing: 0.1em;
-    text-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+    line-height: 1.2;
 }
 
 .brand-subtitle {
-    font-size: 0.7rem;
-    color: rgba(0, 212, 255, 0.7);
+    font-size: 0.6rem;
+    color: rgba(0, 212, 255, 0.9);
     text-transform: uppercase;
-    letter-spacing: 0.2em;
-    margin-top: 4px;
+    letter-spacing: 0.18em;
     display: block;
+    line-height: 1.2;
 }
 
 #nav-content {
@@ -213,7 +241,12 @@ body {
 .nav-footer {
     margin-top: auto;
     padding: 16px 8px;
-    border-top: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.nav-footer-divider {
+    height: 1px;
+    background: rgba(0, 212, 255, 0.2);
+    margin: 0 8px 12px;
 }
 
 .nav-docs-link {
