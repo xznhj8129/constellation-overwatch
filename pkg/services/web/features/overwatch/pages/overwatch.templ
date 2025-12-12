@@ -7,9 +7,8 @@ import (
 )
 
 templ OverwatchPage() {
-	@layouts.Base("Overwatch") {
+	@layouts.BaseWithStyles("Overwatch", []string{"/static/css/overwatch.css"}) {
 		@components.Navigation("overwatch") {
-			<link rel="stylesheet" href="/static/css/overwatch.css"/>
 			<div class="tab-content">
 				@overwatch.OverwatchPanel()
 			</div>

@@ -1,0 +1,256 @@
+package components
+
+import (
+	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+)
+
+templ EntityForm(orgID string, entity *ontology.Entity, isEdit bool) {
+	<div class="modal-backdrop" data-on:click__outside="this.parentElement.innerHTML=''">
+		<div class="modal" data-on:click__stop="">
+			<div class="modal-header">
+				if isEdit {
+					<h2>Edit Entity</h2>
+				} else {
+					<h2>New Entity</h2>
+				}
+				<button class="close-btn" data-on:click="this.closest('#entity-form-modal').innerHTML=''">&times;</button>
+			</div>
+			<form class="entity-form"
+				data-signals="{_submitting: false}"
+				if isEdit {
+					data-on:submit__prevent={ fmt.Sprintf("@put('/api/entities/%s?org_id=%s', {contentType: 'form'})", entity.EntityID, orgID) }
+				} else {
+					data-on:submit__prevent={ fmt.Sprintf("@post('/api/entities?org_id=%s', {contentType: 'form'})", orgID) }
+				}
+				data-indicator:_submitting>
+
+				<div class="form-group">
+					<label for="name">Entity Name</label>
+					<input type="text"
+						name="name"
+						id="name"
+						placeholder="e.g., Alpha-1"
+						if entity != nil {
+							value={ entity.Name }
+						}
+						maxlength="255"/>
+				</div>
+
+				<div class="form-group">
+					<label for="entity_type">Entity Type *</label>
+					<select name="entity_type" id="entity_type" required disabled?={ isEdit }>
+						<option value="">Select Type</option>
+						<optgroup label="Air Domain">
+							<option value="aircraft_fixed_wing" selected?={ entity != nil && entity.EntityType == "aircraft_fixed_wing" }>Fixed Wing Aircraft</option>
+							<option value="aircraft_multirotor" selected?={ entity != nil && entity.EntityType == "aircraft_multirotor" }>Multirotor (Quadcopter)</option>
+							<option value="aircraft_vtol" selected?={ entity != nil && entity.EntityType == "aircraft_vtol" }>VTOL Aircraft</option>
+							<option value="aircraft_helicopter" selected?={ entity != nil && entity.EntityType == "aircraft_helicopter" }>Helicopter</option>
+						</optgroup>
+						<optgroup label="Ground Domain">
+							<option value="ground_vehicle_wheeled" selected?={ entity != nil && entity.EntityType == "ground_vehicle_wheeled" }>Wheeled Ground Vehicle</option>
+							<option value="ground_vehicle_tracked" selected?={ entity != nil && entity.EntityType == "ground_vehicle_tracked" }>Tracked Ground Vehicle</option>
+						</optgroup>
+						<optgroup label="Surface & Subsurface">
+							<option value="surface_vessel_usv" selected?={ entity != nil && entity.EntityType == "surface_vessel_usv" }>Unmanned Surface Vessel (USV)</option>
+							<option value="underwater_vehicle" selected?={ entity != nil && entity.EntityType == "underwater_vehicle" }>Underwater Vehicle (UUV)</option>
+						</optgroup>
+						<optgroup label="System Components">
+							<option value="sensor_platform" selected?={ entity != nil && entity.EntityType == "sensor_platform" }>Sensor Platform</option>
+							<option value="payload_system" selected?={ entity != nil && entity.EntityType == "payload_system" }>Payload System</option>
+							<option value="operator_station" selected?={ entity != nil && entity.EntityType == "operator_station" }>Operator Station</option>
+						</optgroup>
+						<optgroup label="Virtual/Logical">
+							<option value="waypoint" selected?={ entity != nil && entity.EntityType == "waypoint" }>Waypoint</option>
+							<option value="no_fly_zone" selected?={ entity != nil && entity.EntityType == "no_fly_zone" }>No-Fly Zone</option>
+							<option value="geofence" selected?={ entity != nil && entity.EntityType == "geofence" }>Geofence</option>
+						</optgroup>
+					</select>
+					if isEdit {
+						<small style="color: var(--text-secondary); margin-top: 5px; display: block;">Entity type cannot be changed after creation</small>
+					}
+				</div>
+
+				<div class="form-group">
+					<label for="status">Status *</label>
+					<select name="status" id="status" required>
+						<option value="unknown" selected?={ entity == nil || entity.Status == "unknown" }>Unknown</option>
+						<option value="active" selected?={ entity != nil && entity.Status == "active" }>Active</option>
+						<option value="inactive" selected?={ entity != nil && entity.Status == "inactive" }>Inactive</option>
+						<option value="pending" selected?={ entity != nil && entity.Status == "pending" }>Pending</option>
+						<option value="maintenance" selected?={ entity != nil && entity.Status == "maintenance" }>Maintenance</option>
+						<option value="error" selected?={ entity != nil && entity.Status == "error" }>Error</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label for="priority">Priority *</label>
+					<select name="priority" id="priority" required>
+						<option value="normal" selected?={ entity == nil || entity.Priority == "normal" }>Normal</option>
+						<option value="low" selected?={ entity != nil && entity.Priority == "low" }>Low</option>
+						<option value="high" selected?={ entity != nil && entity.Priority == "high" }>High</option>
+						<option value="critical" selected?={ entity != nil && entity.Priority == "critical" }>Critical</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label>
+						<input type="checkbox" name="is_live" value="true" checked?={ entity != nil && entity.IsLive }/>
+						Is Live (Active Tracking)
+					</label>
+				</div>
+
+				<fieldset class="form-group">
+					<legend>Position (Optional)</legend>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="latitude">Latitude</label>
+							<input type="number"
+								name="latitude"
+								id="latitude"
+								step="0.000001"
+								min="-90"
+								max="90"
+								if entity != nil && entity.Latitude != nil {
+									value={ fmt.Sprintf("%f", *entity.Latitude) }
+								}
+								placeholder="e.g., 37.7749"/>
+							<small>Range: -90 to 90</small>
+						</div>
+						<div class="form-group">
+							<label for="longitude">Longitude</label>
+							<input type="number"
+								name="longitude"
+								id="longitude"
+								step="0.000001"
+								min="-180"
+								max="180"
+								if entity != nil && entity.Longitude != nil {
+									value={ fmt.Sprintf("%f", *entity.Longitude) }
+								}
+								placeholder="e.g., -122.4194"/>
+							<small>Range: -180 to 180</small>
+						</div>
+					</div>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="altitude">Altitude (meters MSL)</label>
+							<input type="number"
+								name="altitude"
+								id="altitude"
+								step="0.1"
+								if entity != nil && entity.Altitude != nil {
+									value={ fmt.Sprintf("%f", *entity.Altitude) }
+								}
+								placeholder="e.g., 100"/>
+							<small>Meters above mean sea level</small>
+						</div>
+						<div class="form-group">
+							<label for="heading">Heading (degrees)</label>
+							<input type="number"
+								name="heading"
+								id="heading"
+								step="0.1"
+								min="0"
+								max="360"
+								if entity != nil && entity.Heading != nil {
+									value={ fmt.Sprintf("%f", *entity.Heading) }
+								}
+								placeholder="e.g., 270"/>
+							<small>0-360 (clockwise from north)</small>
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="velocity">Velocity (m/s)</label>
+						<input type="number"
+							name="velocity"
+							id="velocity"
+							step="0.1"
+							min="0"
+							if entity != nil && entity.Velocity != nil {
+								value={ fmt.Sprintf("%f", *entity.Velocity) }
+							}
+							placeholder="e.g., 15.5"/>
+						<small>Meters per second</small>
+					</div>
+				</fieldset>
+
+				<div class="form-actions">
+					<button type="submit" class="action-btn primary" data-attr:disabled="$_submitting">
+						<span data-show="!$_submitting">
+							if isEdit {
+								Update Entity
+							} else {
+								Create Entity
+							}
+						</span>
+						<span data-show="$_submitting">Saving...</span>
+					</button>
+					<button type="button" class="action-btn" data-on:click="this.closest('#entity-form-modal').innerHTML=''">
+						Cancel
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}
+
+templ OrganizationForm() {
+	<div class="modal-backdrop" data-on:click__outside="this.parentElement.innerHTML=''">
+		<div class="modal" data-on:click__stop="">
+			<div class="modal-header">
+				<h2>New Organization</h2>
+				<button class="close-btn" data-on:click="this.closest('#org-form-modal').innerHTML=''">&times;</button>
+			</div>
+			<form class="entity-form"
+				data-signals="{_submitting: false}"
+				data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
+				data-indicator:_submitting>
+
+				<div class="form-group">
+					<label for="name">Organization Name *</label>
+					<input type="text"
+						name="name"
+						id="name"
+						required
+						placeholder="e.g., Task Force Alpha"
+						maxlength="255"/>
+					<small>Unique identifier for your organization</small>
+				</div>
+
+				<div class="form-group">
+					<label for="org_type">Organization Type *</label>
+					<select name="org_type" id="org_type" required>
+						<option value="">Select Type</option>
+						<option value="military">Military</option>
+						<option value="civilian">Civilian</option>
+						<option value="commercial">Commercial</option>
+						<option value="ngo">NGO (Non-Governmental Organization)</option>
+					</select>
+					<small>Defines the organizational classification</small>
+				</div>
+
+				<div class="form-group">
+					<label for="description">Description (Optional)</label>
+					<textarea
+						name="description"
+						id="description"
+						rows="3"
+						placeholder="Brief description of the organization's purpose or mission"
+						maxlength="500"></textarea>
+					<small>Maximum 500 characters</small>
+				</div>
+
+				<div class="form-actions">
+					<button type="submit" class="action-btn primary" data-attr:disabled="$_submitting">
+						<span data-show="!$_submitting">Create Organization</span>
+						<span data-show="$_submitting">Creating...</span>
+					</button>
+					<button type="button" class="action-btn" data-on:click="this.closest('#org-form-modal').innerHTML=''">
+						Cancel
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}

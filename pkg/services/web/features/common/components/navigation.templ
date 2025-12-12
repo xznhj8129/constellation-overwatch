@@ -1,34 +1,63 @@
 package components
 
+import "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/icons"
+
 templ Navigation(activeTab string) {
 	<nav class="side-nav">
+		<div class="nav-brand">
+			<span class="brand-text">C5</span>
+			<span class="brand-subtitle">Overwatch</span>
+		</div>
 		<div id="nav-content">
 			<a href="/organizations" class={ "nav-button", templ.KV("active", activeTab == "entities") }>
-				<span class="nav-icon">⎔</span>
+				<span class="nav-icon">
+					@icons.Building2()
+				</span>
 				<span>Organizations</span>
 			</a>
 			<a href="/fleet" class={ "nav-button", templ.KV("active", activeTab == "fleet") }>
-				<span class="nav-icon">✈</span>
+				<span class="nav-icon">
+					@icons.Plane()
+				</span>
 				<span>Fleet</span>
 			</a>
 			<a href="/streams" class={ "nav-button", templ.KV("active", activeTab == "streams") }>
-				<span class="nav-icon">◈</span>
-				<span>Stream Monitor</span>
+				<span class="nav-icon">
+					@icons.Activity()
+				</span>
+				<span>Streams</span>
 			</a>
 			<a href="/overwatch" class={ "nav-button", templ.KV("active", activeTab == "overwatch") }>
-				<span class="nav-icon">◉</span>
+				<span class="nav-icon">
+					@icons.Radar()
+				</span>
 				<span>Overwatch</span>
 			</a>
 			<a href="/video" class={ "nav-button", templ.KV("active", activeTab == "video") }>
-				<span class="nav-icon">▶</span>
+				<span class="nav-icon">
+					@icons.Video()
+				</span>
 				<span>Video</span>
 			</a>
 			<div class="nav-footer">
 				<a href="/docs" target="_blank" rel="noopener noreferrer" class="nav-docs-link">
-					<span class="nav-icon">📖</span>
+					<span class="nav-icon">
+						@icons.BookOpen()
+					</span>
 					<span>Docs</span>
 				</a>
-				<div class="nav-status">READY</div>
+				<form action="/logout" method="POST" class="logout-form">
+					<button type="submit" class="nav-logout-btn">
+						<span class="nav-icon">
+							@icons.LogOut()
+						</span>
+						<span>Logout</span>
+					</button>
+				</form>
+				<div class="nav-status">
+					<span class="status-dot"></span>
+					<span>READY</span>
+				</div>
 			</div>
 		</div>
 	</nav>

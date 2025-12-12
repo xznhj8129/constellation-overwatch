@@ -11,7 +11,8 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	fleet_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/components"
+	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
 )
 
 type DatastarHandler struct {
@@ -40,7 +41,7 @@ func (h *DatastarHandler) HandleAPIOrganizations(w http.ResponseWriter, r *http.
 		// If this is a Datastar request, return SSE format
 		if r.Header.Get("Accept") == "text/event-stream" {
 			sse := datastar.NewServerSentEventGenerator(w, r)
-			component := templates.OrganizationsTable(orgs, "")
+			component := org_components.OrganizationsTable(orgs, "")
 			err := sse.PatchComponent(r.Context(), component,
 				datastar.WithSelector("#org-table"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
@@ -94,7 +95,7 @@ func (h *DatastarHandler) HandleAPIOrganizations(w http.ResponseWriter, r *http.
 
 		// Insert the new organization row before the form row
 		logger.Infow("[API] Rendering organization row component")
-		component := templates.OrganizationRow(*org, org.OrgID)
+		component := org_components.OrganizationRow(*org, org.OrgID)
 
 		logger.Infow("[API] Patching component with selector '#new-org-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
@@ -193,7 +194,7 @@ func (h *DatastarHandler) HandleAPIOrganizationUpdate(w http.ResponseWriter, r *
 
 	// Return the updated row via SSE using Morph mode for intelligent DOM diffing
 	sse := datastar.NewServerSentEventGenerator(w, r)
-	component := templates.OrganizationRow(*org, "")
+	component := org_components.OrganizationRow(*org, "")
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
@@ -255,7 +256,7 @@ func (h *DatastarHandler) HandleAPIOrganization(w http.ResponseWriter, r *http.R
 
 		// Return the updated row via SSE using Morph mode for intelligent DOM diffing
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.OrganizationRow(*org, "")
+		component := org_components.OrganizationRow(*org, "")
 		if err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#org-row-"+orgID),
 			datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
@@ -324,7 +325,7 @@ func (h *DatastarHandler) HandleOrganizationEdit(w http.ResponseWriter, r *http.
 
 	// Return the edit row component via SSE using Replace mode to force re-initialization of event listeners
 	sse := datastar.NewServerSentEventGenerator(w, r)
-	component := templates.OrganizationEditRow(*org)
+	component := org_components.OrganizationEditRow(*org)
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
@@ -352,7 +353,7 @@ func (h *DatastarHandler) HandleOrganizationCancel(w http.ResponseWriter, r *htt
 
 	// Return the normal row component via SSE using Morph mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
-	component := templates.OrganizationRow(*org, "")
+	component := org_components.OrganizationRow(*org, "")
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#org-row-"+orgID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
@@ -386,7 +387,7 @@ func (h *DatastarHandler) HandleAPIEntities(w http.ResponseWriter, r *http.Reque
 		// If this is a Datastar request, return SSE format
 		if r.Header.Get("Accept") == "text/event-stream" {
 			sse := datastar.NewServerSentEventGenerator(w, r)
-			component := templates.EntitiesTable(orgID, entities)
+			component := org_components.EntitiesTable(orgID, entities)
 			err := sse.PatchComponent(r.Context(), component,
 				datastar.WithSelector("#entities-content"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
@@ -465,7 +466,7 @@ func (h *DatastarHandler) HandleAPIEntities(w http.ResponseWriter, r *http.Reque
 		// If Datastar, return SSE format with new row
 		if r.Header.Get("Accept") == "text/event-stream" {
 			sse := datastar.NewServerSentEventGenerator(w, r)
-			component := templates.EntityRow(orgID, *entity)
+			component := org_components.EntityRow(orgID, *entity)
 			err := sse.PatchComponent(r.Context(), component,
 				datastar.WithSelector("#entity-table tbody"),
 				datastar.WithMode(datastar.ElementPatchModeAppend))
@@ -570,7 +571,7 @@ func (h *DatastarHandler) HandleAPIEntity(w http.ResponseWriter, r *http.Request
 		// If Datastar, return the updated row
 		if r.Header.Get("Accept") == "text/event-stream" {
 			sse := datastar.NewServerSentEventGenerator(w, r)
-			component := templates.EntityRow(orgID, *entity)
+			component := org_components.EntityRow(orgID, *entity)
 			err := sse.PatchComponent(r.Context(), component,
 				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
 				datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -636,7 +637,7 @@ func (h *DatastarHandler) HandleAPIFleet(w http.ResponseWriter, r *http.Request)
 		// If this is a Datastar request, return SSE format
 		if r.Header.Get("Accept") == "text/event-stream" {
 			sse := datastar.NewServerSentEventGenerator(w, r)
-			component := templates.FleetTable(orgs, entities)
+			component := fleet_components.FleetTable(orgs, entities)
 			err := sse.PatchComponent(r.Context(), component,
 				datastar.WithSelector("#fleet-table"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
@@ -726,7 +727,7 @@ func (h *DatastarHandler) HandleAPIFleet(w http.ResponseWriter, r *http.Request)
 
 		// Insert the new fleet row before the form row
 		logger.Infow("[FLEET-API] Rendering fleet row component")
-		component := templates.FleetRow(orgs, *entity)
+		component := fleet_components.FleetRow(orgs, *entity)
 
 		logger.Infow("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
@@ -825,7 +826,7 @@ func (h *DatastarHandler) HandleAPIFleetUpdate(w http.ResponseWriter, r *http.Re
 
 	// Return the updated row via SSE using Morph mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
-	component := templates.FleetRow(orgs, *entity)
+	component := fleet_components.FleetRow(orgs, *entity)
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
@@ -947,7 +948,7 @@ func (h *DatastarHandler) HandleFleetEdit(w http.ResponseWriter, r *http.Request
 
 	// Return the edit row component via SSE using Replace mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
-	component := templates.FleetEditRow(orgs, *entity)
+	component := fleet_components.FleetEditRow(orgs, *entity)
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
@@ -991,7 +992,7 @@ func (h *DatastarHandler) HandleFleetCancel(w http.ResponseWriter, r *http.Reque
 
 	// Return the normal row component via SSE using Morph mode
 	sse := datastar.NewServerSentEventGenerator(w, r)
-	component := templates.FleetRow(orgs, *entity)
+	component := fleet_components.FleetRow(orgs, *entity)
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {

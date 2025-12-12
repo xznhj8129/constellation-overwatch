@@ -1,0 +1,85 @@
+package pages
+
+import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
+)
+
+templ DocsPage() {
+	@layouts.Base("API Documentation") {
+		@components.Navigation("docs") {
+			<div class="panel" style="height: calc(100vh - 100px); padding: 0; overflow: hidden;">
+				<script src="/static/lib/redoc.standalone.js"></script>
+				<redoc></redoc>
+				<script>
+					// Initialize Redoc
+					Redoc.init('/api/openapi.json', {
+						scrollYOffset: 50,
+						theme: {
+							colors: {
+								primary: {
+									main: '#00d4ff'
+								},
+								success: {
+									main: '#4caf50'
+								},
+								warning: {
+									main: '#ff9800'
+								},
+								error: {
+									main: '#f44336'
+								},
+								text: {
+									primary: '#00d4ff',
+									secondary: '#ffd60a'
+								},
+								http: {
+									get: '#2ecc71',
+									post: '#f39c12',
+									put: '#9b59b6',
+									delete: '#e74c3c'
+								}
+							},
+							typography: {
+								fontFamily: "'Orbitron', monospace",
+								headings: {
+									fontFamily: "'Orbitron', monospace",
+									fontWeight: "900"
+								},
+								code: {
+									fontFamily: "'Courier New', monospace",
+									color: '#ffd60a'
+								}
+							},
+							sidebar: {
+								backgroundColor: '#001d3d',
+								textColor: '#00d4ff',
+								activeTextColor: '#ffd60a'
+							},
+							rightPanel: {
+								backgroundColor: '#001d3d',
+								textColor: '#ffffff',
+								servers: {
+									overlay: {
+										backgroundColor: '#003566',
+										textColor: '#ffffff'
+									},
+									url: {
+										backgroundColor: '#000814'
+									}
+								}
+							},
+							codeBlock: {
+								backgroundColor: '#000814'
+							},
+							fab: {
+								backgroundColor: '#00d4ff',
+								color: '#000814'
+							}
+						}
+					}, document.querySelector('redoc'));
+				</script>
+			</div>
+		}
+	}
+}

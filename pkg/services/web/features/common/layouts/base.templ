@@ -6,32 +6,42 @@ templ Base(title string) {
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>{ title } - Constellation Overwatch</title>
+			<title>{ title } - C5 Overwatch</title>
 			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
 			<link rel="stylesheet" href="/static/css/style.css"/>
 			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
 		</head>
 		<body>
-			<div class="container">
-				<header class="header">
-					<img src="/static/images/favicon.svg" alt="Constellation Overwatch"/>
-					<div class="subtitle">Edge Awareness Kit</div>
-					<div class="status-bar">
-						<span class="status-item">SYSTEM: ONLINE</span>
-						<span class="status-item">🦅🐉</span>
-						<span class="status-item">TIME: <span id="time">--:--:--</span></span>
-					</div>
-				</header>
+			<div class="app-container">
 				<div class="main-layout">
 					{ children... }
 				</div>
 			</div>
-			<script>
-				// Update time
-				setInterval(() => {
-					document.getElementById('time').textContent = new Date().toLocaleTimeString();
-				}, 1000);
-			</script>
+		</body>
+	</html>
+}
+
+// BaseWithStyles allows injecting additional stylesheets
+templ BaseWithStyles(title string, styles []string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - C5 Overwatch</title>
+			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+			for _, style := range styles {
+				<link rel="stylesheet" href={ style }/>
+			}
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
+		</head>
+		<body>
+			<div class="app-container">
+				<div class="main-layout">
+					{ children... }
+				</div>
+			</div>
 		</body>
 	</html>
 }

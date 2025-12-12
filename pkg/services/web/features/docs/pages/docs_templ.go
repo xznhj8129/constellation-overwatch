@@ -11,10 +11,9 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
-	overwatch "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/components"
 )
 
-func OverwatchPage() templ.Component {
+func DocsPage() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -59,27 +58,19 @@ func OverwatchPage() templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = overwatch.OverwatchPanel().Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"panel\" style=\"height: calc(100vh - 100px); padding: 0; overflow: hidden;\"><script src=\"/static/lib/redoc.standalone.js\"></script><redoc></redoc><script>\n\t\t\t\t\t// Initialize Redoc\n\t\t\t\t\tRedoc.init('/api/openapi.json', {\n\t\t\t\t\t\tscrollYOffset: 50,\n\t\t\t\t\t\ttheme: {\n\t\t\t\t\t\t\tcolors: {\n\t\t\t\t\t\t\t\tprimary: {\n\t\t\t\t\t\t\t\t\tmain: '#00d4ff'\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tsuccess: {\n\t\t\t\t\t\t\t\t\tmain: '#4caf50'\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\twarning: {\n\t\t\t\t\t\t\t\t\tmain: '#ff9800'\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\terror: {\n\t\t\t\t\t\t\t\t\tmain: '#f44336'\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\ttext: {\n\t\t\t\t\t\t\t\t\tprimary: '#00d4ff',\n\t\t\t\t\t\t\t\t\tsecondary: '#ffd60a'\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\thttp: {\n\t\t\t\t\t\t\t\t\tget: '#2ecc71',\n\t\t\t\t\t\t\t\t\tpost: '#f39c12',\n\t\t\t\t\t\t\t\t\tput: '#9b59b6',\n\t\t\t\t\t\t\t\t\tdelete: '#e74c3c'\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\ttypography: {\n\t\t\t\t\t\t\t\tfontFamily: \"'Orbitron', monospace\",\n\t\t\t\t\t\t\t\theadings: {\n\t\t\t\t\t\t\t\t\tfontFamily: \"'Orbitron', monospace\",\n\t\t\t\t\t\t\t\t\tfontWeight: \"900\"\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tcode: {\n\t\t\t\t\t\t\t\t\tfontFamily: \"'Courier New', monospace\",\n\t\t\t\t\t\t\t\t\tcolor: '#ffd60a'\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tsidebar: {\n\t\t\t\t\t\t\t\tbackgroundColor: '#001d3d',\n\t\t\t\t\t\t\t\ttextColor: '#00d4ff',\n\t\t\t\t\t\t\t\tactiveTextColor: '#ffd60a'\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\trightPanel: {\n\t\t\t\t\t\t\t\tbackgroundColor: '#001d3d',\n\t\t\t\t\t\t\t\ttextColor: '#ffffff',\n\t\t\t\t\t\t\t\tservers: {\n\t\t\t\t\t\t\t\t\toverlay: {\n\t\t\t\t\t\t\t\t\t\tbackgroundColor: '#003566',\n\t\t\t\t\t\t\t\t\t\ttextColor: '#ffffff'\n\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\turl: {\n\t\t\t\t\t\t\t\t\t\tbackgroundColor: '#000814'\n\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tcodeBlock: {\n\t\t\t\t\t\t\t\tbackgroundColor: '#000814'\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tfab: {\n\t\t\t\t\t\t\t\tbackgroundColor: '#00d4ff',\n\t\t\t\t\t\t\t\tcolor: '#000814'\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}, document.querySelector('redoc'));\n\t\t\t\t</script></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Navigation("overwatch").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Navigation("docs").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.BaseWithStyles("Overwatch", []string{"/static/css/overwatch.css"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base("API Documentation").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
