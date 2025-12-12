@@ -16,7 +16,8 @@ templ MapPanel() {
 			selectedEntityId: '',
 			showLabels: true,
 			showTrails: false,
-			mapStyle: 'dark'
+			mapStyle: 'dark',
+			sidebarCollapsed: false
 		}"
 		data-init="@get('/api/overwatch/kv/watch')">
 		<div class="panel-header">
@@ -47,14 +48,19 @@ templ MapPanel() {
 					<p>Initializing map...</p>
 				</div>
 			</div>
-			<div class="map-sidebar">
-				<div class="sidebar-header">
-					<h3>Entities</h3>
-				</div>
-				<div id="entity-list" class="entity-list">
+			<div class="map-sidebar" data-class="{'collapsed': $sidebarCollapsed}">
+				<button class="sidebar-toggle" data-on:click="$sidebarCollapsed = !$sidebarCollapsed" title="Toggle Entities Panel">
+					@SidebarToggleIcon()
+				</button>
+				<div class="sidebar-content">
+					<div class="sidebar-header">
+						<h3>Entities</h3>
+					</div>
+					<div id="entity-list" class="entity-list">
 					<!-- Entity list will be populated via SSE signals -->
-					<div class="empty-state" data-show="$totalEntities === 0">
-						<p>No entities with position data</p>
+						<div class="empty-state" data-show="$totalEntities === 0">
+							<p>No entities with position data</p>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -702,4 +708,11 @@ templ EntityTypeIcon(entityType string) {
 			<circle cx="12" cy="12" r="3"></circle>
 		</svg>
 	}
+}
+
+// SidebarToggleIcon is a chevron icon for toggling the sidebar
+templ SidebarToggleIcon() {
+	<svg class="toggle-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<polyline points="9 18 15 12 9 6"></polyline>
+	</svg>
 }
