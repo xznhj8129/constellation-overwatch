@@ -8,6 +8,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	overwatch_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/pages"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
 )
 
@@ -138,7 +139,7 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.OverwatchPage()
+		component := overwatch_pages.OverwatchPage()
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -148,7 +149,7 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	component := templates.OverwatchPage()
+	component := overwatch_pages.OverwatchPage()
 	component.Render(r.Context(), w)
 }
 

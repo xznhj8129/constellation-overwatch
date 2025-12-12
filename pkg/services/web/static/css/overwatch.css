@@ -1,0 +1,414 @@
+/* ============================================ */
+/* OVERWATCH PAGE STYLES */
+/* ============================================ */
+
+.overwatch-content {
+    padding: 16px 0;
+}
+
+/* Organization Sections */
+.org-section {
+    margin-bottom: 28px;
+    animation: fadeIn 0.5s ease;
+}
+
+.org-header {
+    color: var(--text-secondary);
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.org-header::before {
+    content: '';
+    width: 5px;
+    height: 24px;
+    background: linear-gradient(180deg, var(--text-primary), var(--text-secondary));
+    border-radius: 3px;
+}
+
+/* Entity Cards Grid */
+.entities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+    padding: 0 4px;
+}
+
+.entity-card {
+    background: rgba(0, 29, 61, 0.4);
+    border: 2px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    animation: slideIn 0.4s ease;
+}
+
+.entity-card:hover {
+    border-color: var(--text-primary);
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+    transform: translateY(-4px);
+}
+
+.entity-card-inner {
+    padding: 12px;
+}
+
+/* Entity Header */
+.entity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.entity-id {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'Courier New', monospace;
+}
+
+.entity-type {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Status Row */
+.entity-status-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border: 1px solid;
+}
+
+.badge-active {
+    background: rgba(76, 175, 80, 0.2);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.badge-inactive {
+    background: rgba(244, 67, 54, 0.2);
+    border-color: var(--error);
+    color: var(--error);
+}
+
+.badge-unknown {
+    background: rgba(255, 152, 0, 0.2);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.badge-priority-critical {
+    background: rgba(244, 67, 54, 0.2);
+    border-color: var(--error);
+    color: var(--error);
+    animation: pulse 2s infinite;
+}
+
+.badge-priority-high {
+    background: rgba(255, 152, 0, 0.2);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.badge-priority-normal {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+}
+
+.badge-priority-low {
+    background: rgba(0, 212, 255, 0.05);
+    border-color: rgba(0, 212, 255, 0.4);
+    color: rgba(0, 212, 255, 0.7);
+}
+
+.badge-live {
+    background: rgba(76, 175, 80, 0.3);
+    border-color: var(--success);
+    color: var(--success);
+    animation: pulse 2s infinite;
+}
+
+.badge-offline {
+    background: rgba(128, 128, 128, 0.2);
+    border-color: rgba(128, 128, 128, 0.5);
+    color: rgba(128, 128, 128, 0.8);
+}
+
+/* Entity Sections */
+.entity-section {
+    margin-bottom: 12px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    border-left: 3px solid rgba(0, 212, 255, 0.3);
+}
+
+.entity-section h4 {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.entity-section .data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.data-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.data-item .label {
+    font-size: 0.75rem;
+    color: rgba(0, 212, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.data-item .value {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+}
+
+/* Entity Footer */
+.entity-footer {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 212, 255, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.entity-footer .timestamp {
+    font-size: 0.8rem;
+    color: rgba(0, 212, 255, 0.6);
+    font-family: 'Courier New', monospace;
+}
+
+/* Connection Status */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    padding: 6px 12px;
+    background: rgba(0, 29, 61, 0.4);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 20px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-dot.connected {
+    background: var(--success);
+    box-shadow: 0 0 10px var(--success);
+}
+
+.status-dot.disconnected {
+    background: var(--error);
+    box-shadow: 0 0 10px var(--error);
+}
+
+.last-update {
+    font-size: 0.85rem;
+    color: rgba(0, 212, 255, 0.8);
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 20px;
+}
+
+/* KV Table (fallback display) */
+.kv-monitor {
+    width: 100%;
+}
+
+.kv-key {
+    font-family: 'Courier New', monospace;
+    color: var(--text-secondary);
+}
+
+.kv-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
+.kv-value pre {
+    margin: 0;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow: auto;
+}
+
+.kv-revision {
+    color: rgba(0, 212, 255, 0.6);
+    font-size: 0.9rem;
+}
+
+/* Enhanced Responsive Design */
+@media (min-width: 1920px) {
+    .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 18px;
+    }
+}
+
+@media (max-width: 1400px) {
+    .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 14px;
+    }
+
+    .content-area {
+        padding: 14px;
+    }
+
+    .org-section {
+        margin-bottom: 24px;
+    }
+
+    .org-header {
+        margin-bottom: 14px;
+        font-size: 1.3rem;
+    }
+
+    .overwatch-content {
+        padding: 14px 0;
+    }
+}
+
+@media (max-width: 1024px) {
+    .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+    }
+
+    .content-area {
+        padding: 12px;
+    }
+
+    .org-section {
+        margin-bottom: 20px;
+    }
+
+    .org-header {
+        margin-bottom: 12px;
+        font-size: 1.2rem;
+        gap: 10px;
+    }
+
+    .overwatch-content {
+        padding: 12px 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .entities-grid {
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 10px;
+        padding: 0 2px;
+    }
+
+    .entity-section .data-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 6px;
+    }
+
+    .content-area {
+        padding: 10px;
+    }
+
+    .org-section {
+        margin-bottom: 18px;
+    }
+
+    .org-header {
+        margin-bottom: 10px;
+        font-size: 1.1rem;
+        gap: 8px;
+    }
+
+    .org-header::before {
+        width: 4px;
+        height: 20px;
+    }
+
+    .overwatch-content {
+        padding: 10px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .entities-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 0;
+    }
+
+    .entity-section .data-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .content-area {
+        padding: 8px;
+    }
+
+    .org-section {
+        margin-bottom: 16px;
+    }
+
+    .org-header {
+        margin-bottom: 8px;
+        font-size: 1rem;
+        gap: 6px;
+    }
+
+    .org-header::before {
+        width: 3px;
+        height: 18px;
+    }
+
+    .overwatch-content {
+        padding: 8px 0;
+    }
+}

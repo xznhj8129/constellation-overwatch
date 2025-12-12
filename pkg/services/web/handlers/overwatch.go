@@ -14,7 +14,7 @@ import (
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	overwatch "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
@@ -55,7 +55,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	}
 
 	// Fetch all entries
-	var kvEntries []templates.KVEntry
+	var kvEntries []overwatch.KVEntry
 	for _, key := range keys {
 		entry, err := kv.Get(key)
 		if err != nil {
@@ -63,7 +63,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 			continue
 		}
 
-		kvEntries = append(kvEntries, templates.KVEntry{
+		kvEntries = append(kvEntries, overwatch.KVEntry{
 			Key:      key,
 			Value:    string(entry.Value()),
 			Revision: fmt.Sprintf("%d", entry.Revision()),
@@ -74,7 +74,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.KVStateTable(kvEntries)
+		component := overwatch.KVStateTable(kvEntries)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#kv-content"),
 			datastar.WithMode(datastar.ElementPatchModeInner))
@@ -414,7 +414,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 	for _, entityState := range snapshot {
 		// Render card
 		var cardHTML strings.Builder
-		if err := templates.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
+		if err := overwatch.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
 			logger.Errorw("Error rendering entity card", "error", err)
 			continue
 		}

@@ -1,0 +1,18 @@
+package pages
+
+import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	overwatch "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/components"
+)
+
+templ OverwatchPage() {
+	@layouts.Base("Overwatch") {
+		@components.Navigation("overwatch") {
+			<link rel="stylesheet" href="/static/css/overwatch.css"/>
+			<div class="tab-content">
+				@overwatch.OverwatchPanel()
+			</div>
+		}
+	}
+}

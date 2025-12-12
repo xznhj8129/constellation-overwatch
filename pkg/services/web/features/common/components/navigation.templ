@@ -1,0 +1,38 @@
+package components
+
+templ Navigation(activeTab string) {
+	<nav class="side-nav">
+		<div id="nav-content">
+			<a href="/organizations" class={ "nav-button", templ.KV("active", activeTab == "entities") }>
+				<span class="nav-icon">⎔</span>
+				<span>Organizations</span>
+			</a>
+			<a href="/fleet" class={ "nav-button", templ.KV("active", activeTab == "fleet") }>
+				<span class="nav-icon">✈</span>
+				<span>Fleet</span>
+			</a>
+			<a href="/streams" class={ "nav-button", templ.KV("active", activeTab == "streams") }>
+				<span class="nav-icon">◈</span>
+				<span>Stream Monitor</span>
+			</a>
+			<a href="/overwatch" class={ "nav-button", templ.KV("active", activeTab == "overwatch") }>
+				<span class="nav-icon">◉</span>
+				<span>Overwatch</span>
+			</a>
+			<a href="/video" class={ "nav-button", templ.KV("active", activeTab == "video") }>
+				<span class="nav-icon">▶</span>
+				<span>Video</span>
+			</a>
+			<div class="nav-footer">
+				<a href="/docs" target="_blank" rel="noopener noreferrer" class="nav-docs-link">
+					<span class="nav-icon">📖</span>
+					<span>Docs</span>
+				</a>
+				<div class="nav-status">READY</div>
+			</div>
+		</div>
+	</nav>
+	<main class="content-area">
+		{ children... }
+	</main>
+}
