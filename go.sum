@@ -1,5 +1,7 @@
 github.com/CAFxX/httpcompression v0.0.9 h1:0ue2X8dOLEpxTm8tt+OdHcgA+gbDge0OqFQWGKSqgrg=
 github.com/CAFxX/httpcompression v0.0.9/go.mod h1:XX8oPZA+4IDcfZ0A71Hz0mZsv/YJOgYygkFhizVPilM=
+github.com/Oudwins/tailwind-merge-go v0.2.1 h1:jxRaEqGtwwwF48UuFIQ8g8XT7YSualNuGzCvQ89nPFE=
+github.com/Oudwins/tailwind-merge-go v0.2.1/go.mod h1:kkZodgOPvZQ8f7SIrlWkG/w1g9JTbtnptnePIh3V72U=
 github.com/a-h/templ v0.3.960 h1:trshEpGa8clF5cdI39iY4ZrZG8Z/QixyzEyUnA7feTM=
 github.com/a-h/templ v0.3.960/go.mod h1:oCZcnKRf5jjsGpf2yELzQfodLphd2mwecwG4Crk5HBo=
 github.com/andybalholm/brotli v1.0.5/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=

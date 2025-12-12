@@ -151,13 +151,14 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// This allows us to reconstruct a single entity's state without fetching everything
 	localEntityCache := make(map[string]map[string][]byte)
 
-	// Track known entities and orgs to determine patch strategy
-	knownEntities := make(map[string]bool)
+	// Track known entities (ID -> OrgID) to handle cleanup
+	knownEntities := make(map[string]string)
 	knownOrgs := make(map[string]bool)
 
 	// Struct to pass data to renderer
 	type RenderPayload struct {
 		Snapshot      []shared.EntityState
+		RemovedIDs    []string
 		TotalEntities int
 	}
 
@@ -254,7 +255,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				}
 
 				// Render and Flush
-				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.TotalEntities, knownEntities, knownOrgs, viewMode)
+				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode)
 			}
 		}
 	}()
@@ -299,11 +300,14 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		case <-flushTicker.C:
 			// Periodic flush of dirty entities
 			if len(dirtyEntities) > 0 {
-				// Create snapshot
+				// Create snapshot and track removals
 				var snapshot []shared.EntityState
+				var removedIDs []string
+
 				for entityID := range dirtyEntities {
 					entityData, exists := localEntityCache[entityID]
 					if !exists {
+						removedIDs = append(removedIDs, entityID)
 						continue
 					}
 					// Reconstruct state (fast, just map lookups and struct creation)
@@ -314,6 +318,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				// Try to send to renderer (non-blocking)
 				payload := RenderPayload{
 					Snapshot:      snapshot,
+					RemovedIDs:    removedIDs,
 					TotalEntities: len(localEntityCache),
 				}
 
@@ -403,7 +408,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 }
 
 // Helper to render and flush a snapshot
-func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, totalEntities int, knownEntities map[string]bool, knownOrgs map[string]bool, viewMode string) {
+func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, removedIDs []string, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string) {
 	// Check if flusher is nil to prevent panic
 	if flusher == nil {
 		logger.Debugw("Flusher is nil, connection likely closed, skipping render")
@@ -452,7 +457,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			containerSelector = "#entities-container"
 		}
 
-		if !knownEntities[entityID] {
+		if _, exists := knownEntities[entityID]; !exists {
 			// New entity
 			// Handle Org Headers only for Overwatch Dashboard
 			if viewMode != "map" && !knownOrgs[entityState.OrgID] {
@@ -495,7 +500,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 
 			patchMode = datastar.ElementPatchModeAppend
 			selector = containerSelector
-			knownEntities[entityID] = true
+			knownEntities[entityID] = entityState.OrgID
 		} else {
 			patchMode = datastar.ElementPatchModeMorph
 			if viewMode == "map" {
@@ -503,6 +508,8 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			} else {
 				selector = fmt.Sprintf("#entity-%s", entityID)
 			}
+			// Update known org just in case it changed (unlikely but possible)
+			knownEntities[entityID] = entityState.OrgID
 		}
 
 		// Patch Element
@@ -520,6 +527,36 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		}
 
 		updatesSent++
+	}
+
+	// Process Removed IDs
+	for _, entityID := range removedIDs {
+		// Only remove if we knew about it
+		if orgID, known := knownEntities[entityID]; known {
+			logger.Infow("[Overwatch] Removing entity", "entity_id", entityID)
+
+			// Remove from DOM
+			var selector string
+			if viewMode == "map" {
+				selector = fmt.Sprintf("#c5-entity-%s", entityID)
+			} else {
+				selector = fmt.Sprintf("#entity-%s", entityID)
+			}
+
+			if err := sse.PatchElements("", datastar.WithSelector(selector), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+				logger.Debugw("Failed to remove entity element", "error", err)
+			}
+
+			// Remove from Signal (set to null)
+			if err := sse.PatchSignals(map[string]interface{}{
+				fmt.Sprintf("entityStatesByOrg.%s.%s", orgID, entityID): nil,
+			}); err != nil {
+				logger.Debugw("Failed to update signal for removed entity", "error", err)
+			}
+
+			delete(knownEntities, entityID)
+			updatesSent++
+		}
 	}
 
 	if updatesSent > 0 {

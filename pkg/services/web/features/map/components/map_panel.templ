@@ -168,9 +168,9 @@ templ MapEntityListItem(entity shared.EntityState, isSelected bool) {
 // MapLibreScript contains the JavaScript for MapLibre GL JS initialization
 templ MapLibreScript() {
 	<!-- MapLibre GL JS CSS -->
-	<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
+	<link href="/static/lib/maplibre-gl.css" rel="stylesheet"/>
 	<!-- MapLibre GL JS -->
-	<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+	<script src="/static/lib/maplibre-gl.js"></script>
 	<script type="module">
 		// MapLibre Controller for entity visualization
 		class MapLibreController {
@@ -179,6 +179,8 @@ templ MapLibreScript() {
 				this.markers = new Map();
 				this.trails = new Map();
 				this.popups = new Map();
+				this.features = new Map(); // GeoJSON features for map layer
+				this.hasFitBounds = false; // Track if we've done initial fit
 				this.showLabels = true;
 				this.showTrails = false;
 				this.currentStyle = 'dark';
@@ -210,8 +212,50 @@ templ MapLibreScript() {
 				this.map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
 				// Wait for map to load
-				this.map.on('load', () => {
+				this.map.on('load', async () => {
 					console.log('[MapLibre] Map loaded');
+
+					// Add GeoJSON source for trackers
+					this.map.addSource('trackers', {
+						type: 'geojson',
+						data: { type: 'FeatureCollection', features: [] }
+					});
+
+					// Add Circle layer for trackers (native rendering, no images needed)
+					this.map.addLayer({
+						id: 'trackers-layer',
+						type: 'circle',
+						source: 'trackers',
+						paint: {
+							'circle-radius': 10,
+							'circle-color': '#00d4ff', // Cyan to match theme
+							'circle-stroke-width': 3,
+							'circle-stroke-color': '#ffffff',
+							'circle-opacity': 1
+						}
+					});
+
+					// Add Symbol layer for labels (separate layer)
+					this.map.addLayer({
+						id: 'trackers-labels',
+						type: 'symbol',
+						source: 'trackers',
+						layout: {
+							'text-field': this.showLabels ? ['get', 'name'] : '',
+							'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+							'text-size': 12,
+							'text-offset': [0, 1.2],
+							'text-anchor': 'top',
+							'text-optional': true
+						},
+						paint: {
+							'text-color': '#ffffff',
+							'text-halo-color': '#000000',
+							'text-halo-width': 1,
+							'text-opacity': ['get', 'opacity']
+						}
+					});
+
 					// Add trails source and layer
 					this.map.addSource('trails', {
 						type: 'geojson',
@@ -227,6 +271,36 @@ templ MapLibreScript() {
 							'line-width': 2,
 							'line-opacity': 0.6
 						}
+					});
+
+					// Add click event listener for trackers
+					this.map.on('click', 'trackers-layer', (e) => {
+						if (!e.features || e.features.length === 0) return;
+
+						const feature = e.features[0];
+						const entityId = feature.properties.entityId;
+						const coordinates = feature.geometry.coordinates.slice();
+
+						// Ensure that if the map is zoomed out such that multiple
+						// copies of the feature are visible, the popup appears over the one clicked.
+						while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+							coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+						}
+
+						const popup = this.popups.get(entityId);
+						if (popup) {
+							popup.setLngLat(coordinates).addTo(this.map);
+						}
+					});
+
+					// Change the cursor to a pointer when the mouse is over the trackers-layer.
+					this.map.on('mouseenter', 'trackers-layer', () => {
+						this.map.getCanvas().style.cursor = 'pointer';
+					});
+
+					// Change it back to a pointer when it leaves.
+					this.map.on('mouseleave', 'trackers-layer', () => {
+						this.map.getCanvas().style.cursor = '';
 					});
 				});
 
@@ -270,219 +344,129 @@ templ MapLibreScript() {
 			}
 
 			setupSignalWatcher() {
-				// Watch for signal changes from Datastar SSE
-				// The entityStatesByOrg signal is updated by the overwatch KV watch endpoint
-				const panel = document.getElementById('map-panel');
-				if (!panel) return;
-
-				// Use MutationObserver to detect attribute changes (Datastar updates data-signals)
-				const observer = new MutationObserver(() => {
-					this.processEntitySignals();
-				});
-
-				observer.observe(panel, {
-					attributes: true,
-					attributeFilter: ['data-signals'],
-					subtree: false
-				});
-
-				// Also poll for updates (signals may be patched without attribute change)
-				setInterval(() => this.processEntitySignals(), 500);
-			}
-
-			processEntitySignals() {
-				// Access Datastar signals via window.ds if available
-				if (!window.ds?.signals) return;
-
-				const entityStatesByOrg = window.ds.signals.entityStatesByOrg?.value;
-				if (!entityStatesByOrg || typeof entityStatesByOrg !== 'object') return;
-
-				const processedIds = new Set();
-
-				// Process each organization's entities
-				for (const [orgId, entities] of Object.entries(entityStatesByOrg)) {
-					if (!entities || typeof entities !== 'object') continue;
-
-					for (const [entityId, entity] of Object.entries(entities)) {
-						if (!entity) continue;
-						processedIds.add(entityId);
-						this.updateEntity(entityId, entity);
-					}
+				// Watch #entity-list for C5EntityCard elements being added/updated by SSE
+				const entityList = document.getElementById('entity-list');
+				if (!entityList) {
+					console.warn('[MapLibre] entity-list not found');
+					return;
 				}
 
-				// Remove markers for entities that no longer exist
-				for (const [entityId, marker] of this.markers) {
-					if (!processedIds.has(entityId)) {
+				// Debounce processing
+				let updateTimeout = null;
+				const processCards = () => {
+					if (updateTimeout) clearTimeout(updateTimeout);
+					updateTimeout = setTimeout(() => this.processEntityCards(), 100);
+				};
+
+				// Watch for DOM changes (Datastar patches elements here)
+				new MutationObserver(processCards).observe(entityList, {
+					childList: true,
+					subtree: true,
+					attributes: true,
+					attributeFilter: ['data-entity-id']
+				});
+
+				console.log('[MapLibre] Watching #entity-list for entity cards');
+			}
+
+			processEntityCards() {
+				// Find all C5EntityCard elements and extract entity data from data attributes
+				const cards = document.querySelectorAll('#entity-list .c5-entity-card[data-entity-id]');
+				console.log(`[MapLibre] Processing ${cards.length} entity cards`);
+
+				const currentIds = new Set();
+
+				cards.forEach(card => {
+					const entityId = card.dataset.entityId;
+					if (!entityId) return;
+					currentIds.add(entityId);
+
+					// Extract position from the card's stat-pill elements
+					const latEl = card.querySelector('.stat-pill .label')?.textContent === 'LAT'
+						? card.querySelector('.stat-pill .value') : null;
+					const lngEl = Array.from(card.querySelectorAll('.stat-pill')).find(p =>
+						p.querySelector('.label')?.textContent === 'LNG')?.querySelector('.value');
+
+					// Try to find lat/lng from the quick-stats section
+					const statPills = card.querySelectorAll('.quick-stats .stat-pill');
+					let lat = null, lng = null, name = null;
+
+					statPills.forEach(pill => {
+						const label = pill.querySelector('.label')?.textContent;
+						const value = pill.querySelector('.value')?.textContent;
+						if (label === 'LAT' && value) lat = parseFloat(value);
+						if (label === 'LNG' && value) lng = parseFloat(value);
+					});
+
+					// Get entity name
+					name = card.querySelector('.entity-name')?.textContent?.trim() || entityId;
+
+					if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+						console.log(`[MapLibre] Found entity ${entityId}: ${lat}, ${lng}`);
+						const feature = this.createFeatureFromCard(entityId, name, lat, lng);
+						if (feature) {
+							this.features.set(entityId, feature);
+						}
+					}
+				});
+
+				// Remove features for entities no longer in DOM
+				for (const entityId of this.features.keys()) {
+					if (!currentIds.has(entityId)) {
 						this.removeEntity(entityId);
 					}
 				}
 
-				// Update entity list in sidebar
-				this.updateEntityList(entityStatesByOrg);
+				console.log(`[MapLibre] Map features: ${this.features.size}`);
+				this.updateMapData();
+
+				// Auto-fit on first valid data
+				if (this.features.size > 0 && !this.hasFitBounds) {
+					this.fitBounds();
+					this.hasFitBounds = true;
+				}
 			}
 
-			updateEntity(entityId, entity) {
-				// Skip if no position data
-				if (!entity.position?.global?.latitude || !entity.position?.global?.longitude) {
-					return;
-				}
+			createFeatureFromCard(entityId, name, lat, lng) {
+				const feature = {
+					type: 'Feature',
+					geometry: { type: 'Point', coordinates: [lng, lat] },
+					properties: { entityId, name, isLive: true, opacity: 1 }
+				};
 
-				const lat = entity.position.global.latitude;
-				const lng = entity.position.global.longitude;
-				const heading = entity.vfr?.heading || 0;
-				const isLive = entity.is_live !== false;
-				const name = entity.name || entityId;
-
-				// Update or create marker
-				if (this.markers.has(entityId)) {
-					const marker = this.markers.get(entityId);
-					marker.setLngLat([lng, lat]);
-
-					// Update rotation
-					const el = marker.getElement();
-					if (el) {
-						el.style.transform = `rotate(${heading}deg)`;
-						const dot = el.querySelector('.marker-dot');
-						if (dot) dot.style.background = isLive ? '#4CAF50' : '#666';
-					}
-
-					// Update popup content
-					if (this.popups.has(entityId)) {
-						this.popups.get(entityId).setHTML(this.createPopupContent(entity));
-					}
-				} else {
-					// Create marker element
-					const el = document.createElement('div');
-					el.className = 'entity-marker';
-					el.innerHTML = `
-						<div class="marker-inner" style="border-color: ${isLive ? '#4CAF50' : '#666'}">
-							<div class="marker-dot" style="background: ${isLive ? '#4CAF50' : '#666'}"></div>
-						</div>
-					`;
-					el.style.transform = `rotate(${heading}deg)`;
-
-					// Create popup
-					const popup = new maplibregl.Popup({
-						offset: 25,
-						closeButton: true,
-						closeOnClick: false
-					}).setHTML(this.createPopupContent(entity));
-
-					// Create marker
-					const marker = new maplibregl.Marker({ element: el })
-						.setLngLat([lng, lat])
-						.setPopup(popup)
-						.addTo(this.map);
-
-					this.markers.set(entityId, marker);
+				// Create popup if not exists
+				if (!this.popups.has(entityId)) {
+					const popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false });
+					popup.setHTML(`<div style="padding:8px;"><strong>${name}</strong><br/>Lat: ${lat.toFixed(6)}<br/>Lng: ${lng.toFixed(6)}</div>`);
 					this.popups.set(entityId, popup);
-
-					// Add label if enabled
-					if (this.showLabels) {
-						this.addLabel(entityId, name, lng, lat);
-					}
 				}
 
-				// Update trail if enabled
-				if (this.showTrails) {
-					this.updateTrail(entityId, lng, lat);
-				}
+				return feature;
 			}
 
-			createPopupContent(entity) {
-				const pos = entity.position?.global;
-				const vfr = entity.vfr;
-				const power = entity.power;
-				const name = entity.name || entity.entity_id || 'Unknown';
-				const type = entity.entity_type || 'Unknown';
-				const status = entity.status || 'unknown';
-				const isLive = entity.is_live !== false;
-
-				// Status Badge Logic
-				const statusClass = status === 'active' ? 'active' : 'inactive';
-
-				let html = `
-					<div class="c5-entity-card" style="width: 100%; min-width: 250px; border: none; background: transparent; box-shadow: none;">
-						<div class="c5-card-header" style="background: rgba(0, 29, 61, 0.95); border: 1px solid rgba(0, 212, 255, 0.3);">
-							<div class="header-top">
-								<div class="entity-identity">
-									<div class="entity-name">${name}</div>
-									<div class="entity-type">${type}</div>
-								</div>
-								<div class="entity-status-badge">
-									<span class="status-dot ${statusClass}"></span>
-									<span class="status-text">${status}</span>
-								</div>
-							</div>
-				`;
-
-				if (pos) {
-					const lat = pos.latitude?.toFixed(6) || 'N/A';
-					const lng = pos.longitude?.toFixed(6) || 'N/A';
-					const alt = pos.altitude_msl?.toFixed(0) || '0';
-					
-					html += `
-						<div class="quick-stats">
-							<div class="stat-pill">
-								<span class="label">LAT</span>
-								<span class="value">${lat}</span>
-							</div>
-							<div class="stat-pill">
-								<span class="label">LNG</span>
-								<span class="value">${lng}</span>
-							</div>
-							<div class="stat-pill">
-								<span class="label">ALT</span>
-								<span class="value">${alt}m</span>
-							</div>
-						</div>
-					`;
-				}
-
-				if (vfr) {
-					const hdg = vfr.heading?.toFixed(0) || '0';
-					const spd = vfr.groundspeed?.toFixed(1) || '0.0';
-					html += `
-						<div class="quick-stats" style="margin-top: 4px;">
-							<div class="stat-pill">
-								<span class="label">HDG</span>
-								<span class="value">${hdg}°</span>
-							</div>
-							<div class="stat-pill">
-								<span class="label">SPD</span>
-								<span class="value">${spd} m/s</span>
-							</div>
-						</div>
-					`;
-				}
-				
-				html += '</div></div>';
-				return html;
-			}
-
-			addLabel(entityId, name, lng, lat) {
-				// Labels are handled via CSS on the marker element for simplicity
-				const marker = this.markers.get(entityId);
-				if (marker) {
-					const el = marker.getElement();
-					let labelEl = el.querySelector('.marker-label');
-					if (!labelEl) {
-						labelEl = document.createElement('div');
-						labelEl.className = 'marker-label';
-						el.appendChild(labelEl);
-					}
-					labelEl.textContent = name;
-					labelEl.style.display = this.showLabels ? 'block' : 'none';
+			updateMapData() {
+				const source = this.map.getSource('trackers');
+				if (source) {
+					const data = {
+						type: 'FeatureCollection',
+						features: Array.from(this.features.values())
+					};
+					console.log('[MapLibre] Setting source data:', data.features.length, 'features');
+					source.setData(data);
+				} else {
+					console.log('[MapLibre] Source not ready, will retry');
+					// Map not loaded yet, retry after load
+					this.map.once('load', () => this.updateMapData());
 				}
 			}
 
 			updateLabelsVisibility() {
-				for (const [entityId, marker] of this.markers) {
-					const el = marker.getElement();
-					const labelEl = el?.querySelector('.marker-label');
-					if (labelEl) {
-						labelEl.style.display = this.showLabels ? 'block' : 'none';
-					}
+				if (this.map.getLayer('trackers-labels')) {
+					this.map.setLayoutProperty(
+						'trackers-labels',
+						'text-field',
+						this.showLabels ? ['get', 'name'] : ''
+					);
 				}
 			}
 
@@ -537,11 +521,11 @@ templ MapLibreScript() {
 			}
 
 			removeEntity(entityId) {
-				if (this.markers.has(entityId)) {
-					this.markers.get(entityId).remove();
-					this.markers.delete(entityId);
+				if (this.features.has(entityId)) {
+					this.features.delete(entityId);
 				}
 				if (this.popups.has(entityId)) {
+					this.popups.get(entityId).remove();
 					this.popups.delete(entityId);
 				}
 				if (this.trails.has(entityId)) {
@@ -551,12 +535,11 @@ templ MapLibreScript() {
 			}
 
 			fitBounds() {
-				if (this.markers.size === 0) return;
+				if (this.features.size === 0) return;
 
 				const coordinates = [];
-				for (const marker of this.markers.values()) {
-					const lngLat = marker.getLngLat();
-					coordinates.push([lngLat.lng, lngLat.lat]);
+				for (const feature of this.features.values()) {
+					coordinates.push(feature.geometry.coordinates);
 				}
 
 				if (coordinates.length === 1) {
@@ -571,11 +554,15 @@ templ MapLibreScript() {
 			}
 
 			focusEntity(entityId) {
-				const marker = this.markers.get(entityId);
-				if (marker) {
-					const lngLat = marker.getLngLat();
-					this.map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: 15 });
-					marker.togglePopup();
+				const feature = this.features.get(entityId);
+				if (feature) {
+					const coordinates = feature.geometry.coordinates;
+					this.map.flyTo({ center: coordinates, zoom: 15 });
+					
+					const popup = this.popups.get(entityId);
+					if (popup) {
+						popup.setLngLat(coordinates).addTo(this.map);
+					}
 				}
 			}
 
@@ -584,8 +571,50 @@ templ MapLibreScript() {
 					this.currentStyle = styleName;
 					this.map.setStyle(this.styles[styleName]);
 
-					// Re-add trails layer after style change
-					this.map.once('style.load', () => {
+					// Re-add sources and layers after style change
+					this.map.once('style.load', async () => {
+						this.map.addSource('trackers', {
+							type: 'geojson',
+							data: { type: 'FeatureCollection', features: Array.from(this.features.values()) }
+						});
+
+						this.map.addLayer({
+							id: 'trackers-layer',
+							type: 'circle',
+							source: 'trackers',
+							paint: {
+								'circle-radius': 6,
+								'circle-color': [
+									'case',
+									['get', 'isLive'], '#4CAF50',
+									'#666666'
+								],
+								'circle-stroke-width': 2,
+								'circle-stroke-color': '#ffffff',
+								'circle-opacity': ['get', 'opacity']
+							}
+						});
+
+						this.map.addLayer({
+							id: 'trackers-labels',
+							type: 'symbol',
+							source: 'trackers',
+							layout: {
+								'text-field': this.showLabels ? ['get', 'name'] : '',
+								'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+								'text-size': 12,
+								'text-offset': [0, 1.2],
+								'text-anchor': 'top',
+								'text-optional': true
+							},
+							paint: {
+								'text-color': '#ffffff',
+								'text-halo-color': '#000000',
+								'text-halo-width': 1,
+								'text-opacity': ['get', 'opacity']
+							}
+						});
+
 						this.map.addSource('trails', {
 							type: 'geojson',
 							data: { type: 'FeatureCollection', features: [] }
@@ -607,57 +636,6 @@ templ MapLibreScript() {
 				}
 			}
 
-			updateEntityList(entityStatesByOrg) {
-				if (!this.entityList) return;
-
-				const entitiesWithPosition = [];
-
-				for (const [orgId, entities] of Object.entries(entityStatesByOrg)) {
-					if (!entities || typeof entities !== 'object') continue;
-
-					for (const [entityId, entity] of Object.entries(entities)) {
-						if (entity?.position?.global?.latitude && entity?.position?.global?.longitude) {
-							entitiesWithPosition.push({ entityId, entity, orgId });
-						}
-					}
-				}
-
-				// Build entity list HTML
-				if (entitiesWithPosition.length === 0) {
-					this.entityList.innerHTML = `
-						<div class="empty-state">
-							<p>No entities with position data</p>
-						</div>
-					`;
-					return;
-				}
-
-				let html = '';
-				for (const { entityId, entity } of entitiesWithPosition) {
-					const isLive = entity.is_live !== false;
-					const name = entity.name || entityId.substring(0, 8) + '...';
-					const lat = entity.position.global.latitude.toFixed(4);
-					const lng = entity.position.global.longitude.toFixed(4);
-
-					html += `
-						<div class="entity-list-item" data-entity-id="${entityId}" onclick="window.mapController?.focusEntity('${entityId}')">
-							<div class="entity-icon">
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<circle cx="12" cy="12" r="10"></circle>
-									<circle cx="12" cy="12" r="3"></circle>
-								</svg>
-							</div>
-							<div class="entity-info">
-								<span class="entity-name">${name}</span>
-								<span class="entity-coords">${lat}, ${lng}</span>
-							</div>
-							<div class="entity-status-dot ${isLive ? 'active' : 'inactive'}"></div>
-						</div>
-					`;
-				}
-
-				this.entityList.innerHTML = html;
-			}
 		}
 
 		// Initialize map controller when DOM is ready

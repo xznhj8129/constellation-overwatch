@@ -458,3 +458,44 @@
 .maplibregl-popup-tip {
     border-top-color: rgba(0, 29, 61, 0.9) !important;
 }
+
+/* Style for Selected Entity Marker */
+.selected-marker {
+    width: 30px;
+    height: 30px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.selected-dot {
+    width: 12px;
+    height: 12px;
+    background-color: #00d4ff;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    z-index: 2;
+    box-shadow: 0 0 10px #00d4ff;
+}
+
+.pulsating-circle {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background-color: rgba(0, 212, 255, 0.4);
+    border-radius: 50%;
+    animation: pulsate 1.5s infinite;
+    z-index: 1;
+}
+
+@keyframes pulsate {
+    0% {
+        transform: scale(0.5);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
