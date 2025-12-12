@@ -1,0 +1,270 @@
+package components
+
+import (
+	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+)
+
+// C5EntityCard is a robust entity component that combines telemetry and video
+// It can optionally show a detailed view with expanded telemetry and video player
+templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
+	<div id={ "c5-entity-" + entity.EntityID } 
+		class={ "c5-entity-card", templ.KV("detailed", isDetailed) }
+		data-entity-id={ entity.EntityID }>
+		
+		<!-- Header / Simple View -->
+		<div class="c5-card-header" data-on:click={ fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID) }>
+			<div class="header-top">
+				<div class="entity-identity">
+					<div class="entity-name">
+						if entity.Name != "" {
+							{ entity.Name }
+						} else {
+							{ entity.EntityID }
+						}
+					</div>
+					<div class="entity-type">{ entity.EntityType }</div>
+				</div>
+				<div class="entity-status-badge">
+					<span class={ "status-dot", templ.KV("active", entity.Status == "active"), templ.KV("inactive", entity.Status != "active") }></span>
+					<span class="status-text">{ entity.Status }</span>
+				</div>
+			</div>
+
+			<!-- Quick Stats (Always Visible) -->
+			if entity.Position != nil && entity.Position.Global != nil {
+				<div class="quick-stats">
+					<div class="stat-pill">
+						<span class="label">LAT</span>
+						<span class="value">{ fmt.Sprintf("%.6f", entity.Position.Global.Latitude) }</span>
+					</div>
+					<div class="stat-pill">
+						<span class="label">LNG</span>
+						<span class="value">{ fmt.Sprintf("%.6f", entity.Position.Global.Longitude) }</span>
+					</div>
+					<div class="stat-pill">
+						<span class="label">ALT</span>
+						<span class="value">{ fmt.Sprintf("%.0fm", entity.Position.Global.AltitudeMSL) }</span>
+					</div>
+				</div>
+			}
+		</div>
+
+		<!-- Detailed View (Collapsible) -->
+		<div class="c5-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
+			
+			<!-- Video Player Section -->
+			<div class="video-section">
+				<div class="video-container">
+					<div class="video-overlay" data-show="!$hasSignal">
+						<div class="no-signal">
+							<i class="icon-camera-off"></i>
+							<span>No Video Signal</span>
+						</div>
+					</div>
+					<!-- Video Elements (Managed by WebRTC Script) -->
+					<video class="video-h264" muted autoplay playsinline></video>
+					<canvas class="video-canvas"></canvas>
+					<img class="video-mjpeg" src={ "/api/v1/video/stream/" + entity.EntityID } alt="Stream" onerror="this.style.display='none'"/>
+				</div>
+				<div class="video-controls">
+					<span class="fps-counter">0 fps</span>
+					<button class="btn-fullscreen" data-on:click={ fmt.Sprintf("openFullscreen('%s')", entity.EntityID) }>
+						Fullscreen
+					</button>
+				</div>
+			</div>
+
+			<!-- Telemetry Grid -->
+			<div class="telemetry-grid">
+				<!-- Vehicle Status -->
+				if entity.VehicleStatus != nil {
+					<div class="telemetry-group">
+						<h5>Vehicle Status</h5>
+						<div class="stat-row">
+							<span>Mode</span>
+							<span class="highlight">{ entity.VehicleStatus.Mode }</span>
+						</div>
+						<div class="stat-row">
+							<span>State</span>
+							<span class={ templ.KV("text-danger", entity.VehicleStatus.Armed), templ.KV("text-success", !entity.VehicleStatus.Armed) }>
+								{ func() string { if entity.VehicleStatus.Armed { return "ARMED" } else { return "DISARMED" } }() }
+							</span>
+						</div>
+					</div>
+				}
+
+				<!-- Flight Data -->
+				if entity.VFR != nil {
+					<div class="telemetry-group">
+						<h5>Flight Data</h5>
+						<div class="stat-row">
+							<span>Ground Speed</span>
+							<span>{ fmt.Sprintf("%.1f m/s", entity.VFR.Groundspeed) }</span>
+						</div>
+						<div class="stat-row">
+							<span>Heading</span>
+							<span>{ fmt.Sprintf("%d°", entity.VFR.Heading) }</span>
+						</div>
+					</div>
+				}
+
+				<!-- Battery -->
+				if entity.Power != nil {
+					<div class="telemetry-group">
+						<h5>Power</h5>
+						<div class="stat-row">
+							<span>Battery</span>
+							<span class={ templ.KV("text-warning", entity.Power.BatteryRemain < 30), templ.KV("text-success", entity.Power.BatteryRemain >= 30) }>
+								{ fmt.Sprintf("%d%%", entity.Power.BatteryRemain) }
+							</span>
+						</div>
+						<div class="stat-row">
+							<span>Voltage</span>
+							<span>{ fmt.Sprintf("%.1fV", entity.Power.Voltage) }</span>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// C5EntityCardScript contains the JS logic for the card interaction and video
+templ C5EntityCardScript() {
+	<script>
+		function toggleEntityDetail(entityId) {
+			const card = document.getElementById('c5-entity-' + entityId);
+			if (!card) return;
+			
+			const body = card.querySelector('.c5-card-body');
+			const isDetailed = card.classList.toggle('detailed');
+			
+			if (isDetailed) {
+				body.style.display = 'block';
+				// Initialize video if needed
+				if (window.streamManager) {
+					window.streamManager.subscribe(entityId, card);
+				}
+			} else {
+				body.style.display = 'none';
+				if (window.streamManager) {
+					window.streamManager.unsubscribe(entityId);
+				}
+			}
+		}
+
+		function openFullscreen(entityId) {
+			window.location.href = '/api/v1/video/stream/' + entityId;
+		}
+	</script>
+	<!-- Include WebRTC Logic if not already present -->
+	@VideoClientScript()
+}
+
+// Reusing the VideoClientScript logic but ensuring it handles the new class structure
+// This assumes reusing the logic from video.templ, but we might need to adapt it 
+// if the class names or structure differs significantly. 
+// For now, I'll rely on the class names I matched in the template (.video-h264, etc).
+
+templ VideoClientScript() {
+    <script type="module">
+        // ... (Check if WebRTCStreamManager exists, if not define it) ...
+        if (!window.WebRTCStreamManager) {
+            class WebRTCStreamManager {
+                constructor() {
+                    this.streams = new Map();
+                }
+
+                async subscribe(entityId, container) {
+                    if (this.streams.has(entityId)) return;
+                    console.log(`[C5-WebRTC] Subscribing to ${entityId}`);
+                    
+                    const videoEl = container.querySelector('.video-h264');
+                    const canvas = container.querySelector('.video-canvas');
+                    const mjpeg = container.querySelector('.video-mjpeg');
+                    const fpsEl = container.querySelector('.fps-counter');
+
+                    if (!videoEl) return;
+
+                    // Reset display
+                    if (canvas) canvas.style.display = 'none';
+                    if (mjpeg) mjpeg.style.display = 'none';
+                    videoEl.style.display = 'block';
+
+                    const pc = new RTCPeerConnection({
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                    });
+
+                    pc.addTransceiver('video', { direction: 'recvonly' });
+
+                    pc.ontrack = (event) => {
+                        if (videoEl.srcObject !== event.streams[0]) {
+                            videoEl.srcObject = event.streams[0];
+                            videoEl.play().catch(e => console.error("Play error:", e));
+                            this.startFPSCounter(entityId, videoEl, fpsEl);
+                        }
+                    };
+
+                    try {
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+
+                        const response = await fetch('/api/v1/webrtc/signal', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ offer: offer, entity_id: entityId })
+                        });
+
+                        if (!response.ok) throw new Error('Signal failed');
+                        
+                        const answer = await response.json();
+                        await pc.setRemoteDescription(answer);
+                        
+                        this.streams.set(entityId, { pc, videoEl });
+                    } catch (err) {
+                        console.error("WebRTC Error:", err);
+                        pc.close();
+                        // Fallback to MJPEG?
+                        if (mjpeg) {
+                            videoEl.style.display = 'none';
+                            mjpeg.style.display = 'block';
+                        }
+                    }
+                }
+
+                startFPSCounter(entityId, videoEl, fpsEl) {
+                     // Simple FPS implementation
+                     let lastTime = performance.now();
+                     let frames = 0;
+                     const loop = () => {
+                         if (!this.streams.has(entityId)) return;
+                         frames++;
+                         const now = performance.now();
+                         if (now - lastTime >= 1000) {
+                             if (fpsEl) fpsEl.textContent = Math.round(frames * 1000 / (now - lastTime)) + ' fps';
+                             frames = 0;
+                             lastTime = now;
+                         }
+                         if (videoEl.requestVideoFrameCallback) {
+                             videoEl.requestVideoFrameCallback(loop);
+                         } else {
+                             requestAnimationFrame(loop);
+                         }
+                     };
+                     loop();
+                }
+
+                unsubscribe(entityId) {
+                    const stream = this.streams.get(entityId);
+                    if (stream) {
+                        stream.pc.close();
+                        this.streams.delete(entityId);
+                    }
+                }
+            }
+            window.WebRTCStreamManager = WebRTCStreamManager;
+            window.streamManager = new WebRTCStreamManager();
+        }
+    </script>
+}

@@ -14,6 +14,7 @@ import (
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	common_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	overwatch "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
@@ -117,6 +118,9 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// Create SSE generator AFTER setting headers
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
+	// Determine view mode
+	viewMode := r.URL.Query().Get("view")
+
 	// Mutex to synchronize writes to ResponseWriter from multiple goroutines
 	var writeMutex sync.Mutex
 
@@ -129,9 +133,15 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					<p>No entity states in global store. Waiting for telemetry data...</p>
 					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
 				</div>`
-	sse.PatchElements(emptyState,
-		datastar.WithSelector("#entities-container"),
-		datastar.WithMode(datastar.ElementPatchModeInner))
+	if viewMode == "map" {
+		sse.PatchElements(emptyState,
+			datastar.WithSelector("#entity-list"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+	} else {
+		sse.PatchElements(emptyState,
+			datastar.WithSelector("#entities-container"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+	}
 
 	flusher.Flush()
 	writeMutex.Unlock()
@@ -244,7 +254,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				}
 
 				// Render and Flush
-				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.TotalEntities, knownEntities, knownOrgs)
+				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.TotalEntities, knownEntities, knownOrgs, viewMode)
 			}
 		}
 	}()
@@ -393,7 +403,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 }
 
 // Helper to render and flush a snapshot
-func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, totalEntities int, knownEntities map[string]bool, knownOrgs map[string]bool) {
+func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, totalEntities int, knownEntities map[string]bool, knownOrgs map[string]bool, viewMode string) {
 	// Check if flusher is nil to prevent panic
 	if flusher == nil {
 		logger.Debugw("Flusher is nil, connection likely closed, skipping render")
@@ -412,21 +422,40 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 	updatesSent := 0
 
 	for _, entityState := range snapshot {
-		// Render card
+		// Render card based on view mode
 		var cardHTML strings.Builder
-		if err := overwatch.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
-			logger.Errorw("Error rendering entity card", "error", err)
-			continue
+		if viewMode == "map" {
+			// Map View: Use C5EntityCard (Simple Mode initially)
+			// Selector: #c5-entity-{id}
+			// Container: #entity-list
+			if err := common_components.C5EntityCard(entityState, false).Render(context.Background(), &cardHTML); err != nil {
+				logger.Errorw("Error rendering C5 entity card", "error", err)
+				continue
+			}
+		} else {
+			// Default Overwatch View
+			if err := overwatch.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
+				logger.Errorw("Error rendering entity card", "error", err)
+				continue
+			}
 		}
 
 		// Determine patch mode
 		var patchMode datastar.PatchElementMode
 		var selector string
+		var containerSelector string
 		entityID := entityState.EntityID
+
+		if viewMode == "map" {
+			containerSelector = "#entity-list"
+		} else {
+			containerSelector = "#entities-container"
+		}
 
 		if !knownEntities[entityID] {
 			// New entity
-			if !knownOrgs[entityState.OrgID] {
+			// Handle Org Headers only for Overwatch Dashboard
+			if viewMode != "map" && !knownOrgs[entityState.OrgID] {
 				// Create Org Container
 				if len(knownOrgs) == 0 {
 					if err := sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
@@ -442,27 +471,38 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				}
 				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
 
-				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector("#entities-container"), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
+				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
 					return
 				}
 				knownOrgs[entityState.OrgID] = true
 
-				// Initialize signal
+				// Initialize signal (Same signal for both views)
 				if err := sse.PatchSignals(map[string]interface{}{
 					fmt.Sprintf("entityStatesByOrg.%s", entityState.OrgID): map[string]interface{}{},
 				}); err != nil {
 					logger.Debugw("Failed to patch org signals, connection may be closed", "error", err)
 					return
 				}
+			} else if viewMode == "map" {
+				// For map, remove empty state if first entity
+				if len(knownEntities) == 0 {
+					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+						// Ignore error as empty state might not exist
+					}
+				}
 			}
 
 			patchMode = datastar.ElementPatchModeAppend
-			selector = "#entities-container"
+			selector = containerSelector
 			knownEntities[entityID] = true
 		} else {
 			patchMode = datastar.ElementPatchModeMorph
-			selector = fmt.Sprintf("#entity-%s", entityID)
+			if viewMode == "map" {
+				selector = fmt.Sprintf("#c5-entity-%s", entityID)
+			} else {
+				selector = fmt.Sprintf("#entity-%s", entityID)
+			}
 		}
 
 		// Patch Element
@@ -471,7 +511,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			return
 		}
 
-		// Patch Signal
+		// Patch Signal (Same for both views)
 		if err := sse.PatchSignals(map[string]interface{}{
 			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entityState,
 		}); err != nil {

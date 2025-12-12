@@ -7,7 +7,7 @@ import (
 )
 
 templ MapPage() {
-	@layouts.BaseWithStyles("Map", []string{"/static/css/map.css"}) {
+	@layouts.BaseWithStyles("Map", []string{"/static/css/map.css", "/static/css/overwatch.css"}) {
 		@components.Navigation("map") {
 			<div class="tab-content">
 				@mapcomponents.MapPanel()

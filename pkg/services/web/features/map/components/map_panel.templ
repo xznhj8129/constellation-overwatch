@@ -1,6 +1,9 @@
 package components
 
-import "github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	common "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+)
 
 // MapPanel is the main container for the map view
 // It reuses the same KV watch endpoint as overwatch to get entity position data
@@ -19,7 +22,7 @@ templ MapPanel() {
 			mapStyle: 'dark',
 			sidebarCollapsed: false
 		}"
-		data-init="@get('/api/overwatch/kv/watch')">
+		data-init="@get('/api/overwatch/kv/watch?view=map')">
 		<div class="panel-header">
 			<h2>Tactical Map</h2>
 			<div class="status-bar">
@@ -67,6 +70,7 @@ templ MapPanel() {
 		</div>
 	</div>
 	@MapLibreScript()
+	@common.C5EntityCardScript()
 }
 
 // MapControls provides the control buttons for the map
@@ -389,42 +393,70 @@ templ MapLibreScript() {
 				const pos = entity.position?.global;
 				const vfr = entity.vfr;
 				const power = entity.power;
+				const name = entity.name || entity.entity_id || 'Unknown';
+				const type = entity.entity_type || 'Unknown';
+				const status = entity.status || 'unknown';
+				const isLive = entity.is_live !== false;
+
+				// Status Badge Logic
+				const statusClass = status === 'active' ? 'active' : 'inactive';
 
 				let html = `
-					<div class="map-popup">
-						<div class="popup-header">${entity.name || entity.entity_id}</div>
-						<div class="popup-type">${entity.entity_type || 'Unknown'}</div>
-						<div class="popup-status ${entity.is_live ? 'live' : 'offline'}">${entity.is_live ? 'LIVE' : 'OFFLINE'}</div>
+					<div class="c5-entity-card" style="width: 100%; min-width: 250px; border: none; background: transparent; box-shadow: none;">
+						<div class="c5-card-header" style="background: rgba(0, 29, 61, 0.95); border: 1px solid rgba(0, 212, 255, 0.3);">
+							<div class="header-top">
+								<div class="entity-identity">
+									<div class="entity-name">${name}</div>
+									<div class="entity-type">${type}</div>
+								</div>
+								<div class="entity-status-badge">
+									<span class="status-dot ${statusClass}"></span>
+									<span class="status-text">${status}</span>
+								</div>
+							</div>
 				`;
 
 				if (pos) {
+					const lat = pos.latitude?.toFixed(6) || 'N/A';
+					const lng = pos.longitude?.toFixed(6) || 'N/A';
+					const alt = pos.altitude_msl?.toFixed(0) || '0';
+					
 					html += `
-						<div class="popup-section">
-							<div class="popup-row"><span>Lat:</span><span>${pos.latitude?.toFixed(6) || 'N/A'}</span></div>
-							<div class="popup-row"><span>Lng:</span><span>${pos.longitude?.toFixed(6) || 'N/A'}</span></div>
-							<div class="popup-row"><span>Alt:</span><span>${pos.altitude_msl?.toFixed(1) || 0}m MSL</span></div>
+						<div class="quick-stats">
+							<div class="stat-pill">
+								<span class="label">LAT</span>
+								<span class="value">${lat}</span>
+							</div>
+							<div class="stat-pill">
+								<span class="label">LNG</span>
+								<span class="value">${lng}</span>
+							</div>
+							<div class="stat-pill">
+								<span class="label">ALT</span>
+								<span class="value">${alt}m</span>
+							</div>
 						</div>
 					`;
 				}
 
 				if (vfr) {
+					const hdg = vfr.heading?.toFixed(0) || '0';
+					const spd = vfr.groundspeed?.toFixed(1) || '0.0';
 					html += `
-						<div class="popup-section">
-							<div class="popup-row"><span>Heading:</span><span>${vfr.heading || 0}°</span></div>
-							<div class="popup-row"><span>Speed:</span><span>${vfr.groundspeed?.toFixed(1) || 0} m/s</span></div>
+						<div class="quick-stats" style="margin-top: 4px;">
+							<div class="stat-pill">
+								<span class="label">HDG</span>
+								<span class="value">${hdg}°</span>
+							</div>
+							<div class="stat-pill">
+								<span class="label">SPD</span>
+								<span class="value">${spd} m/s</span>
+							</div>
 						</div>
 					`;
 				}
-
-				if (power) {
-					html += `
-						<div class="popup-section">
-							<div class="popup-row"><span>Battery:</span><span>${power.battery_remaining || 0}%</span></div>
-						</div>
-					`;
-				}
-
-				html += '</div>';
+				
+				html += '</div></div>';
 				return html;
 			}
 
@@ -712,7 +744,7 @@ templ EntityTypeIcon(entityType string) {
 
 // SidebarToggleIcon is a chevron icon for toggling the sidebar
 templ SidebarToggleIcon() {
-	<svg class="toggle-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+	<svg class="toggle-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
 		<polyline points="9 18 15 12 9 6"></polyline>
 	</svg>
 }
