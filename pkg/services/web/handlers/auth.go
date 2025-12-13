@@ -59,8 +59,8 @@ func (h *AuthHandler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	// Set session cookie
 	middleware.SetSessionCookie(w, token)
 
-	// Redirect to home
-	http.Redirect(w, r, "/", http.StatusFound)
+	// Redirect to map
+	http.Redirect(w, r, "/map", http.StatusFound)
 }
 
 // HandleLogout handles the logout request

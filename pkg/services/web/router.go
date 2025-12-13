@@ -41,7 +41,9 @@ func NewRouter(
 	}
 
 	// Protected Pages
-	mux.Handle("/", protect(pageHandler.HandleEntitiesPage))
+	mux.Handle("/", protect(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/map", http.StatusFound)
+	}))
 	mux.Handle("/organizations", protect(pageHandler.HandleEntitiesPage))
 	mux.Handle("/organizations/entities/new", protect(pageHandler.HandleEntityForm))
 	mux.Handle("/organizations/entities/edit", protect(pageHandler.HandleEntityForm))
