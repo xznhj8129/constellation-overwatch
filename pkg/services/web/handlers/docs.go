@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	docs_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/docs/pages"
 )
 
 type DocsHandler struct{}
@@ -13,6 +13,6 @@ func NewDocsHandler() *DocsHandler {
 }
 
 func (h *DocsHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
-	component := templates.DocsPage()
+	component := docs_pages.DocsPage()
 	component.Render(r.Context(), w)
 }

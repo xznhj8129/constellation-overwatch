@@ -38,10 +38,10 @@ type entityVideoState struct {
 	avgDuration   time.Duration // Running average frame duration
 
 	// Statistics
-	framesReceived  uint64
-	framesDropped   uint64
-	keyframesCount  uint64
-	greenFrameRisk  uint64 // Frames sent before first IDR (debug)
+	framesReceived uint64
+	framesDropped  uint64
+	keyframesCount uint64
+	greenFrameRisk uint64 // Frames sent before first IDR (debug)
 }
 
 // WebRTCHandler handles WebRTC signaling and media streaming

@@ -391,14 +391,112 @@ type VideoDetectionBBox struct {
 
 // Constants
 const (
-	// Entity Types
-	EntityTypeVehicle  = "vehicle"
-	EntityTypePerson   = "person"
-	EntityTypeAsset    = "asset"
-	EntityTypeLocation = "location"
-	EntityTypeSensor   = "sensor"
-	EntityTypeDevice   = "device"
+	// Entity Types - aligned with db/schema.sql entity_type CHECK constraint
+	// Aircraft
+	EntityTypeAircraftFixedWing  = "aircraft_fixed_wing"
+	EntityTypeAircraftMultirotor = "aircraft_multirotor"
+	EntityTypeAircraftVTOL       = "aircraft_vtol"
+	EntityTypeAircraftHelicopter = "aircraft_helicopter"
+	EntityTypeAircraftAirship    = "aircraft_airship"
+	// Ground Vehicles
+	EntityTypeGroundVehicleWheeled = "ground_vehicle_wheeled"
+	EntityTypeGroundVehicleTracked = "ground_vehicle_tracked"
+	// Marine
+	EntityTypeSurfaceVesselUSV = "surface_vessel_usv"
+	EntityTypeUnderwaterVehicle = "underwater_vehicle"
+	// Platforms & Systems
+	EntityTypeSensorPlatform  = "sensor_platform"
+	EntityTypePayloadSystem   = "payload_system"
+	EntityTypeOperatorStation = "operator_station"
+	// Geographic/Mission
+	EntityTypeWaypoint  = "waypoint"
+	EntityTypeNoFlyZone = "no_fly_zone"
+	EntityTypeGeofence  = "geofence"
+)
 
+// EntityTypeDisplayNames maps entity types to human-readable display names
+var EntityTypeDisplayNames = map[string]string{
+	EntityTypeAircraftFixedWing:    "Fixed Wing",
+	EntityTypeAircraftMultirotor:   "Multirotor",
+	EntityTypeAircraftVTOL:         "VTOL",
+	EntityTypeAircraftHelicopter:   "Helicopter",
+	EntityTypeAircraftAirship:      "Airship",
+	EntityTypeGroundVehicleWheeled: "Wheeled Vehicle",
+	EntityTypeGroundVehicleTracked: "Tracked Vehicle",
+	EntityTypeSurfaceVesselUSV:     "USV",
+	EntityTypeUnderwaterVehicle:    "UUV",
+	EntityTypeSensorPlatform:       "Sensor",
+	EntityTypePayloadSystem:        "Payload",
+	EntityTypeOperatorStation:      "Operator",
+	EntityTypeWaypoint:             "Waypoint",
+	EntityTypeNoFlyZone:            "No-Fly Zone",
+	EntityTypeGeofence:             "Geofence",
+}
+
+// EntityTypeCategory groups entity types for UI display
+var EntityTypeCategory = map[string]string{
+	EntityTypeAircraftFixedWing:    "aircraft",
+	EntityTypeAircraftMultirotor:   "aircraft",
+	EntityTypeAircraftVTOL:         "aircraft",
+	EntityTypeAircraftHelicopter:   "aircraft",
+	EntityTypeAircraftAirship:      "aircraft",
+	EntityTypeGroundVehicleWheeled: "ground",
+	EntityTypeGroundVehicleTracked: "ground",
+	EntityTypeSurfaceVesselUSV:     "marine",
+	EntityTypeUnderwaterVehicle:    "marine",
+	EntityTypeSensorPlatform:       "system",
+	EntityTypePayloadSystem:        "system",
+	EntityTypeOperatorStation:      "system",
+	EntityTypeWaypoint:             "geo",
+	EntityTypeNoFlyZone:            "geo",
+	EntityTypeGeofence:             "geo",
+}
+
+// EntityTypeLucideIcon maps entity types to Lucide icon names
+// These icons are used for both UI cards and MapLibre markers
+var EntityTypeLucideIcon = map[string]string{
+	EntityTypeAircraftFixedWing:    "plane",
+	EntityTypeAircraftMultirotor:   "fan",
+	EntityTypeAircraftVTOL:         "plane-takeoff",
+	EntityTypeAircraftHelicopter:   "fan",
+	EntityTypeAircraftAirship:      "cloud",
+	EntityTypeGroundVehicleWheeled: "car",
+	EntityTypeGroundVehicleTracked: "truck",
+	EntityTypeSurfaceVesselUSV:     "ship",
+	EntityTypeUnderwaterVehicle:    "anchor",
+	EntityTypeSensorPlatform:       "radar",
+	EntityTypePayloadSystem:        "box",
+	EntityTypeOperatorStation:      "monitor",
+	EntityTypeWaypoint:             "map-pin",
+	EntityTypeNoFlyZone:            "shield-ban",
+	EntityTypeGeofence:             "hexagon",
+}
+
+// GetEntityTypeLucideIcon returns the Lucide icon name for the entity type
+func GetEntityTypeLucideIcon(entityType string) string {
+	if icon, ok := EntityTypeLucideIcon[entityType]; ok {
+		return icon
+	}
+	return "help-circle" // fallback icon
+}
+
+// GetEntityTypeDisplayName returns a human-readable name for the entity type
+func GetEntityTypeDisplayName(entityType string) string {
+	if name, ok := EntityTypeDisplayNames[entityType]; ok {
+		return name
+	}
+	return entityType // fallback to raw value
+}
+
+// GetEntityTypeCategory returns the category for the entity type
+func GetEntityTypeCategory(entityType string) string {
+	if cat, ok := EntityTypeCategory[entityType]; ok {
+		return cat
+	}
+	return "unknown"
+}
+
+const (
 	// Entity Status
 	StatusActive   = "active"
 	StatusInactive = "inactive"

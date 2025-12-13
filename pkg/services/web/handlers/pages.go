@@ -8,7 +8,14 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	docs_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/docs/pages"
+	fleet_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/pages"
+	map_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/pages"
+	org_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/pages"
+	overwatch_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/pages"
+	streams_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/streams/pages"
+	video_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/video/pages"
+	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
 )
 
 type PageHandler struct {
@@ -49,7 +56,7 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.EntitiesPage(orgs, orgID, entities)
+		component := org_pages.OrganizationsPage(orgs, orgID, entities)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -59,7 +66,7 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	component := templates.EntitiesPage(orgs, orgID, entities)
+	component := org_pages.OrganizationsPage(orgs, orgID, entities)
 	component.Render(r.Context(), w)
 }
 
@@ -83,7 +90,7 @@ func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.EntityForm(orgID, entity, isEdit)
+		component := org_components.EntityForm(orgID, entity, isEdit)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#entity-form-modal"),
 			datastar.WithMode(datastar.ElementPatchModeInner))
@@ -93,7 +100,7 @@ func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := templates.EntityForm(orgID, entity, isEdit)
+	component := org_components.EntityForm(orgID, entity, isEdit)
 	component.Render(r.Context(), w)
 }
 
@@ -101,7 +108,7 @@ func (h *PageHandler) HandleStreamsPage(w http.ResponseWriter, r *http.Request) 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.StreamsPage()
+		component := streams_pages.StreamsPage()
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -111,7 +118,7 @@ func (h *PageHandler) HandleStreamsPage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	component := templates.StreamsPage()
+	component := streams_pages.StreamsPage()
 	component.Render(r.Context(), w)
 }
 
@@ -119,7 +126,7 @@ func (h *PageHandler) HandleOrganizationForm(w http.ResponseWriter, r *http.Requ
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.OrganizationForm()
+		component := org_components.OrganizationForm()
 		// Try using fragment/morph mode instead of inner
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#org-form-modal"),
@@ -130,7 +137,7 @@ func (h *PageHandler) HandleOrganizationForm(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	component := templates.OrganizationForm()
+	component := org_components.OrganizationForm()
 	component.Render(r.Context(), w)
 }
 
@@ -138,7 +145,7 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.OverwatchPage()
+		component := overwatch_pages.OverwatchPage()
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -148,7 +155,7 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	component := templates.OverwatchPage()
+	component := overwatch_pages.OverwatchPage()
 	component.Render(r.Context(), w)
 }
 
@@ -170,7 +177,7 @@ func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.FleetPage(orgs, entities)
+		component := fleet_pages.FleetPage(orgs, entities)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -180,7 +187,7 @@ func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := templates.FleetPage(orgs, entities)
+	component := fleet_pages.FleetPage(orgs, entities)
 	component.Render(r.Context(), w)
 }
 
@@ -204,7 +211,7 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.VideoPage(entityIDs, natsAuthToken)
+		component := video_pages.VideoPage(entityIDs, natsAuthToken)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -214,6 +221,29 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := templates.VideoPage(entityIDs, natsAuthToken)
+	component := video_pages.VideoPage(entityIDs, natsAuthToken)
+	component.Render(r.Context(), w)
+}
+
+func (h *PageHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
+	component := docs_pages.DocsPage()
+	component.Render(r.Context(), w)
+}
+
+func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
+	// If this is a Datastar request, return SSE format
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewServerSentEventGenerator(w, r)
+		component := map_pages.MapPage()
+		err := sse.PatchComponent(r.Context(), component,
+			datastar.WithSelector("body"),
+			datastar.WithMode(datastar.ElementPatchModeOuter))
+		if err != nil {
+			logger.Infof("Error patching map page: %v", err)
+		}
+		return
+	}
+
+	component := map_pages.MapPage()
 	component.Render(r.Context(), w)
 }

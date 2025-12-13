@@ -41,7 +41,9 @@ func NewRouter(
 	}
 
 	// Protected Pages
-	mux.Handle("/", protect(pageHandler.HandleEntitiesPage))
+	mux.Handle("/", protect(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/map", http.StatusFound)
+	}))
 	mux.Handle("/organizations", protect(pageHandler.HandleEntitiesPage))
 	mux.Handle("/organizations/entities/new", protect(pageHandler.HandleEntityForm))
 	mux.Handle("/organizations/entities/edit", protect(pageHandler.HandleEntityForm))
@@ -53,6 +55,7 @@ func NewRouter(
 	mux.Handle("/fleet", protect(pageHandler.HandleFleetPage))
 	mux.Handle("/fleet/edit/", protect(datastarHandler.HandleFleetEdit))
 	mux.Handle("/fleet/cancel/", protect(datastarHandler.HandleFleetCancel))
+	mux.Handle("/map", protect(pageHandler.HandleMapPage))
 	mux.Handle("/video", protect(pageHandler.HandleVideoPage))
 	mux.Handle("/docs", protect(docsHandler.HandleDocsPage))
 

@@ -1,0 +1,47 @@
+package layouts
+
+templ Base(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - C5 Overwatch</title>
+			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
+		</head>
+		<body>
+			<div class="app-container">
+				<div class="main-layout">
+					{ children... }
+				</div>
+			</div>
+		</body>
+	</html>
+}
+
+// BaseWithStyles allows injecting additional stylesheets
+templ BaseWithStyles(title string, styles []string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - C5 Overwatch</title>
+			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+			for _, style := range styles {
+				<link rel="stylesheet" href={ style }/>
+			}
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
+		</head>
+		<body>
+			<div class="app-container">
+				<div class="main-layout">
+					{ children... }
+				</div>
+			</div>
+		</body>
+	</html>
+}

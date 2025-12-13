@@ -1,0 +1,59 @@
+package pages
+
+templ LoginPage(errorMsg string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Login - C5 Overwatch</title>
+			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+		</head>
+		<body>
+			<div class="login-page">
+				<div class="warp-tunnel">
+					<div class="starfield">
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+						<div class="star"></div>
+					</div>
+				</div>
+				<div class="login-box">
+					<div class="login-header">
+						<div class="login-brand">C5</div>
+						<h1>Overwatch</h1>
+						<div class="subtitle">Edge Awareness Kit</div>
+					</div>
+					<form class="login-form" method="POST" action="/login">
+						if errorMsg != "" {
+							<div class="login-error">{ errorMsg }</div>
+						}
+						<div class="form-group">
+							<label for="password">Access Code</label>
+							<input type="password" id="password" name="password" placeholder="Enter access code..." required autofocus/>
+						</div>
+						<button type="submit" class="login-btn">Authenticate</button>
+					</form>
+				</div>
+			</div>
+		</body>
+	</html>
+}

@@ -1,0 +1,795 @@
+package components
+
+import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	common "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+)
+
+// MapPanel is the main container for the map view
+// It reuses the same KV watch endpoint as overwatch to get entity position data
+templ MapPanel() {
+	<div id="map-panel"
+		class="panel"
+		data-signals="{
+			entityStatesByOrg: {},
+			lastUpdate: '',
+			_isConnected: false,
+			totalEntities: 0,
+			totalOrgs: 0,
+			selectedEntityId: '',
+			showLabels: true,
+			showTrails: false,
+			mapStyle: 'dark',
+			sidebarCollapsed: false
+		}"
+		data-init="@get('/api/overwatch/kv/watch?view=map')">
+		<div class="panel-header">
+			<h2>Tactical Map</h2>
+			<div class="status-bar">
+				<span class="connection-status" data-show="$_isConnected">
+					<span class="status-dot connected"></span>
+					Connected
+				</span>
+				<span class="connection-status" data-show="!$_isConnected">
+					<span class="status-dot disconnected"></span>
+					Connecting...
+				</span>
+				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+					<span data-text="$totalEntities + ' entities tracked'"></span>
+				</span>
+				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
+			</div>
+		</div>
+		<div class="map-wrapper">
+			<div class="map-controls">
+				@MapControls()
+			</div>
+			<div id="map-container" class="map-container">
+				<!-- MapLibre GL JS map will be initialized here -->
+				<div class="map-loading" data-show="!$_isConnected">
+					<div class="loading-spinner"></div>
+					<p>Initializing map...</p>
+				</div>
+			</div>
+			<div class="map-sidebar" data-class="{'collapsed': $sidebarCollapsed}">
+				<button class="sidebar-toggle" data-on:click="$sidebarCollapsed = !$sidebarCollapsed" title="Toggle Entities Panel">
+					@SidebarToggleIcon()
+				</button>
+				<div class="sidebar-content">
+					<div class="sidebar-header">
+						<h3>Entities</h3>
+					</div>
+					<div id="entity-list" class="entity-list">
+					<!-- Entity list will be populated via SSE signals -->
+						<div class="empty-state" data-show="$totalEntities === 0">
+							<p>No entities with position data</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	@MapLibreScript()
+	@common.C5EntityCardScript()
+}
+
+// MapControls provides the control buttons for the map
+templ MapControls() {
+	<div class="control-group">
+		<button class="map-control-btn" id="zoom-in-btn" title="Zoom In">
+			@ZoomInIcon()
+		</button>
+		<button class="map-control-btn" id="zoom-out-btn" title="Zoom Out">
+			@ZoomOutIcon()
+		</button>
+		<button class="map-control-btn" id="fit-bounds-btn" title="Fit All Entities">
+			@MaximizeIcon()
+		</button>
+	</div>
+	<div class="control-group">
+		<button class="map-control-btn" id="toggle-labels-btn" data-class="{'active': $showLabels}" data-on:click="$showLabels = !$showLabels" title="Toggle Labels">
+			@TagIcon()
+		</button>
+		<button class="map-control-btn" id="toggle-trails-btn" data-class="{'active': $showTrails}" data-on:click="$showTrails = !$showTrails" title="Toggle Trails">
+			@RouteIcon()
+		</button>
+	</div>
+	<div class="control-group">
+		<select class="map-style-select" id="map-style-select" data-bind="mapStyle">
+			<option value="dark">Dark</option>
+			<option value="light">Light</option>
+		</select>
+	</div>
+}
+
+// MapEntityCard displays entity info in popup
+templ MapEntityCard(entity shared.EntityState) {
+	<div class="map-entity-card" id={ "map-card-" + entity.EntityID }>
+		<div class="card-header">
+			<span class="entity-name">{ entity.Name }</span>
+			<span class={ "entity-status", templ.KV("status-active", entity.Status == "active"), templ.KV("status-inactive", entity.Status != "active") }>
+				{ entity.Status }
+			</span>
+		</div>
+		<div class="card-body">
+			if entity.Position != nil && entity.Position.Global != nil {
+				<div class="coord-row">
+					<span class="coord-label">LAT</span>
+					<span class="coord-value">{ formatCoord(entity.Position.Global.Latitude) }</span>
+				</div>
+				<div class="coord-row">
+					<span class="coord-label">LNG</span>
+					<span class="coord-value">{ formatCoord(entity.Position.Global.Longitude) }</span>
+				</div>
+				<div class="coord-row">
+					<span class="coord-label">ALT</span>
+					<span class="coord-value">{ formatAltitude(entity.Position.Global.AltitudeMSL) }</span>
+				</div>
+			}
+			if entity.VFR != nil {
+				<div class="coord-row">
+					<span class="coord-label">HDG</span>
+					<span class="coord-value">{ formatHeading(entity.VFR.Heading) }</span>
+				</div>
+				<div class="coord-row">
+					<span class="coord-label">SPD</span>
+					<span class="coord-value">{ formatSpeed(entity.VFR.Groundspeed) }</span>
+				</div>
+			}
+		</div>
+		<div class="card-footer">
+			<span class="entity-type">{ entity.EntityType }</span>
+		</div>
+	</div>
+}
+
+// MapEntityListItem displays an entity in the sidebar list
+templ MapEntityListItem(entity shared.EntityState, isSelected bool) {
+	<div
+		class={ "entity-list-item", templ.KV("selected", isSelected) }
+		data-entity-id={ entity.EntityID }>
+		<div class="entity-icon">
+			@EntityTypeIcon(entity.EntityType)
+		</div>
+		<div class="entity-info">
+			<span class="entity-name">{ getEntityDisplayName(entity) }</span>
+			<span class="entity-coords">
+				if entity.Position != nil && entity.Position.Global != nil {
+					{ formatCoordShort(entity.Position.Global.Latitude, entity.Position.Global.Longitude) }
+				} else {
+					No position
+				}
+			</span>
+		</div>
+		<div class={ "entity-status-dot", templ.KV("active", entity.IsLive), templ.KV("inactive", !entity.IsLive) }></div>
+	</div>
+}
+
+// MapLibreScript contains the JavaScript for MapLibre GL JS initialization
+templ MapLibreScript() {
+	<!-- MapLibre GL JS CSS -->
+	<link href="/static/lib/maplibre-gl.css" rel="stylesheet"/>
+	<!-- MapLibre GL JS -->
+	<script src="/static/lib/maplibre-gl.js"></script>
+	<script type="module">
+		// MapLibre Controller for entity visualization
+		class MapLibreController {
+			constructor() {
+				this.map = null;
+				this.markers = new Map();
+				this.trails = new Map();
+				this.popups = new Map();
+				this.features = new Map(); // GeoJSON features for map layer
+				this.hasFitBounds = false; // Track if we've done initial fit
+				this.showLabels = true;
+				this.showTrails = false;
+				this.currentStyle = 'dark';
+				this.entityList = document.getElementById('entity-list');
+
+				// Style URLs (free, no API key needed)
+				this.styles = {
+					dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+					light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+				};
+
+				// Entity type category colors (matching CSS theme)
+				this.categoryColors = {
+					aircraft: '#00d4ff', // cyan
+					ground:   '#ffa500', // orange
+					marine:   '#4488ff', // blue
+					system:   '#00ff88', // green
+					geo:      '#b464ff', // purple
+					unknown:  '#888888'  // gray
+				};
+
+				// Map entity types to categories (must match pkg/shared/types.go)
+				this.entityTypeCategory = {
+					'aircraft_fixed_wing': 'aircraft',
+					'aircraft_multirotor': 'aircraft',
+					'aircraft_vtol': 'aircraft',
+					'aircraft_helicopter': 'aircraft',
+					'aircraft_airship': 'aircraft',
+					'ground_vehicle_wheeled': 'ground',
+					'ground_vehicle_tracked': 'ground',
+					'surface_vessel_usv': 'marine',
+					'underwater_vehicle': 'marine',
+					'sensor_platform': 'system',
+					'payload_system': 'system',
+					'operator_station': 'system',
+					'waypoint': 'geo',
+					'no_fly_zone': 'geo',
+					'geofence': 'geo'
+				};
+
+				this.init();
+				this.setupEventListeners();
+				this.setupSignalWatcher();
+			}
+
+			// Get category for an entity type
+			getCategoryForType(entityType) {
+				return this.entityTypeCategory[entityType] || 'unknown';
+			}
+
+			// Get color for an entity type
+			getColorForType(entityType) {
+				const category = this.getCategoryForType(entityType);
+				return this.categoryColors[category] || this.categoryColors.unknown;
+			}
+
+			init() {
+				// Initialize MapLibre GL JS map
+				this.map = new maplibregl.Map({
+					container: 'map-container',
+					style: this.styles.dark,
+					center: [0, 0],
+					zoom: 2,
+					attributionControl: false
+				});
+
+				// Add navigation controls
+				this.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'bottom-right');
+				this.map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+				// Wait for map to load
+				this.map.on('load', async () => {
+					console.log('[MapLibre] Map loaded');
+
+					// Add GeoJSON source for trackers
+					this.map.addSource('trackers', {
+						type: 'geojson',
+						data: { type: 'FeatureCollection', features: [] }
+					});
+
+					// Add Circle layer for trackers (native rendering, no images needed)
+					// Color is data-driven based on entity category
+					this.map.addLayer({
+						id: 'trackers-layer',
+						type: 'circle',
+						source: 'trackers',
+						paint: {
+							'circle-radius': 10,
+							'circle-color': [
+								'match',
+								['get', 'category'],
+								'aircraft', '#00d4ff', // cyan
+								'ground', '#ffa500',   // orange
+								'marine', '#4488ff',   // blue
+								'system', '#00ff88',   // green
+								'geo', '#b464ff',      // purple
+								'#888888'              // fallback gray
+							],
+							'circle-stroke-width': 3,
+							'circle-stroke-color': '#ffffff',
+							'circle-opacity': 1
+						}
+					});
+
+					// Add Symbol layer for labels (separate layer)
+					this.map.addLayer({
+						id: 'trackers-labels',
+						type: 'symbol',
+						source: 'trackers',
+						layout: {
+							'text-field': this.showLabels ? ['get', 'name'] : '',
+							'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+							'text-size': 12,
+							'text-offset': [0, 1.2],
+							'text-anchor': 'top',
+							'text-optional': true
+						},
+						paint: {
+							'text-color': '#ffffff',
+							'text-halo-color': '#000000',
+							'text-halo-width': 1,
+							'text-opacity': ['get', 'opacity']
+						}
+					});
+
+					// Add trails source and layer
+					this.map.addSource('trails', {
+						type: 'geojson',
+						data: { type: 'FeatureCollection', features: [] }
+					});
+
+					this.map.addLayer({
+						id: 'trails-layer',
+						type: 'line',
+						source: 'trails',
+						paint: {
+							'line-color': '#00dfff',
+							'line-width': 2,
+							'line-opacity': 0.6
+						}
+					});
+
+					// Add click event listener for trackers
+					this.map.on('click', 'trackers-layer', (e) => {
+						if (!e.features || e.features.length === 0) return;
+
+						const feature = e.features[0];
+						const entityId = feature.properties.entityId;
+						const coordinates = feature.geometry.coordinates.slice();
+
+						// Ensure that if the map is zoomed out such that multiple
+						// copies of the feature are visible, the popup appears over the one clicked.
+						while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+							coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+						}
+
+						const popup = this.popups.get(entityId);
+						if (popup) {
+							popup.setLngLat(coordinates).addTo(this.map);
+						}
+					});
+
+					// Change the cursor to a pointer when the mouse is over the trackers-layer.
+					this.map.on('mouseenter', 'trackers-layer', () => {
+						this.map.getCanvas().style.cursor = 'pointer';
+					});
+
+					// Change it back to a pointer when it leaves.
+					this.map.on('mouseleave', 'trackers-layer', () => {
+						this.map.getCanvas().style.cursor = '';
+					});
+				});
+
+				console.log('[MapLibre] Controller initialized');
+			}
+
+			setupEventListeners() {
+				// Zoom controls
+				document.getElementById('zoom-in-btn')?.addEventListener('click', () => this.map.zoomIn());
+				document.getElementById('zoom-out-btn')?.addEventListener('click', () => this.map.zoomOut());
+				document.getElementById('fit-bounds-btn')?.addEventListener('click', () => this.fitBounds());
+
+				// Style selector
+				document.getElementById('map-style-select')?.addEventListener('change', (e) => {
+					this.setStyle(e.target.value);
+				});
+
+				// Toggle buttons - listen for signal changes via MutationObserver
+				const toggleLabelsBtn = document.getElementById('toggle-labels-btn');
+				const toggleTrailsBtn = document.getElementById('toggle-trails-btn');
+
+				if (toggleLabelsBtn) {
+					new MutationObserver(() => {
+						const isActive = toggleLabelsBtn.classList.contains('active');
+						if (this.showLabels !== isActive) {
+							this.showLabels = isActive;
+							this.updateLabelsVisibility();
+						}
+					}).observe(toggleLabelsBtn, { attributes: true, attributeFilter: ['class'] });
+				}
+
+				if (toggleTrailsBtn) {
+					new MutationObserver(() => {
+						const isActive = toggleTrailsBtn.classList.contains('active');
+						if (this.showTrails !== isActive) {
+							this.showTrails = isActive;
+							this.updateTrailsVisibility();
+						}
+					}).observe(toggleTrailsBtn, { attributes: true, attributeFilter: ['class'] });
+				}
+			}
+
+			setupSignalWatcher() {
+				// Watch #entity-list for C5EntityCard elements being added/updated by SSE
+				const entityList = document.getElementById('entity-list');
+				if (!entityList) {
+					console.warn('[MapLibre] entity-list not found');
+					return;
+				}
+
+				// Debounce processing
+				let updateTimeout = null;
+				const processCards = () => {
+					if (updateTimeout) clearTimeout(updateTimeout);
+					updateTimeout = setTimeout(() => this.processEntityCards(), 100);
+				};
+
+				// Watch for DOM changes (Datastar patches elements here)
+				new MutationObserver(processCards).observe(entityList, {
+					childList: true,
+					subtree: true,
+					attributes: true,
+					attributeFilter: ['data-entity-id']
+				});
+
+				console.log('[MapLibre] Watching #entity-list for entity cards');
+			}
+
+			processEntityCards() {
+				// Find all C5EntityCard elements and extract entity data from data attributes
+				const cards = document.querySelectorAll('#entity-list .c5-entity-card[data-entity-id]');
+				console.log(`[MapLibre] Processing ${cards.length} entity cards`);
+
+				const currentIds = new Set();
+
+				cards.forEach(card => {
+					const entityId = card.dataset.entityId;
+					if (!entityId) return;
+					currentIds.add(entityId);
+
+					// Get entity type from data attribute
+					const entityType = card.dataset.entityType || '';
+
+					// Extract position from the card's stat-pill elements
+					const latEl = card.querySelector('.stat-pill .label')?.textContent === 'LAT'
+						? card.querySelector('.stat-pill .value') : null;
+					const lngEl = Array.from(card.querySelectorAll('.stat-pill')).find(p =>
+						p.querySelector('.label')?.textContent === 'LNG')?.querySelector('.value');
+
+					// Try to find lat/lng from the quick-stats section
+					const statPills = card.querySelectorAll('.quick-stats .stat-pill');
+					let lat = null, lng = null, name = null;
+
+					statPills.forEach(pill => {
+						const label = pill.querySelector('.label')?.textContent;
+						const value = pill.querySelector('.value')?.textContent;
+						if (label === 'LAT' && value) lat = parseFloat(value);
+						if (label === 'LNG' && value) lng = parseFloat(value);
+					});
+
+					// Get entity name
+					name = card.querySelector('.entity-name')?.textContent?.trim() || entityId;
+
+					if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+						console.log(`[MapLibre] Found entity ${entityId}: ${lat}, ${lng}, type: ${entityType}`);
+						const feature = this.createFeatureFromCard(entityId, name, lat, lng, entityType);
+						if (feature) {
+							this.features.set(entityId, feature);
+						}
+					}
+				});
+
+				// Remove features for entities no longer in DOM
+				for (const entityId of this.features.keys()) {
+					if (!currentIds.has(entityId)) {
+						this.removeEntity(entityId);
+					}
+				}
+
+				console.log(`[MapLibre] Map features: ${this.features.size}`);
+				this.updateMapData();
+
+				// Auto-fit on first valid data
+				if (this.features.size > 0 && !this.hasFitBounds) {
+					this.fitBounds();
+					this.hasFitBounds = true;
+				}
+			}
+
+			createFeatureFromCard(entityId, name, lat, lng, entityType) {
+				const category = this.getCategoryForType(entityType);
+				const feature = {
+					type: 'Feature',
+					geometry: { type: 'Point', coordinates: [lng, lat] },
+					properties: {
+						entityId,
+						name,
+						entityType,
+						category,
+						isLive: true,
+						opacity: 1
+					}
+				};
+
+				// Create popup if not exists
+				if (!this.popups.has(entityId)) {
+					const color = this.getColorForType(entityType);
+					const popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false });
+					popup.setHTML(`<div style="padding:8px;"><strong style="color:${color}">${name}</strong><br/><span style="color:#888;font-size:11px;">${entityType || 'unknown'}</span><br/>Lat: ${lat.toFixed(6)}<br/>Lng: ${lng.toFixed(6)}</div>`);
+					this.popups.set(entityId, popup);
+				}
+
+				return feature;
+			}
+
+			updateMapData() {
+				const source = this.map.getSource('trackers');
+				if (source) {
+					const data = {
+						type: 'FeatureCollection',
+						features: Array.from(this.features.values())
+					};
+					console.log('[MapLibre] Setting source data:', data.features.length, 'features');
+					source.setData(data);
+				} else {
+					console.log('[MapLibre] Source not ready, will retry');
+					// Map not loaded yet, retry after load
+					this.map.once('load', () => this.updateMapData());
+				}
+			}
+
+			updateLabelsVisibility() {
+				if (this.map.getLayer('trackers-labels')) {
+					this.map.setLayoutProperty(
+						'trackers-labels',
+						'text-field',
+						this.showLabels ? ['get', 'name'] : ''
+					);
+				}
+			}
+
+			updateTrail(entityId, lng, lat) {
+				if (!this.trails.has(entityId)) {
+					this.trails.set(entityId, []);
+				}
+
+				const trail = this.trails.get(entityId);
+				trail.push([lng, lat]);
+
+				// Keep only last 100 points
+				if (trail.length > 100) {
+					trail.shift();
+				}
+
+				// Update trails layer
+				this.renderTrails();
+			}
+
+			renderTrails() {
+				if (!this.map.getSource('trails')) return;
+
+				const features = [];
+				for (const [entityId, coordinates] of this.trails) {
+					if (coordinates.length >= 2) {
+						features.push({
+							type: 'Feature',
+							properties: { entityId },
+							geometry: {
+								type: 'LineString',
+								coordinates
+							}
+						});
+					}
+				}
+
+				this.map.getSource('trails').setData({
+					type: 'FeatureCollection',
+					features
+				});
+			}
+
+			updateTrailsVisibility() {
+				if (!this.map.getLayer('trails-layer')) return;
+				this.map.setLayoutProperty('trails-layer', 'visibility', this.showTrails ? 'visible' : 'none');
+
+				if (!this.showTrails) {
+					this.trails.clear();
+					this.renderTrails();
+				}
+			}
+
+			removeEntity(entityId) {
+				if (this.features.has(entityId)) {
+					this.features.delete(entityId);
+				}
+				if (this.popups.has(entityId)) {
+					this.popups.get(entityId).remove();
+					this.popups.delete(entityId);
+				}
+				if (this.trails.has(entityId)) {
+					this.trails.delete(entityId);
+					this.renderTrails();
+				}
+			}
+
+			fitBounds() {
+				if (this.features.size === 0) return;
+
+				const coordinates = [];
+				for (const feature of this.features.values()) {
+					coordinates.push(feature.geometry.coordinates);
+				}
+
+				if (coordinates.length === 1) {
+					this.map.flyTo({ center: coordinates[0], zoom: 15 });
+				} else if (coordinates.length > 1) {
+					const bounds = coordinates.reduce((bounds, coord) => {
+						return bounds.extend(coord);
+					}, new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
+
+					this.map.fitBounds(bounds, { padding: 50 });
+				}
+			}
+
+			focusEntity(entityId) {
+				const feature = this.features.get(entityId);
+				if (feature) {
+					const coordinates = feature.geometry.coordinates;
+					this.map.flyTo({ center: coordinates, zoom: 15 });
+
+					const popup = this.popups.get(entityId);
+					if (popup) {
+						popup.setLngLat(coordinates).addTo(this.map);
+					}
+				}
+			}
+
+			setStyle(styleName) {
+				if (this.styles[styleName] && styleName !== this.currentStyle) {
+					this.currentStyle = styleName;
+					this.map.setStyle(this.styles[styleName]);
+
+					// Re-add sources and layers after style change
+					this.map.once('style.load', async () => {
+						this.map.addSource('trackers', {
+							type: 'geojson',
+							data: { type: 'FeatureCollection', features: Array.from(this.features.values()) }
+						});
+
+						this.map.addLayer({
+							id: 'trackers-layer',
+							type: 'circle',
+							source: 'trackers',
+							paint: {
+								'circle-radius': 10,
+								'circle-color': [
+									'match',
+									['get', 'category'],
+									'aircraft', '#00d4ff', // cyan
+									'ground', '#ffa500',   // orange
+									'marine', '#4488ff',   // blue
+									'system', '#00ff88',   // green
+									'geo', '#b464ff',      // purple
+									'#888888'              // fallback gray
+								],
+								'circle-stroke-width': 3,
+								'circle-stroke-color': '#ffffff',
+								'circle-opacity': 1
+							}
+						});
+
+						this.map.addLayer({
+							id: 'trackers-labels',
+							type: 'symbol',
+							source: 'trackers',
+							layout: {
+								'text-field': this.showLabels ? ['get', 'name'] : '',
+								'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+								'text-size': 12,
+								'text-offset': [0, 1.2],
+								'text-anchor': 'top',
+								'text-optional': true
+							},
+							paint: {
+								'text-color': '#ffffff',
+								'text-halo-color': '#000000',
+								'text-halo-width': 1,
+								'text-opacity': ['get', 'opacity']
+							}
+						});
+
+						this.map.addSource('trails', {
+							type: 'geojson',
+							data: { type: 'FeatureCollection', features: [] }
+						});
+
+						this.map.addLayer({
+							id: 'trails-layer',
+							type: 'line',
+							source: 'trails',
+							paint: {
+								'line-color': '#00dfff',
+								'line-width': 2,
+								'line-opacity': 0.6
+							}
+						});
+
+						this.renderTrails();
+					});
+				}
+			}
+
+		}
+
+		// Initialize map controller when DOM is ready
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', () => {
+				window.mapController = new MapLibreController();
+			});
+		} else {
+			window.mapController = new MapLibreController();
+		}
+	</script>
+}
+
+// Helper icons for map controls
+templ ZoomInIcon() {
+	<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<circle cx="11" cy="11" r="8"></circle>
+		<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+		<line x1="11" y1="8" x2="11" y2="14"></line>
+		<line x1="8" y1="11" x2="14" y2="11"></line>
+	</svg>
+}
+
+templ ZoomOutIcon() {
+	<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<circle cx="11" cy="11" r="8"></circle>
+		<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+		<line x1="8" y1="11" x2="14" y2="11"></line>
+	</svg>
+}
+
+templ MaximizeIcon() {
+	<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<polyline points="15 3 21 3 21 9"></polyline>
+		<polyline points="9 21 3 21 3 15"></polyline>
+		<line x1="21" y1="3" x2="14" y2="10"></line>
+		<line x1="3" y1="21" x2="10" y2="14"></line>
+	</svg>
+}
+
+templ TagIcon() {
+	<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"></path>
+		<circle cx="7.5" cy="7.5" r=".5" fill="currentColor"></circle>
+	</svg>
+}
+
+templ RouteIcon() {
+	<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<circle cx="6" cy="19" r="3"></circle>
+		<path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
+		<circle cx="18" cy="5" r="3"></circle>
+	</svg>
+}
+
+templ EntityTypeIcon(entityType string) {
+	switch entityType {
+	case "aircraft_multirotor", "aircraft_fixedwing":
+		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path>
+		</svg>
+	case "ground_vehicle", "ground_robot":
+		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8c-.3.5-.1 1.1.4 1.4l.5.3c.5.3.8.9.8 1.5V16c0 .6.4 1 1 1h2"></path>
+			<circle cx="7" cy="17" r="2"></circle>
+			<circle cx="17" cy="17" r="2"></circle>
+		</svg>
+	case "sensor_fixed", "sensor_mobile":
+		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"></path>
+			<path d="M4 6h.01"></path>
+			<path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"></path>
+			<path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"></path>
+			<path d="M12 18h.01"></path>
+			<circle cx="12" cy="12" r="2"></circle>
+		</svg>
+	default:
+		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="12" cy="12" r="10"></circle>
+			<circle cx="12" cy="12" r="3"></circle>
+		</svg>
+	}
+}
+
+// SidebarToggleIcon is a chevron icon for toggling the sidebar
+templ SidebarToggleIcon() {
+	<svg class="toggle-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+		<polyline points="9 18 15 12 9 6"></polyline>
+	</svg>
+}

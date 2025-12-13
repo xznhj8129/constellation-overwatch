@@ -1,0 +1,424 @@
+package pages
+
+import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+)
+
+templ VideoPage(entityIDs []string, natsAuthToken string) {
+	@layouts.Base("Video") {
+		@components.Navigation("video") {
+			<div class="tab-content">
+				@VideoPanel(entityIDs)
+			</div>
+			@VideoPageStyles()
+		}
+	}
+}
+
+templ VideoPanel(entityIDs []string) {
+	<div id="video-panel"
+		class="panel"
+		data-signals="{
+			activeStreams: [],
+			streamCount: 0,
+			lastUpdate: '',
+			_isConnected: false,
+			selectedEntity: ''
+		}"
+		data-init="@get('/api/video/list')">
+		<div class="panel-header">
+			<h2>Video Feeds</h2>
+			<div class="status-bar">
+				<span class="connection-status" data-show="$_isConnected">
+					<span class="status-dot connected"></span>
+					Connected
+				</span>
+				<span class="connection-status" data-show="!$_isConnected">
+					<span class="status-dot disconnected"></span>
+					Connecting...
+				</span>
+				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+					<span data-text="$streamCount + ' active streams'"></span>
+				</span>
+				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
+			</div>
+		</div>
+		<div class="video-controls-bar" style="padding: 15px; border-bottom: 1px solid #333;">
+			<div style="display: flex; gap: 15px; align-items: center;">
+				<label style="color: #888;">Select Entity:</label>
+				<select
+					data-model="selectedEntity"
+					style="background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;">
+					<option value="">-- All Active Streams --</option>
+					for _, entityID := range entityIDs {
+						<option value={ entityID }>{ entityID }</option>
+					}
+				</select>
+				<button
+					data-on-click="openVideoFullscreenByEntity($selectedEntity)"
+					data-show="$selectedEntity != ''"
+					style="background: #0a4; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+					Open Fullscreen
+				</button>
+			</div>
+		</div>
+		<div id="video-content" class="video-content" style="padding: 20px;">
+			<!-- Single entity view (when entity selected) -->
+			<div data-show="$selectedEntity != ''" style="display: flex; justify-content: center;">
+				<div class="video-card-large" style="max-width: 1280px; width: 100%;">
+					<div class="video-card-header" style="background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;">
+						<span style="color: #0ff; font-weight: bold;" data-text="'Entity: ' + $selectedEntity"></span>
+						<span class="fps-counter" style="color: #888; font-size: 12px;">-- fps</span>
+					</div>
+					<div class="video-container-dynamic" style="background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative;">
+						<img
+							class="video-mjpeg-dynamic"
+							data-attr-src="$selectedEntity ? '/api/v1/video/stream/' + $selectedEntity : ''"
+							alt="Video stream"
+							style="width: 100%; height: auto; display: block;"/>
+						<div class="no-signal-overlay" style="display: none;">
+							<span>No Video Signal</span>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- Grid view for all active streams -->
+			<div data-show="$selectedEntity == ''">
+				<div id="video-grid" class="video-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;">
+					<!-- Populated by SSE from /api/video/list -->
+					<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
+						<p>No active video streams detected.</p>
+						<p style="font-size: 12px; margin-top: 10px;">Waiting for video frames on constellation.video.* subjects...</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+		function openVideoFullscreenByEntity(entityId) {
+			if (!entityId) return;
+			openVideoFullscreen(entityId);
+		}
+	</script>
+}
+
+// VideoCard renders a simple video card with MJPEG stream
+templ VideoCard(entity shared.EntityState) {
+	<div id={ "video-card-" + entity.EntityID } class="video-card" data-entity-id={ entity.EntityID }>
+		<div class="video-card-header">
+			<span class="entity-name">
+				if entity.Name != "" {
+					{ entity.Name }
+				} else {
+					{ entity.EntityID }
+				}
+			</span>
+			<span class="entity-type">{ entity.EntityType }</span>
+			<div class="video-card-stats">
+				<span class="fps-counter" id={ "fps-" + entity.EntityID }>-- fps</span>
+				<span class={ "status-dot", templ.KV("connected", entity.Status == "active"), templ.KV("disconnected", entity.Status != "active") }></span>
+			</div>
+		</div>
+		<div class="video-container" data-entity-id={ entity.EntityID }>
+			<div class="no-signal-overlay">
+				<span>No Video Signal</span>
+			</div>
+			<img
+				class="video-mjpeg"
+				src={ "/api/v1/video/stream/" + entity.EntityID }
+				alt="Video stream"/>
+		</div>
+		<div class="video-card-controls">
+			<span class="status-label">{ entity.Status }</span>
+			<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
+				Fullscreen
+			</button>
+		</div>
+	</div>
+}
+
+// VideoPageStyles contains the styles and scripts for the video page
+templ VideoPageStyles() {
+	<script>
+		// FPS tracking state per entity
+		const fpsTrackers = {};
+
+		function initFpsTracker(entityId) {
+			if (fpsTrackers[entityId]) {
+				// Already tracking, just increment frame count
+				fpsTrackers[entityId].frameCount++;
+				const now = performance.now();
+				if (now - fpsTrackers[entityId].lastTime >= 1000) {
+					const fps = Math.round(fpsTrackers[entityId].frameCount * 1000 / (now - fpsTrackers[entityId].lastTime));
+					const fpsEl = document.getElementById('fps-' + entityId);
+					if (fpsEl) fpsEl.textContent = fps + ' fps';
+					fpsTrackers[entityId].frameCount = 0;
+					fpsTrackers[entityId].lastTime = now;
+				}
+				return;
+			}
+			// Initialize new tracker
+			fpsTrackers[entityId] = {
+				frameCount: 1,
+				lastTime: performance.now()
+			};
+		}
+
+		// Initialize FPS tracking for all video cards on page load
+		document.addEventListener('DOMContentLoaded', function() {
+			document.querySelectorAll('.video-card').forEach(function(card) {
+				const entityId = card.dataset.entityId;
+				const img = card.querySelector('.video-mjpeg');
+				const overlay = card.querySelector('.no-signal-overlay');
+
+				if (img) {
+					img.onload = function() {
+						if (overlay) overlay.style.display = 'none';
+						initFpsTracker(entityId);
+					};
+					img.onerror = function() {
+						if (overlay) overlay.style.display = 'flex';
+					};
+				}
+			});
+		});
+
+		function openVideoFullscreen(entityId) {
+			if (!entityId) {
+				console.warn('[Video] No entityId provided for fullscreen');
+				return;
+			}
+
+			// Find the existing video element for this entity
+			const card = document.getElementById('video-card-' + entityId);
+			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
+
+			// Remove any existing modal first
+			const existingModal = document.getElementById('video-fullscreen-modal');
+			if (existingModal) existingModal.remove();
+
+			// Create fullscreen modal
+			const modal = document.createElement('div');
+			modal.id = 'video-fullscreen-modal';
+			modal.innerHTML = `
+				<div class="fullscreen-header">
+					<span class="entity-label">${entityId}</span>
+					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
+				</div>
+				<div class="fullscreen-video">
+				</div>
+			`;
+			document.body.appendChild(modal);
+
+			// Clone the existing img element to reuse the stream, or create new one
+			const fullscreenContainer = modal.querySelector('.fullscreen-video');
+			if (existingImg && existingImg.src) {
+				const clonedImg = existingImg.cloneNode(true);
+				clonedImg.style.maxWidth = '100%';
+				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
+				clonedImg.style.objectFit = 'contain';
+				fullscreenContainer.appendChild(clonedImg);
+			} else {
+				// Fallback: create new stream connection
+				const img = document.createElement('img');
+				img.src = '/api/v1/video/stream/' + entityId;
+				img.alt = 'Video stream';
+				fullscreenContainer.appendChild(img);
+			}
+
+			// ESC key to close
+			const escHandler = function(e) {
+				if (e.key === 'Escape') {
+					closeVideoFullscreen();
+					document.removeEventListener('keydown', escHandler);
+				}
+			};
+			document.addEventListener('keydown', escHandler);
+		}
+
+		function closeVideoFullscreen() {
+			const modal = document.getElementById('video-fullscreen-modal');
+			if (modal) modal.remove();
+		}
+
+	</script>
+	<style>
+		/* Video Card Styles */
+		.video-card {
+			background: #1a1a1a;
+			border-radius: 4px;
+			overflow: hidden;
+			border: 1px solid #333;
+		}
+
+		.video-card-header {
+			padding: 10px 15px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			border-bottom: 1px solid #333;
+			background: #1a1a1a;
+		}
+
+		.video-card-header .entity-name {
+			color: #0ff;
+			font-weight: bold;
+		}
+
+		.video-card-header .entity-type {
+			color: #ff0;
+			font-size: 11px;
+			text-transform: uppercase;
+			background: rgba(255, 255, 0, 0.1);
+			padding: 2px 6px;
+			border-radius: 3px;
+			margin-left: 8px;
+		}
+
+		.video-card-stats {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.video-card-stats .fps-counter {
+			color: #888;
+			font-size: 11px;
+			font-family: monospace;
+		}
+
+		.video-card-stats .status-dot {
+			width: 8px;
+			height: 8px;
+			background: #0f0;
+			border-radius: 50%;
+		}
+
+		/* Video Container */
+		.video-container {
+			position: relative;
+			background: #000;
+		}
+
+		.video-container .video-mjpeg {
+			width: 100%;
+			height: auto;
+			display: block;
+		}
+
+		.video-container .no-signal-overlay {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0, 0, 0, 0.85);
+			display: none;
+			align-items: center;
+			justify-content: center;
+			z-index: 10;
+			color: #666;
+			font-size: 14px;
+		}
+
+		.video-container .no-signal-overlay.show {
+			display: flex;
+		}
+
+		/* Video Controls */
+		.video-card-controls {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 8px 12px;
+			background: #1a1a1a;
+			border-top: 1px solid #333;
+		}
+
+		.video-card-controls .fps-counter {
+			color: #0ff;
+			font-size: 12px;
+			font-family: monospace;
+		}
+
+		.video-card-controls .status-label {
+			color: #0f0;
+			font-size: 12px;
+			text-transform: uppercase;
+		}
+
+		.status-dot.disconnected {
+			background: #f00;
+		}
+
+		.btn-fullscreen {
+			background: #0a4;
+			border: none;
+			color: #fff;
+			padding: 6px 12px;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 12px;
+		}
+
+		.btn-fullscreen:hover {
+			background: #0b5;
+		}
+
+		/* Fullscreen Modal */
+		#video-fullscreen-modal {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: #000;
+			z-index: 10000;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.fullscreen-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 10px 20px;
+			background: #111;
+			border-bottom: 1px solid #333;
+		}
+
+		.fullscreen-header .entity-label {
+			color: #0ff;
+			font-weight: bold;
+		}
+
+		.fullscreen-header .close-btn {
+			background: #a00;
+			border: none;
+			color: #fff;
+			padding: 8px 16px;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		.fullscreen-header .close-btn:hover {
+			background: #c00;
+		}
+
+		.fullscreen-video {
+			flex: 1;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: #000;
+		}
+
+		.fullscreen-video img {
+			max-width: 100%;
+			max-height: calc(100vh - 60px);
+			object-fit: contain;
+		}
+	</style>
+}

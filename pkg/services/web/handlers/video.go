@@ -12,7 +12,7 @@ import (
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	video_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/video/pages"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/nats-io/nats.go"
 )
@@ -140,7 +140,7 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 							Name:     entityName,
 						}
 
-						if err := templates.VideoCard(entityState).Render(context.Background(), &cardHTML); err == nil {
+						if err := video_pages.VideoCard(entityState).Render(context.Background(), &cardHTML); err == nil {
 							// Remove empty state if it's the first stream
 							if len(knownStreams) == 0 {
 								sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))

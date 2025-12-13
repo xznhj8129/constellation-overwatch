@@ -14,7 +14,8 @@ import (
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
+	common_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	overwatch "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
@@ -55,7 +56,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	}
 
 	// Fetch all entries
-	var kvEntries []templates.KVEntry
+	var kvEntries []overwatch.KVEntry
 	for _, key := range keys {
 		entry, err := kv.Get(key)
 		if err != nil {
@@ -63,7 +64,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 			continue
 		}
 
-		kvEntries = append(kvEntries, templates.KVEntry{
+		kvEntries = append(kvEntries, overwatch.KVEntry{
 			Key:      key,
 			Value:    string(entry.Value()),
 			Revision: fmt.Sprintf("%d", entry.Revision()),
@@ -74,7 +75,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := templates.KVStateTable(kvEntries)
+		component := overwatch.KVStateTable(kvEntries)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#kv-content"),
 			datastar.WithMode(datastar.ElementPatchModeInner))
@@ -117,6 +118,9 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// Create SSE generator AFTER setting headers
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
+	// Determine view mode
+	viewMode := r.URL.Query().Get("view")
+
 	// Mutex to synchronize writes to ResponseWriter from multiple goroutines
 	var writeMutex sync.Mutex
 
@@ -129,9 +133,15 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					<p>No entity states in global store. Waiting for telemetry data...</p>
 					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
 				</div>`
-	sse.PatchElements(emptyState,
-		datastar.WithSelector("#entities-container"),
-		datastar.WithMode(datastar.ElementPatchModeInner))
+	if viewMode == "map" {
+		sse.PatchElements(emptyState,
+			datastar.WithSelector("#entity-list"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+	} else {
+		sse.PatchElements(emptyState,
+			datastar.WithSelector("#entities-container"),
+			datastar.WithMode(datastar.ElementPatchModeInner))
+	}
 
 	flusher.Flush()
 	writeMutex.Unlock()
@@ -141,13 +151,14 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// This allows us to reconstruct a single entity's state without fetching everything
 	localEntityCache := make(map[string]map[string][]byte)
 
-	// Track known entities and orgs to determine patch strategy
-	knownEntities := make(map[string]bool)
+	// Track known entities (ID -> OrgID) to handle cleanup
+	knownEntities := make(map[string]string)
 	knownOrgs := make(map[string]bool)
 
 	// Struct to pass data to renderer
 	type RenderPayload struct {
 		Snapshot      []shared.EntityState
+		RemovedIDs    []string
 		TotalEntities int
 	}
 
@@ -244,7 +255,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				}
 
 				// Render and Flush
-				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.TotalEntities, knownEntities, knownOrgs)
+				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode)
 			}
 		}
 	}()
@@ -289,11 +300,14 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		case <-flushTicker.C:
 			// Periodic flush of dirty entities
 			if len(dirtyEntities) > 0 {
-				// Create snapshot
+				// Create snapshot and track removals
 				var snapshot []shared.EntityState
+				var removedIDs []string
+
 				for entityID := range dirtyEntities {
 					entityData, exists := localEntityCache[entityID]
 					if !exists {
+						removedIDs = append(removedIDs, entityID)
 						continue
 					}
 					// Reconstruct state (fast, just map lookups and struct creation)
@@ -304,6 +318,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				// Try to send to renderer (non-blocking)
 				payload := RenderPayload{
 					Snapshot:      snapshot,
+					RemovedIDs:    removedIDs,
 					TotalEntities: len(localEntityCache),
 				}
 
@@ -374,7 +389,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					}
 					localEntityCache[entityID][key] = value
 					logger.Debugw("[Overwatch] Updated entity signal", "entity_id", entityID, "key", key, "size", len(value))
-					
+
 					// Log mavlink data for debugging
 					if strings.HasSuffix(key, ".mavlink") {
 						previewLen := 200
@@ -393,7 +408,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 }
 
 // Helper to render and flush a snapshot
-func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, totalEntities int, knownEntities map[string]bool, knownOrgs map[string]bool) {
+func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, removedIDs []string, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string) {
 	// Check if flusher is nil to prevent panic
 	if flusher == nil {
 		logger.Debugw("Flusher is nil, connection likely closed, skipping render")
@@ -412,21 +427,40 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 	updatesSent := 0
 
 	for _, entityState := range snapshot {
-		// Render card
+		// Render card based on view mode
 		var cardHTML strings.Builder
-		if err := templates.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
-			logger.Errorw("Error rendering entity card", "error", err)
-			continue
+		if viewMode == "map" {
+			// Map View: Use C5EntityCard (Simple Mode initially)
+			// Selector: #c5-entity-{id}
+			// Container: #entity-list
+			if err := common_components.C5EntityCard(entityState, false).Render(context.Background(), &cardHTML); err != nil {
+				logger.Errorw("Error rendering C5 entity card", "error", err)
+				continue
+			}
+		} else {
+			// Default Overwatch View
+			if err := overwatch.EntityCard(entityState).Render(context.Background(), &cardHTML); err != nil {
+				logger.Errorw("Error rendering entity card", "error", err)
+				continue
+			}
 		}
 
 		// Determine patch mode
 		var patchMode datastar.PatchElementMode
 		var selector string
+		var containerSelector string
 		entityID := entityState.EntityID
 
-		if !knownEntities[entityID] {
+		if viewMode == "map" {
+			containerSelector = "#entity-list"
+		} else {
+			containerSelector = "#entities-container"
+		}
+
+		if _, exists := knownEntities[entityID]; !exists {
 			// New entity
-			if !knownOrgs[entityState.OrgID] {
+			// Handle Org Headers only for Overwatch Dashboard
+			if viewMode != "map" && !knownOrgs[entityState.OrgID] {
 				// Create Org Container
 				if len(knownOrgs) == 0 {
 					if err := sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
@@ -440,29 +474,42 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				if entityState.OrgName != "" {
 					orgName = entityState.OrgName
 				}
-				orgHTML.WriteString(fmt.Sprintf(`<div style="margin-bottom: 30px;"><h3 style="color: #0ff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 15px;">Organization: %s</h3><div id="org-cards-%s" class="entity-cards-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 15px;"></div></div>`, orgName, entityState.OrgID))
+				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
 
-				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector("#entities-container"), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
+				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
 					return
 				}
 				knownOrgs[entityState.OrgID] = true
 
-				// Initialize signal
+				// Initialize signal (Same signal for both views)
 				if err := sse.PatchSignals(map[string]interface{}{
 					fmt.Sprintf("entityStatesByOrg.%s", entityState.OrgID): map[string]interface{}{},
 				}); err != nil {
 					logger.Debugw("Failed to patch org signals, connection may be closed", "error", err)
 					return
 				}
+			} else if viewMode == "map" {
+				// For map, remove empty state if first entity
+				if len(knownEntities) == 0 {
+					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+						// Ignore error as empty state might not exist
+					}
+				}
 			}
 
 			patchMode = datastar.ElementPatchModeAppend
-			selector = fmt.Sprintf("#org-cards-%s", entityState.OrgID)
-			knownEntities[entityID] = true
+			selector = containerSelector
+			knownEntities[entityID] = entityState.OrgID
 		} else {
 			patchMode = datastar.ElementPatchModeMorph
-			selector = fmt.Sprintf("#entity-%s", entityID)
+			if viewMode == "map" {
+				selector = fmt.Sprintf("#c5-entity-%s", entityID)
+			} else {
+				selector = fmt.Sprintf("#entity-%s", entityID)
+			}
+			// Update known org just in case it changed (unlikely but possible)
+			knownEntities[entityID] = entityState.OrgID
 		}
 
 		// Patch Element
@@ -471,7 +518,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			return
 		}
 
-		// Patch Signal
+		// Patch Signal (Same for both views)
 		if err := sse.PatchSignals(map[string]interface{}{
 			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entityState,
 		}); err != nil {
@@ -480,6 +527,36 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		}
 
 		updatesSent++
+	}
+
+	// Process Removed IDs
+	for _, entityID := range removedIDs {
+		// Only remove if we knew about it
+		if orgID, known := knownEntities[entityID]; known {
+			logger.Infow("[Overwatch] Removing entity", "entity_id", entityID)
+
+			// Remove from DOM
+			var selector string
+			if viewMode == "map" {
+				selector = fmt.Sprintf("#c5-entity-%s", entityID)
+			} else {
+				selector = fmt.Sprintf("#entity-%s", entityID)
+			}
+
+			if err := sse.PatchElements("", datastar.WithSelector(selector), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+				logger.Debugw("Failed to remove entity element", "error", err)
+			}
+
+			// Remove from Signal (set to null)
+			if err := sse.PatchSignals(map[string]interface{}{
+				fmt.Sprintf("entityStatesByOrg.%s.%s", orgID, entityID): nil,
+			}); err != nil {
+				logger.Debugw("Failed to update signal for removed entity", "error", err)
+			}
+
+			delete(knownEntities, entityID)
+			updatesSent++
+		}
 	}
 
 	if updatesSent > 0 {
@@ -633,6 +710,31 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 		// Extract device_id if present
 		if deviceID, ok := rawData["device_id"].(string); ok && deviceID != "" {
 			state.DeviceID = deviceID
+		}
+
+		// Extract entity_type if present
+		if entityType, ok := rawData["entity_type"].(string); ok && entityType != "" {
+			state.EntityType = entityType
+		}
+
+		// Extract name if present
+		if name, ok := rawData["name"].(string); ok && name != "" {
+			state.Name = name
+		}
+
+		// Extract status if present
+		if status, ok := rawData["status"].(string); ok && status != "" {
+			state.Status = status
+		}
+
+		// Extract priority if present
+		if priority, ok := rawData["priority"].(string); ok && priority != "" {
+			state.Priority = priority
+		}
+
+		// Extract is_live if present
+		if isLive, ok := rawData["is_live"].(bool); ok {
+			state.IsLive = isLive
 		}
 
 		// Determine data type from key suffix and merge accordingly
@@ -793,6 +895,26 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 		state.OrgName = orgName
 	}
 
+	// Extract entity_type if present
+	if entityType, ok := data["entity_type"].(string); ok && entityType != "" {
+		state.EntityType = entityType
+	}
+
+	// Extract status if present
+	if status, ok := data["status"].(string); ok && status != "" {
+		state.Status = status
+	}
+
+	// Extract priority if present
+	if priority, ok := data["priority"].(string); ok && priority != "" {
+		state.Priority = priority
+	}
+
+	// Extract is_live if present
+	if isLive, ok := data["is_live"].(bool); ok {
+		state.IsLive = isLive
+	}
+
 	if state.OrgID == "" {
 		logger.Infow("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
 	}
@@ -869,7 +991,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 // mergeNewMAVLinkData merges the new flattened mavlink data format
 func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data map[string]interface{}) {
 	logger.Debugw("[Overwatch] Merging new flattened MAVLink data", "entity_id", state.EntityID)
-	
+
 	// Extract SystemID and ComponentID
 	if systemID, ok := data["system_id"].(float64); ok {
 		state.SystemID = uint8(systemID)
@@ -877,7 +999,7 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 	if componentID, ok := data["component_id"].(float64); ok {
 		state.ComponentID = uint8(componentID)
 	}
-	
+
 	// Merge Attitude data (pitch, roll, yaw in radians)
 	if pitch, hasPitch := data["pitch"].(float64); hasPitch {
 		if state.Attitude == nil {
@@ -886,9 +1008,9 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 		if state.Attitude.Euler == nil {
 			state.Attitude.Euler = &shared.EulerAttitude{}
 		}
-		
+
 		state.Attitude.Euler.Pitch = pitch
-		
+
 		if roll, ok := data["roll"].(float64); ok {
 			state.Attitude.Euler.Roll = roll
 		}
@@ -904,64 +1026,114 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 		if yawSpeed, ok := data["yaw_speed"].(float64); ok {
 			state.Attitude.Euler.YawSpeed = yawSpeed
 		}
-		
+
 		state.Attitude.Euler.Timestamp = time.Now()
 		logger.Debugw("[Overwatch] Merged attitude data", "entity_id", state.EntityID, "pitch", pitch, "roll", state.Attitude.Euler.Roll, "yaw", state.Attitude.Euler.Yaw)
 	}
-	
+
 	// Merge Power/Battery data
 	if batteryRemaining, hasBattery := data["battery_remaining"].(float64); hasBattery {
 		if state.Power == nil {
 			state.Power = &shared.PowerState{}
 		}
-		
+
 		state.Power.BatteryRemain = int8(batteryRemaining)
-		
+
 		// voltage_battery is in mV, convert to volts
 		if voltageBattery, ok := data["voltage_battery"].(float64); ok {
 			state.Power.Voltage = voltageBattery / 1000.0 // Convert mV to V
 		}
-		
+
 		state.Power.Timestamp = time.Now()
 		logger.Debugw("[Overwatch] Merged power data", "entity_id", state.EntityID, "battery", batteryRemaining, "voltage", state.Power.Voltage)
 	}
-	
+
+	// Merge Position data (GlobalPositionInt)
+	if latitude, hasLatitude := data["latitude"].(float64); hasLatitude {
+		if state.Position == nil {
+			state.Position = &shared.PositionState{}
+		}
+		if state.Position.Global == nil {
+			state.Position.Global = &shared.GlobalPosition{}
+		}
+		if state.Position.Local == nil {
+			state.Position.Local = &shared.LocalPosition{}
+		}
+
+		// Convert latitude from degE7 to degrees
+		state.Position.Global.Latitude = latitude / 1e7
+
+		// Convert longitude from degE7 to degrees
+		if longitude, ok := data["longitude"].(float64); ok {
+			state.Position.Global.Longitude = longitude / 1e7
+		}
+
+		// Convert altitude from mm to meters
+		if altitude, ok := data["altitude"].(float64); ok {
+			state.Position.Global.AltitudeMSL = altitude / 1000.0
+		}
+
+		// Convert relative altitude from mm to meters
+		if relativeAlt, ok := data["relative_alt"].(float64); ok {
+			state.Position.Global.AltitudeRelative = relativeAlt / 1000.0
+		}
+
+		// Convert velocities from cm/s to m/s
+		if vx, ok := data["vx"].(float64); ok {
+			state.Position.Local.VX = vx / 100.0
+		}
+		if vy, ok := data["vy"].(float64); ok {
+			state.Position.Local.VY = vy / 100.0
+		}
+		if vz, ok := data["vz"].(float64); ok {
+			state.Position.Local.VZ = vz / 100.0
+		}
+
+		state.Position.Global.Timestamp = time.Now()
+		state.Position.Local.Timestamp = time.Now()
+		logger.Debugw("[Overwatch] Merged position data", "entity_id", state.EntityID, "lat", state.Position.Global.Latitude, "lon", state.Position.Global.Longitude, "alt_msl", state.Position.Global.AltitudeMSL, "alt_rel", state.Position.Global.AltitudeRelative)
+	}
+
 	// Merge VFR/Flight data
 	if groundSpeed, hasGroundSpeed := data["ground_speed"].(float64); hasGroundSpeed {
 		if state.VFR == nil {
 			state.VFR = &shared.VFRState{}
 		}
-		
+
 		state.VFR.Groundspeed = groundSpeed
-		
+
 		if throttle, ok := data["throttle"].(float64); ok {
 			state.VFR.Throttle = uint16(throttle)
 		}
 		if climbRate, ok := data["climb_rate"].(float64); ok {
 			state.VFR.ClimbRate = climbRate
 		}
-		
+		// Convert heading from centidegrees to degrees
+		if heading, ok := data["heading"].(float64); ok {
+			state.VFR.Heading = int16(heading / 100.0)
+		}
+
 		state.VFR.Timestamp = time.Now()
-		logger.Debugw("[Overwatch] Merged VFR data", "entity_id", state.EntityID, "ground_speed", groundSpeed, "throttle", state.VFR.Throttle, "climb_rate", state.VFR.ClimbRate)
+		logger.Debugw("[Overwatch] Merged VFR data", "entity_id", state.EntityID, "ground_speed", groundSpeed, "throttle", state.VFR.Throttle, "climb_rate", state.VFR.ClimbRate, "heading", state.VFR.Heading)
 	}
-	
-	// Merge Vehicle Status data 
+
+	// Merge Vehicle Status data
 	if load, hasLoad := data["load"].(float64); hasLoad {
 		if state.VehicleStatus == nil {
 			state.VehicleStatus = &shared.VehicleStatusState{}
 		}
-		
+
 		state.VehicleStatus.Load = uint16(load)
-		
+
 		// Extract vehicle type from last_msg_type or vehicle_type fields
 		if vehicleType, ok := data["vehicle_type"].(string); ok {
 			state.VehicleStatus.Mode = vehicleType // Store vehicle type in mode for display
 		}
-		
+
 		state.VehicleStatus.Timestamp = time.Now()
 		logger.Debugw("[Overwatch] Merged vehicle status", "entity_id", state.EntityID, "load", load, "vehicle_type", state.VehicleStatus.Mode)
 	}
-	
+
 	// Update entity metadata from mavlink data
 	if source, ok := data["source"].(string); ok && source != "" {
 		state.Name = source

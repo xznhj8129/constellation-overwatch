@@ -1,0 +1,69 @@
+package components
+
+templ OverwatchPanel() {
+	<div id="overwatch-panel"
+		class="panel"
+		data-signals="{
+			entityStatesByOrg: {},
+			lastUpdate: '',
+			_isConnected: false,
+			totalEntities: 0,
+			totalOrgs: 0,
+			debugMode: false
+		}"
+		data-init="@get('/api/overwatch/kv/watch')">
+		<div class="panel-header">
+			<h2>Global State Monitor</h2>
+			<div class="status-bar">
+				<span class="connection-status" data-show="$_isConnected">
+					<span class="status-dot connected"></span>
+					Connected
+				</span>
+				<span class="connection-status" data-show="!$_isConnected">
+					<span class="status-dot disconnected"></span>
+					Connecting...
+				</span>
+				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+					<span data-text="$totalOrgs + ' orgs'"></span>
+					<span data-text="' • ' + $totalEntities + ' entities'"></span>
+				</span>
+				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
+				<button data-on:click="$debugMode = !$debugMode" style="margin-left: 20px; padding: 4px 8px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 3px;">
+					<span data-text="$debugMode ? 'Hide Debug' : 'Show Debug'"></span>
+				</button>
+			</div>
+		</div>
+		<div id="overwatch-content" class="overwatch-content">
+			<!-- Debug Panel - Uses signals for display only -->
+			<div data-show="$debugMode" style="background: #1a1a1a; padding: 15px; margin: 10px 20px; border-radius: 4px; border: 1px solid #333;">
+				<h4 style="color: #0f0; margin-top: 0;">Signal Store Debug</h4>
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+					<div>
+						<strong style="color: #888;">Total Orgs:</strong> <span style="color: #fff;" data-text="$totalOrgs"></span>
+					</div>
+					<div>
+						<strong style="color: #888;">Total Entities:</strong> <span style="color: #fff;" data-text="$totalEntities"></span>
+					</div>
+					<div>
+						<strong style="color: #888;">Connected:</strong> <span style="color: #fff;" data-text="$_isConnected ? 'Yes' : 'No'"></span>
+					</div>
+					<div>
+						<strong style="color: #888;">Last Update:</strong> <span style="color: #fff;" data-text="$lastUpdate || 'Never'"></span>
+					</div>
+				</div>
+				<details style="margin-top: 10px;">
+					<summary style="color: #0ff; cursor: pointer; margin-bottom: 10px;">View Raw Signal Data</summary>
+					<pre data-text="JSON.stringify($entityStatesByOrg, null, 2)" style="color: #888; font-size: 10px; max-height: 400px; overflow: auto; background: #0a0a0a; padding: 10px; border-radius: 3px;"></pre>
+				</details>
+			</div>
+			<!-- Entities Container - Server-rendered HTML only, no client-side loops -->
+			<div id="entities-container" class="entities-grid">
+				<!-- This will be populated by server via SSE PatchElements (inner mode) -->
+				<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
+					<p>No entity states in global store. Waiting for telemetry data...</p>
+					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
+				</div>
+			</div>
+		</div>
+	</div>
+}

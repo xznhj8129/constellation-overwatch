@@ -1,0 +1,23 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
+	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
+)
+
+templ OrganizationsPage(organizations []ontology.Organization, selectedOrgID string, entities []ontology.Entity) {
+	@layouts.Base("Organizations") {
+		@components.Navigation("entities") {
+			<div class="tab-content"
+				data-signals={ fmt.Sprintf(`{
+					selectedOrgID: '%s',
+					_orgFetching: false
+				}`, selectedOrgID) }>
+				@org_components.OrganizationsPanel(organizations, selectedOrgID)
+			</div>
+		}
+	}
+}

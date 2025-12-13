@@ -1,0 +1,17 @@
+package pages
+
+import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	mapcomponents "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/components"
+)
+
+templ MapPage() {
+	@layouts.BaseWithStyles("Map", []string{"/static/css/map.css", "/static/css/overwatch.css"}) {
+		@components.Navigation("map") {
+			<div class="tab-content">
+				@mapcomponents.MapPanel()
+			</div>
+		}
+	}
+}
