@@ -27,6 +27,12 @@ templ Navigation(activeTab string) {
 				</span>
 				<span>Fleet</span>
 			</a>
+			<a href="/map" class={ "nav-button", templ.KV("active", activeTab == "map") }>
+				<span class="nav-icon">
+					@icons.Map()
+				</span>
+				<span>Map</span>
+			</a>
 			<a href="/streams" class={ "nav-button", templ.KV("active", activeTab == "streams") }>
 				<span class="nav-icon">
 					@icons.Activity()
@@ -38,12 +44,6 @@ templ Navigation(activeTab string) {
 					@icons.Radar()
 				</span>
 				<span>Overwatch</span>
-			</a>
-			<a href="/map" class={ "nav-button", templ.KV("active", activeTab == "map") }>
-				<span class="nav-icon">
-					@icons.Map()
-				</span>
-				<span>Map</span>
 			</a>
 			<a href="/video" class={ "nav-button", templ.KV("active", activeTab == "video") }>
 				<span class="nav-icon">
