@@ -192,9 +192,49 @@ templ MapLibreScript() {
 					light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 				};
 
+				// Entity type category colors (matching CSS theme)
+				this.categoryColors = {
+					aircraft: '#00d4ff', // cyan
+					ground:   '#ffa500', // orange
+					marine:   '#4488ff', // blue
+					system:   '#00ff88', // green
+					geo:      '#b464ff', // purple
+					unknown:  '#888888'  // gray
+				};
+
+				// Map entity types to categories (must match pkg/shared/types.go)
+				this.entityTypeCategory = {
+					'aircraft_fixed_wing': 'aircraft',
+					'aircraft_multirotor': 'aircraft',
+					'aircraft_vtol': 'aircraft',
+					'aircraft_helicopter': 'aircraft',
+					'aircraft_airship': 'aircraft',
+					'ground_vehicle_wheeled': 'ground',
+					'ground_vehicle_tracked': 'ground',
+					'surface_vessel_usv': 'marine',
+					'underwater_vehicle': 'marine',
+					'sensor_platform': 'system',
+					'payload_system': 'system',
+					'operator_station': 'system',
+					'waypoint': 'geo',
+					'no_fly_zone': 'geo',
+					'geofence': 'geo'
+				};
+
 				this.init();
 				this.setupEventListeners();
 				this.setupSignalWatcher();
+			}
+
+			// Get category for an entity type
+			getCategoryForType(entityType) {
+				return this.entityTypeCategory[entityType] || 'unknown';
+			}
+
+			// Get color for an entity type
+			getColorForType(entityType) {
+				const category = this.getCategoryForType(entityType);
+				return this.categoryColors[category] || this.categoryColors.unknown;
 			}
 
 			init() {
@@ -222,13 +262,23 @@ templ MapLibreScript() {
 					});
 
 					// Add Circle layer for trackers (native rendering, no images needed)
+					// Color is data-driven based on entity category
 					this.map.addLayer({
 						id: 'trackers-layer',
 						type: 'circle',
 						source: 'trackers',
 						paint: {
 							'circle-radius': 10,
-							'circle-color': '#00d4ff', // Cyan to match theme
+							'circle-color': [
+								'match',
+								['get', 'category'],
+								'aircraft', '#00d4ff', // cyan
+								'ground', '#ffa500',   // orange
+								'marine', '#4488ff',   // blue
+								'system', '#00ff88',   // green
+								'geo', '#b464ff',      // purple
+								'#888888'              // fallback gray
+							],
 							'circle-stroke-width': 3,
 							'circle-stroke-color': '#ffffff',
 							'circle-opacity': 1
@@ -381,6 +431,9 @@ templ MapLibreScript() {
 					if (!entityId) return;
 					currentIds.add(entityId);
 
+					// Get entity type from data attribute
+					const entityType = card.dataset.entityType || '';
+
 					// Extract position from the card's stat-pill elements
 					const latEl = card.querySelector('.stat-pill .label')?.textContent === 'LAT'
 						? card.querySelector('.stat-pill .value') : null;
@@ -402,8 +455,8 @@ templ MapLibreScript() {
 					name = card.querySelector('.entity-name')?.textContent?.trim() || entityId;
 
 					if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-						console.log(`[MapLibre] Found entity ${entityId}: ${lat}, ${lng}`);
-						const feature = this.createFeatureFromCard(entityId, name, lat, lng);
+						console.log(`[MapLibre] Found entity ${entityId}: ${lat}, ${lng}, type: ${entityType}`);
+						const feature = this.createFeatureFromCard(entityId, name, lat, lng, entityType);
 						if (feature) {
 							this.features.set(entityId, feature);
 						}
@@ -427,17 +480,26 @@ templ MapLibreScript() {
 				}
 			}
 
-			createFeatureFromCard(entityId, name, lat, lng) {
+			createFeatureFromCard(entityId, name, lat, lng, entityType) {
+				const category = this.getCategoryForType(entityType);
 				const feature = {
 					type: 'Feature',
 					geometry: { type: 'Point', coordinates: [lng, lat] },
-					properties: { entityId, name, isLive: true, opacity: 1 }
+					properties: {
+						entityId,
+						name,
+						entityType,
+						category,
+						isLive: true,
+						opacity: 1
+					}
 				};
 
 				// Create popup if not exists
 				if (!this.popups.has(entityId)) {
+					const color = this.getColorForType(entityType);
 					const popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false });
-					popup.setHTML(`<div style="padding:8px;"><strong>${name}</strong><br/>Lat: ${lat.toFixed(6)}<br/>Lng: ${lng.toFixed(6)}</div>`);
+					popup.setHTML(`<div style="padding:8px;"><strong style="color:${color}">${name}</strong><br/><span style="color:#888;font-size:11px;">${entityType || 'unknown'}</span><br/>Lat: ${lat.toFixed(6)}<br/>Lng: ${lng.toFixed(6)}</div>`);
 					this.popups.set(entityId, popup);
 				}
 
@@ -584,7 +646,16 @@ templ MapLibreScript() {
 							source: 'trackers',
 							paint: {
 								'circle-radius': 10,
-								'circle-color': '#00d4ff',
+								'circle-color': [
+									'match',
+									['get', 'category'],
+									'aircraft', '#00d4ff', // cyan
+									'ground', '#ffa500',   // orange
+									'marine', '#4488ff',   // blue
+									'system', '#00ff88',   // green
+									'geo', '#b464ff',      // purple
+									'#888888'              // fallback gray
+								],
 								'circle-stroke-width': 3,
 								'circle-stroke-color': '#ffffff',
 								'circle-opacity': 1

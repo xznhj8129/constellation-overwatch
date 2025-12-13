@@ -133,6 +133,78 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 					</div>
 				}
 			</div>
+
+			<!-- Object Detections Section -->
+			if entity.Detections != nil && len(entity.Detections.TrackedObjects) > 0 {
+				<div class="detections-section">
+					<div class="detections-header">
+						<h5>Object Detections</h5>
+						if entity.Analytics != nil {
+							<span class="detection-count">{ fmt.Sprintf("%d active", entity.Analytics.ActiveObjectsCount) }</span>
+						}
+					</div>
+					<div class="tracked-objects-list">
+						for _, obj := range entity.Detections.TrackedObjects {
+							<div class={ "tracked-object", templ.KV("threat-high", obj.ThreatLevel == "high"), templ.KV("threat-medium", obj.ThreatLevel == "medium"), templ.KV("threat-low", obj.ThreatLevel == "low"), templ.KV("inactive", !obj.IsActive) }>
+								<div class="object-header">
+									<span class="object-label">{ obj.Label }</span>
+									<span class={ "threat-badge", "threat-" + obj.ThreatLevel }>{ obj.ThreatLevel }</span>
+								</div>
+								<div class="object-stats">
+									<span class="stat">
+										<span class="stat-label">Conf</span>
+										<span class="stat-value">{ fmt.Sprintf("%.0f%%", obj.AvgConfidence*100) }</span>
+									</span>
+									<span class="stat">
+										<span class="stat-label">Frames</span>
+										<span class="stat-value">{ fmt.Sprintf("%d", obj.FrameCount) }</span>
+									</span>
+									if obj.IsActive {
+										<span class="active-indicator"></span>
+									}
+								</div>
+								if len(obj.SuspiciousIndicators) > 0 {
+									<div class="suspicious-indicators">
+										for _, indicator := range obj.SuspiciousIndicators {
+											<span class="indicator-tag">{ indicator }</span>
+										}
+									</div>
+								}
+							</div>
+						}
+					</div>
+				</div>
+			}
+
+			<!-- Analytics Summary (shown when no detailed detections but analytics available) -->
+			if entity.Analytics != nil && (entity.Detections == nil || len(entity.Detections.TrackedObjects) == 0) {
+				<div class="analytics-summary">
+					<h5>Vision Analytics</h5>
+					<div class="analytics-grid">
+						<div class="analytics-stat">
+							<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.TotalUniqueObjects) }</span>
+							<span class="analytics-label">Unique Objects</span>
+						</div>
+						<div class="analytics-stat">
+							<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
+							<span class="analytics-label">Tracked</span>
+						</div>
+						if entity.Analytics.ActiveThreatCount > 0 {
+							<div class="analytics-stat threat">
+								<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }</span>
+								<span class="analytics-label">Active Threats</span>
+							</div>
+						}
+					</div>
+					if len(entity.Analytics.LabelDistribution) > 0 {
+						<div class="label-distribution">
+							for label, count := range entity.Analytics.LabelDistribution {
+								<span class="label-chip">{ label }: { fmt.Sprintf("%d", count) }</span>
+							}
+						</div>
+					}
+				</div>
+			}
 		</div>
 	</div>
 }
@@ -448,6 +520,226 @@ templ C5EntityCardScript() {
 		.entity-type.type-unknown {
 			background: rgba(128, 128, 128, 0.15);
 			color: #888;
+		}
+
+		/* Object Detections Section */
+		.detections-section {
+			margin-top: 15px;
+			padding: 12px;
+			background: rgba(255, 100, 0, 0.05);
+			border: 1px solid rgba(255, 100, 0, 0.2);
+			border-radius: 6px;
+		}
+
+		.detections-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 10px;
+		}
+
+		.detections-header h5 {
+			margin: 0;
+			color: #fa0;
+			font-size: 12px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+
+		.detection-count {
+			font-size: 11px;
+			color: #888;
+			background: rgba(255, 255, 255, 0.1);
+			padding: 2px 8px;
+			border-radius: 10px;
+		}
+
+		.tracked-objects-list {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			max-height: 200px;
+			overflow-y: auto;
+		}
+
+		.tracked-object {
+			background: rgba(0, 0, 0, 0.3);
+			border-radius: 4px;
+			padding: 8px 10px;
+			border-left: 3px solid #666;
+		}
+
+		.tracked-object.threat-high {
+			border-left-color: #f44;
+			background: rgba(255, 68, 68, 0.1);
+		}
+
+		.tracked-object.threat-medium {
+			border-left-color: #fa0;
+			background: rgba(255, 170, 0, 0.1);
+		}
+
+		.tracked-object.threat-low {
+			border-left-color: #0f8;
+			background: rgba(0, 255, 136, 0.05);
+		}
+
+		.tracked-object.inactive {
+			opacity: 0.5;
+		}
+
+		.object-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 6px;
+		}
+
+		.object-label {
+			font-weight: 600;
+			color: #fff;
+			font-size: 12px;
+		}
+
+		.threat-badge {
+			font-size: 9px;
+			padding: 2px 6px;
+			border-radius: 3px;
+			text-transform: uppercase;
+			font-weight: 600;
+		}
+
+		.threat-badge.threat-high {
+			background: rgba(255, 68, 68, 0.3);
+			color: #f66;
+		}
+
+		.threat-badge.threat-medium {
+			background: rgba(255, 170, 0, 0.3);
+			color: #fb0;
+		}
+
+		.threat-badge.threat-low {
+			background: rgba(0, 255, 136, 0.2);
+			color: #0f8;
+		}
+
+		.object-stats {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+		}
+
+		.object-stats .stat {
+			display: flex;
+			flex-direction: column;
+			font-size: 10px;
+		}
+
+		.object-stats .stat-label {
+			color: #666;
+			text-transform: uppercase;
+			font-size: 8px;
+		}
+
+		.object-stats .stat-value {
+			color: #aaa;
+			font-weight: 500;
+		}
+
+		.active-indicator {
+			width: 6px;
+			height: 6px;
+			background: #0f0;
+			border-radius: 50%;
+			animation: pulse 1.5s infinite;
+			margin-left: auto;
+		}
+
+		@keyframes pulse {
+			0%, 100% { opacity: 1; }
+			50% { opacity: 0.4; }
+		}
+
+		.suspicious-indicators {
+			margin-top: 6px;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+		}
+
+		.indicator-tag {
+			font-size: 9px;
+			padding: 2px 6px;
+			background: rgba(255, 68, 68, 0.2);
+			color: #f88;
+			border-radius: 3px;
+		}
+
+		/* Analytics Summary */
+		.analytics-summary {
+			margin-top: 15px;
+			padding: 12px;
+			background: rgba(0, 200, 255, 0.05);
+			border: 1px solid rgba(0, 200, 255, 0.2);
+			border-radius: 6px;
+		}
+
+		.analytics-summary h5 {
+			margin: 0 0 10px 0;
+			color: #0cf;
+			font-size: 12px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+
+		.analytics-grid {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 10px;
+		}
+
+		.analytics-stat {
+			text-align: center;
+			padding: 8px;
+			background: rgba(0, 0, 0, 0.2);
+			border-radius: 4px;
+		}
+
+		.analytics-stat.threat {
+			background: rgba(255, 68, 68, 0.15);
+		}
+
+		.analytics-value {
+			display: block;
+			font-size: 18px;
+			font-weight: 600;
+			color: #fff;
+		}
+
+		.analytics-stat.threat .analytics-value {
+			color: #f66;
+		}
+
+		.analytics-label {
+			font-size: 9px;
+			color: #666;
+			text-transform: uppercase;
+		}
+
+		.label-distribution {
+			margin-top: 10px;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+		}
+
+		.label-chip {
+			font-size: 10px;
+			padding: 3px 8px;
+			background: rgba(255, 255, 255, 0.1);
+			color: #aaa;
+			border-radius: 10px;
 		}
 	</style>
 }

@@ -440,7 +440,290 @@ func C5EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div><!-- Object Detections Section -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if entity.Detections != nil && len(entity.Detections.TrackedObjects) > 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<div class=\"detections-section\"><div class=\"detections-header\"><h5>Object Detections</h5>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if entity.Analytics != nil {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<span class=\"detection-count\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var30 string
+				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d active", entity.Analytics.ActiveObjectsCount))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 143, Col: 100}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</span>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</div><div class=\"tracked-objects-list\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, obj := range entity.Detections.TrackedObjects {
+				var templ_7745c5c3_Var31 = []any{"tracked-object", templ.KV("threat-high", obj.ThreatLevel == "high"), templ.KV("threat-medium", obj.ThreatLevel == "medium"), templ.KV("threat-low", obj.ThreatLevel == "low"), templ.KV("inactive", !obj.IsActive)}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var31...)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div class=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var32 string
+				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var31).String())
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 1, Col: 0}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\"><div class=\"object-header\"><span class=\"object-label\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var33 string
+				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(obj.Label)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 150, Col: 47}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</span> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var34 = []any{"threat-badge", "threat-" + obj.ThreatLevel}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var34...)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<span class=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var35 string
+				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var34).String())
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 1, Col: 0}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var36 string
+				templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(obj.ThreatLevel)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 151, Col: 86}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span></div><div class=\"object-stats\"><span class=\"stat\"><span class=\"stat-label\">Conf</span> <span class=\"stat-value\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var37 string
+				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.0f%%", obj.AvgConfidence*100))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 156, Col: 81}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</span></span> <span class=\"stat\"><span class=\"stat-label\">Frames</span> <span class=\"stat-value\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var38 string
+				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", obj.FrameCount))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 160, Col: 70}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</span></span> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if obj.IsActive {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<span class=\"active-indicator\"></span>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if len(obj.SuspiciousIndicators) > 0 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<div class=\"suspicious-indicators\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					for _, indicator := range obj.SuspiciousIndicators {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<span class=\"indicator-tag\">")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						var templ_7745c5c3_Var39 string
+						templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(indicator)
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 169, Col: 50}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</span>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</div>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<!-- Analytics Summary (shown when no detailed detections but analytics available) -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if entity.Analytics != nil && (entity.Detections == nil || len(entity.Detections.TrackedObjects) == 0) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "<div class=\"analytics-summary\"><h5>Vision Analytics</h5><div class=\"analytics-grid\"><div class=\"analytics-stat\"><span class=\"analytics-value\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var40 string
+			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.TotalUniqueObjects))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 185, Col: 93}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</span> <span class=\"analytics-label\">Unique Objects</span></div><div class=\"analytics-stat\"><span class=\"analytics-value\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var41 string
+			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 189, Col: 94}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</span> <span class=\"analytics-label\">Tracked</span></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if entity.Analytics.ActiveThreatCount > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<div class=\"analytics-stat threat\"><span class=\"analytics-value\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var42 string
+				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 194, Col: 93}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</span> <span class=\"analytics-label\">Active Threats</span></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if len(entity.Analytics.LabelDistribution) > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<div class=\"label-distribution\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for label, count := range entity.Analytics.LabelDistribution {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<span class=\"label-chip\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var43 string
+					templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 202, Col: 40}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, ": ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var44 string
+					templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", count))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c5_entity_card.templ`, Line: 202, Col: 70}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</span>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -465,12 +748,12 @@ func C5EntityCardScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var30 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var30 == nil {
-			templ_7745c5c3_Var30 = templ.NopComponent
+		templ_7745c5c3_Var45 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var45 == nil {
+			templ_7745c5c3_Var45 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<script>\n\t\t// Global FPS tracker state\n\t\tconst c5FpsTrackers = {};\n\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c5-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c5-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t\t// Initialize video stream\n\t\t\t\tinitVideoStream(card, entityId);\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t}\n\t\t}\n\n\t\tfunction initVideoStream(card, entityId) {\n\t\t\tconst container = card.querySelector('.video-container');\n\t\t\tif (!container) return;\n\n\t\t\tconst mjpegImg = container.querySelector('.video-mjpeg');\n\t\t\tconst overlay = container.querySelector('.no-signal-overlay');\n\t\t\tconst fpsEl = card.querySelector('.fps-counter');\n\n\t\t\t// Skip if already initialized\n\t\t\tif (c5FpsTrackers[entityId]) return;\n\n\t\t\tif (mjpegImg) {\n\t\t\t\t// Initialize tracker\n\t\t\t\tc5FpsTrackers[entityId] = {\n\t\t\t\t\tframeCount: 0,\n\t\t\t\t\tlastTime: performance.now()\n\t\t\t\t};\n\n\t\t\t\t// Track load events for FPS\n\t\t\t\tmjpegImg.onload = function() {\n\t\t\t\t\t// Hide overlay on successful load\n\t\t\t\t\tif (overlay) overlay.classList.remove('show');\n\n\t\t\t\t\tconst tracker = c5FpsTrackers[entityId];\n\t\t\t\t\tif (!tracker) return;\n\n\t\t\t\t\ttracker.frameCount++;\n\t\t\t\t\tconst now = performance.now();\n\t\t\t\t\tif (now - tracker.lastTime >= 1000) {\n\t\t\t\t\t\tconst fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));\n\t\t\t\t\t\tif (fpsEl) fpsEl.textContent = fps + ' fps';\n\t\t\t\t\t\ttracker.frameCount = 0;\n\t\t\t\t\t\ttracker.lastTime = now;\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t\tmjpegImg.onerror = function() {\n\t\t\t\t\t// Show overlay on error\n\t\t\t\t\tif (overlay) overlay.classList.add('show');\n\t\t\t\t};\n\t\t\t}\n\t\t}\n\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) {\n\t\t\t\tconsole.warn('[Video] No entityId provided for fullscreen');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Find the existing video element for this entity\n\t\t\tconst card = document.getElementById('c5-entity-' + entityId);\n\t\t\tconst existingImg = card ? card.querySelector('.video-mjpeg') : null;\n\n\t\t\t// Remove any existing modal first\n\t\t\tconst existingModal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (existingModal) existingModal.remove();\n\n\t\t\t// Create fullscreen modal\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\t\t\tmodal.innerHTML = `\n\t\t\t\t<div class=\"fullscreen-header\">\n\t\t\t\t\t<span class=\"entity-label\">${entityId}</span>\n\t\t\t\t\t<button class=\"close-btn\" onclick=\"closeVideoFullscreen()\">Close (ESC)</button>\n\t\t\t\t</div>\n\t\t\t\t<div class=\"fullscreen-video\">\n\t\t\t\t</div>\n\t\t\t`;\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// Clone the existing img element to reuse the stream, or create new one\n\t\t\tconst fullscreenContainer = modal.querySelector('.fullscreen-video');\n\t\t\tif (existingImg && existingImg.src) {\n\t\t\t\tconst clonedImg = existingImg.cloneNode(true);\n\t\t\t\tclonedImg.style.maxWidth = '100%';\n\t\t\t\tclonedImg.style.maxHeight = 'calc(100vh - 60px)';\n\t\t\t\tclonedImg.style.objectFit = 'contain';\n\t\t\t\tfullscreenContainer.appendChild(clonedImg);\n\t\t\t} else {\n\t\t\t\t// Fallback: create new stream connection\n\t\t\t\tconst img = document.createElement('img');\n\t\t\t\timg.src = '/api/v1/video/stream/' + entityId;\n\t\t\t\timg.alt = 'Video stream';\n\t\t\t\tfullscreenContainer.appendChild(img);\n\t\t\t}\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\t</script><style>\n\t\t/* Video container styles */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.video-container .video-h264,\n\t\t.video-container .video-canvas {\n\t\t\tdisplay: none;\n\t\t}\n\n\t\t.video-overlay.no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t}\n\n\t\t.video-overlay.no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t.no-signal-overlay .no-signal {\n\t\t\tcolor: #666;\n\t\t\ttext-align: center;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.video-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t\tposition: relative;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\n\t\t.fullscreen-loading {\n\t\t\tcolor: #666;\n\t\t\tfont-size: 16px;\n\t\t\tposition: absolute;\n\t\t}\n\n\t\t/* Entity Type Styling */\n\t\t.entity-type {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 4px;\n\t\t\tfont-size: 11px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\tbackground: rgba(255,255,255,0.1);\n\t\t}\n\n\t\t.entity-type .type-icon {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.entity-type .type-icon svg {\n\t\t\twidth: 14px;\n\t\t\theight: 14px;\n\t\t}\n\n\t\t/* Aircraft types - cyan */\n\t\t.entity-type.type-aircraft {\n\t\t\tbackground: rgba(0, 200, 255, 0.15);\n\t\t\tcolor: #0cf;\n\t\t}\n\n\t\t/* Ground vehicle types - orange */\n\t\t.entity-type.type-ground {\n\t\t\tbackground: rgba(255, 165, 0, 0.15);\n\t\t\tcolor: #fa0;\n\t\t}\n\n\t\t/* Marine types - blue */\n\t\t.entity-type.type-marine {\n\t\t\tbackground: rgba(0, 100, 255, 0.15);\n\t\t\tcolor: #48f;\n\t\t}\n\n\t\t/* System types - green */\n\t\t.entity-type.type-system {\n\t\t\tbackground: rgba(0, 255, 100, 0.15);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t/* Geographic types - purple */\n\t\t.entity-type.type-geo {\n\t\t\tbackground: rgba(180, 100, 255, 0.15);\n\t\t\tcolor: #b4f;\n\t\t}\n\n\t\t/* Unknown types - gray */\n\t\t.entity-type.type-unknown {\n\t\t\tbackground: rgba(128, 128, 128, 0.15);\n\t\t\tcolor: #888;\n\t\t}\n\t</style>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<script>\n\t\t// Global FPS tracker state\n\t\tconst c5FpsTrackers = {};\n\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c5-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c5-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t\t// Initialize video stream\n\t\t\t\tinitVideoStream(card, entityId);\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t}\n\t\t}\n\n\t\tfunction initVideoStream(card, entityId) {\n\t\t\tconst container = card.querySelector('.video-container');\n\t\t\tif (!container) return;\n\n\t\t\tconst mjpegImg = container.querySelector('.video-mjpeg');\n\t\t\tconst overlay = container.querySelector('.no-signal-overlay');\n\t\t\tconst fpsEl = card.querySelector('.fps-counter');\n\n\t\t\t// Skip if already initialized\n\t\t\tif (c5FpsTrackers[entityId]) return;\n\n\t\t\tif (mjpegImg) {\n\t\t\t\t// Initialize tracker\n\t\t\t\tc5FpsTrackers[entityId] = {\n\t\t\t\t\tframeCount: 0,\n\t\t\t\t\tlastTime: performance.now()\n\t\t\t\t};\n\n\t\t\t\t// Track load events for FPS\n\t\t\t\tmjpegImg.onload = function() {\n\t\t\t\t\t// Hide overlay on successful load\n\t\t\t\t\tif (overlay) overlay.classList.remove('show');\n\n\t\t\t\t\tconst tracker = c5FpsTrackers[entityId];\n\t\t\t\t\tif (!tracker) return;\n\n\t\t\t\t\ttracker.frameCount++;\n\t\t\t\t\tconst now = performance.now();\n\t\t\t\t\tif (now - tracker.lastTime >= 1000) {\n\t\t\t\t\t\tconst fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));\n\t\t\t\t\t\tif (fpsEl) fpsEl.textContent = fps + ' fps';\n\t\t\t\t\t\ttracker.frameCount = 0;\n\t\t\t\t\t\ttracker.lastTime = now;\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t\tmjpegImg.onerror = function() {\n\t\t\t\t\t// Show overlay on error\n\t\t\t\t\tif (overlay) overlay.classList.add('show');\n\t\t\t\t};\n\t\t\t}\n\t\t}\n\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) {\n\t\t\t\tconsole.warn('[Video] No entityId provided for fullscreen');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Find the existing video element for this entity\n\t\t\tconst card = document.getElementById('c5-entity-' + entityId);\n\t\t\tconst existingImg = card ? card.querySelector('.video-mjpeg') : null;\n\n\t\t\t// Remove any existing modal first\n\t\t\tconst existingModal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (existingModal) existingModal.remove();\n\n\t\t\t// Create fullscreen modal\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\t\t\tmodal.innerHTML = `\n\t\t\t\t<div class=\"fullscreen-header\">\n\t\t\t\t\t<span class=\"entity-label\">${entityId}</span>\n\t\t\t\t\t<button class=\"close-btn\" onclick=\"closeVideoFullscreen()\">Close (ESC)</button>\n\t\t\t\t</div>\n\t\t\t\t<div class=\"fullscreen-video\">\n\t\t\t\t</div>\n\t\t\t`;\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// Clone the existing img element to reuse the stream, or create new one\n\t\t\tconst fullscreenContainer = modal.querySelector('.fullscreen-video');\n\t\t\tif (existingImg && existingImg.src) {\n\t\t\t\tconst clonedImg = existingImg.cloneNode(true);\n\t\t\t\tclonedImg.style.maxWidth = '100%';\n\t\t\t\tclonedImg.style.maxHeight = 'calc(100vh - 60px)';\n\t\t\t\tclonedImg.style.objectFit = 'contain';\n\t\t\t\tfullscreenContainer.appendChild(clonedImg);\n\t\t\t} else {\n\t\t\t\t// Fallback: create new stream connection\n\t\t\t\tconst img = document.createElement('img');\n\t\t\t\timg.src = '/api/v1/video/stream/' + entityId;\n\t\t\t\timg.alt = 'Video stream';\n\t\t\t\tfullscreenContainer.appendChild(img);\n\t\t\t}\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\t</script><style>\n\t\t/* Video container styles */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.video-container .video-h264,\n\t\t.video-container .video-canvas {\n\t\t\tdisplay: none;\n\t\t}\n\n\t\t.video-overlay.no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t}\n\n\t\t.video-overlay.no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t.no-signal-overlay .no-signal {\n\t\t\tcolor: #666;\n\t\t\ttext-align: center;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.video-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t\tposition: relative;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\n\t\t.fullscreen-loading {\n\t\t\tcolor: #666;\n\t\t\tfont-size: 16px;\n\t\t\tposition: absolute;\n\t\t}\n\n\t\t/* Entity Type Styling */\n\t\t.entity-type {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 4px;\n\t\t\tfont-size: 11px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\tbackground: rgba(255,255,255,0.1);\n\t\t}\n\n\t\t.entity-type .type-icon {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.entity-type .type-icon svg {\n\t\t\twidth: 14px;\n\t\t\theight: 14px;\n\t\t}\n\n\t\t/* Aircraft types - cyan */\n\t\t.entity-type.type-aircraft {\n\t\t\tbackground: rgba(0, 200, 255, 0.15);\n\t\t\tcolor: #0cf;\n\t\t}\n\n\t\t/* Ground vehicle types - orange */\n\t\t.entity-type.type-ground {\n\t\t\tbackground: rgba(255, 165, 0, 0.15);\n\t\t\tcolor: #fa0;\n\t\t}\n\n\t\t/* Marine types - blue */\n\t\t.entity-type.type-marine {\n\t\t\tbackground: rgba(0, 100, 255, 0.15);\n\t\t\tcolor: #48f;\n\t\t}\n\n\t\t/* System types - green */\n\t\t.entity-type.type-system {\n\t\t\tbackground: rgba(0, 255, 100, 0.15);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t/* Geographic types - purple */\n\t\t.entity-type.type-geo {\n\t\t\tbackground: rgba(180, 100, 255, 0.15);\n\t\t\tcolor: #b4f;\n\t\t}\n\n\t\t/* Unknown types - gray */\n\t\t.entity-type.type-unknown {\n\t\t\tbackground: rgba(128, 128, 128, 0.15);\n\t\t\tcolor: #888;\n\t\t}\n\n\t\t/* Object Detections Section */\n\t\t.detections-section {\n\t\t\tmargin-top: 15px;\n\t\t\tpadding: 12px;\n\t\t\tbackground: rgba(255, 100, 0, 0.05);\n\t\t\tborder: 1px solid rgba(255, 100, 0, 0.2);\n\t\t\tborder-radius: 6px;\n\t\t}\n\n\t\t.detections-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tmargin-bottom: 10px;\n\t\t}\n\n\t\t.detections-header h5 {\n\t\t\tmargin: 0;\n\t\t\tcolor: #fa0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.detection-count {\n\t\t\tfont-size: 11px;\n\t\t\tcolor: #888;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tpadding: 2px 8px;\n\t\t\tborder-radius: 10px;\n\t\t}\n\n\t\t.tracked-objects-list {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 8px;\n\t\t\tmax-height: 200px;\n\t\t\toverflow-y: auto;\n\t\t}\n\n\t\t.tracked-object {\n\t\t\tbackground: rgba(0, 0, 0, 0.3);\n\t\t\tborder-radius: 4px;\n\t\t\tpadding: 8px 10px;\n\t\t\tborder-left: 3px solid #666;\n\t\t}\n\n\t\t.tracked-object.threat-high {\n\t\t\tborder-left-color: #f44;\n\t\t\tbackground: rgba(255, 68, 68, 0.1);\n\t\t}\n\n\t\t.tracked-object.threat-medium {\n\t\t\tborder-left-color: #fa0;\n\t\t\tbackground: rgba(255, 170, 0, 0.1);\n\t\t}\n\n\t\t.tracked-object.threat-low {\n\t\t\tborder-left-color: #0f8;\n\t\t\tbackground: rgba(0, 255, 136, 0.05);\n\t\t}\n\n\t\t.tracked-object.inactive {\n\t\t\topacity: 0.5;\n\t\t}\n\n\t\t.object-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tmargin-bottom: 6px;\n\t\t}\n\n\t\t.object-label {\n\t\t\tfont-weight: 600;\n\t\t\tcolor: #fff;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.threat-badge {\n\t\t\tfont-size: 9px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-weight: 600;\n\t\t}\n\n\t\t.threat-badge.threat-high {\n\t\t\tbackground: rgba(255, 68, 68, 0.3);\n\t\t\tcolor: #f66;\n\t\t}\n\n\t\t.threat-badge.threat-medium {\n\t\t\tbackground: rgba(255, 170, 0, 0.3);\n\t\t\tcolor: #fb0;\n\t\t}\n\n\t\t.threat-badge.threat-low {\n\t\t\tbackground: rgba(0, 255, 136, 0.2);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t.object-stats {\n\t\t\tdisplay: flex;\n\t\t\tgap: 12px;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.object-stats .stat {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tfont-size: 10px;\n\t\t}\n\n\t\t.object-stats .stat-label {\n\t\t\tcolor: #666;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-size: 8px;\n\t\t}\n\n\t\t.object-stats .stat-value {\n\t\t\tcolor: #aaa;\n\t\t\tfont-weight: 500;\n\t\t}\n\n\t\t.active-indicator {\n\t\t\twidth: 6px;\n\t\t\theight: 6px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t\tanimation: pulse 1.5s infinite;\n\t\t\tmargin-left: auto;\n\t\t}\n\n\t\t@keyframes pulse {\n\t\t\t0%, 100% { opacity: 1; }\n\t\t\t50% { opacity: 0.4; }\n\t\t}\n\n\t\t.suspicious-indicators {\n\t\t\tmargin-top: 6px;\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tgap: 4px;\n\t\t}\n\n\t\t.indicator-tag {\n\t\t\tfont-size: 9px;\n\t\t\tpadding: 2px 6px;\n\t\t\tbackground: rgba(255, 68, 68, 0.2);\n\t\t\tcolor: #f88;\n\t\t\tborder-radius: 3px;\n\t\t}\n\n\t\t/* Analytics Summary */\n\t\t.analytics-summary {\n\t\t\tmargin-top: 15px;\n\t\t\tpadding: 12px;\n\t\t\tbackground: rgba(0, 200, 255, 0.05);\n\t\t\tborder: 1px solid rgba(0, 200, 255, 0.2);\n\t\t\tborder-radius: 6px;\n\t\t}\n\n\t\t.analytics-summary h5 {\n\t\t\tmargin: 0 0 10px 0;\n\t\t\tcolor: #0cf;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.analytics-grid {\n\t\t\tdisplay: grid;\n\t\t\tgrid-template-columns: repeat(3, 1fr);\n\t\t\tgap: 10px;\n\t\t}\n\n\t\t.analytics-stat {\n\t\t\ttext-align: center;\n\t\t\tpadding: 8px;\n\t\t\tbackground: rgba(0, 0, 0, 0.2);\n\t\t\tborder-radius: 4px;\n\t\t}\n\n\t\t.analytics-stat.threat {\n\t\t\tbackground: rgba(255, 68, 68, 0.15);\n\t\t}\n\n\t\t.analytics-value {\n\t\t\tdisplay: block;\n\t\t\tfont-size: 18px;\n\t\t\tfont-weight: 600;\n\t\t\tcolor: #fff;\n\t\t}\n\n\t\t.analytics-stat.threat .analytics-value {\n\t\t\tcolor: #f66;\n\t\t}\n\n\t\t.analytics-label {\n\t\t\tfont-size: 9px;\n\t\t\tcolor: #666;\n\t\t\ttext-transform: uppercase;\n\t\t}\n\n\t\t.label-distribution {\n\t\t\tmargin-top: 10px;\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tgap: 4px;\n\t\t}\n\n\t\t.label-chip {\n\t\t\tfont-size: 10px;\n\t\t\tpadding: 3px 8px;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tcolor: #aaa;\n\t\t\tborder-radius: 10px;\n\t\t}\n\t</style>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
