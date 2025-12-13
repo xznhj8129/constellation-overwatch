@@ -8,12 +8,12 @@ import (
 // C5EntityCard is a robust entity component that combines telemetry and video
 // It can optionally show a detailed view with expanded telemetry and video player
 templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
-	<div id={ "c5-entity-" + entity.EntityID } 
+	<div id={ "c5-entity-" + entity.EntityID }
 		class={ "c5-entity-card", templ.KV("detailed", isDetailed) }
 		data-entity-id={ entity.EntityID }>
-		
+
 		<!-- Header / Simple View -->
-		<div class="c5-card-header" data-on:click={ fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID) }>
+		<div class="c5-card-header" data-on-click={ fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID) }>
 			<div class="header-top">
 				<div class="entity-identity">
 					<div class="entity-name">
@@ -52,24 +52,28 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 
 		<!-- Detailed View (Collapsible) -->
 		<div class="c5-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
-			
+
 			<!-- Video Player Section -->
 			<div class="video-section">
-				<div class="video-container">
-					<div class="video-overlay" data-show="!$hasSignal">
+				<div class="video-container" data-entity-id={ entity.EntityID }>
+					<!-- No Signal Overlay (hidden by default, shown on error) -->
+					<div class="video-overlay no-signal-overlay">
 						<div class="no-signal">
-							<i class="icon-camera-off"></i>
 							<span>No Video Signal</span>
 						</div>
 					</div>
-					<!-- Video Elements (Managed by WebRTC Script) -->
+					<!-- MJPEG stream (primary - works with transcoder) -->
+					<img
+						class="video-mjpeg"
+						src={ "/api/v1/video/stream/" + entity.EntityID }
+						alt="Video stream"/>
+					<!-- Video element for WebRTC H.264 (alternative) -->
 					<video class="video-h264" muted autoplay playsinline></video>
 					<canvas class="video-canvas"></canvas>
-					<img class="video-mjpeg" src={ "/api/v1/video/stream/" + entity.EntityID } alt="Stream" onerror="this.style.display='none'"/>
 				</div>
 				<div class="video-controls">
-					<span class="fps-counter">0 fps</span>
-					<button class="btn-fullscreen" data-on:click={ fmt.Sprintf("openFullscreen('%s')", entity.EntityID) }>
+					<span class="fps-counter">-- fps</span>
+					<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
 						Fullscreen
 					</button>
 				</div>
@@ -136,135 +140,209 @@ templ C5EntityCardScript() {
 		function toggleEntityDetail(entityId) {
 			const card = document.getElementById('c5-entity-' + entityId);
 			if (!card) return;
-			
+
 			const body = card.querySelector('.c5-card-body');
 			const isDetailed = card.classList.toggle('detailed');
-			
+
 			if (isDetailed) {
 				body.style.display = 'block';
-				// Initialize video if needed
-				if (window.streamManager) {
-					window.streamManager.subscribe(entityId, card);
-				}
+				// Initialize video stream
+				initVideoStream(card, entityId);
 			} else {
 				body.style.display = 'none';
-				if (window.streamManager) {
-					window.streamManager.unsubscribe(entityId);
-				}
 			}
 		}
 
-		function openFullscreen(entityId) {
-			window.location.href = '/api/v1/video/stream/' + entityId;
+		function initVideoStream(card, entityId) {
+			const container = card.querySelector('.video-container');
+			if (!container) return;
+
+			const mjpegImg = container.querySelector('.video-mjpeg');
+			const overlay = container.querySelector('.no-signal-overlay');
+			const fpsEl = card.querySelector('.fps-counter');
+
+			if (mjpegImg) {
+				let frameCount = 0;
+				let lastTime = performance.now();
+
+				// Track load events for FPS
+				mjpegImg.onload = function() {
+					// Hide overlay on successful load
+					if (overlay) overlay.classList.remove('show');
+
+					frameCount++;
+					const now = performance.now();
+					if (now - lastTime >= 1000) {
+						if (fpsEl) fpsEl.textContent = Math.round(frameCount * 1000 / (now - lastTime)) + ' fps';
+						frameCount = 0;
+						lastTime = now;
+					}
+				};
+
+				mjpegImg.onerror = function() {
+					// Show overlay on error
+					if (overlay) overlay.classList.add('show');
+				};
+			}
+		}
+
+		function openVideoFullscreen(entityId) {
+			const card = document.getElementById('c5-entity-' + entityId);
+			if (!card) {
+				// Fallback to direct stream
+				window.open('/api/v1/video/stream/' + entityId, '_blank');
+				return;
+			}
+
+			const container = card.querySelector('.video-container');
+			if (!container) return;
+
+			// Create fullscreen modal
+			const modal = document.createElement('div');
+			modal.id = 'video-fullscreen-modal';
+			modal.innerHTML = `
+				<div class="fullscreen-header">
+					<span class="entity-label">${entityId}</span>
+					<button class="close-btn" onclick="closeVideoFullscreen()">Close</button>
+				</div>
+				<div class="fullscreen-video">
+					<img src="/api/v1/video/stream/${entityId}" alt="Video stream" style="max-width: 100%; max-height: calc(100vh - 60px); object-fit: contain;"/>
+				</div>
+			`;
+			document.body.appendChild(modal);
+
+			// ESC key to close
+			document.addEventListener('keydown', function escHandler(e) {
+				if (e.key === 'Escape') {
+					closeVideoFullscreen();
+					document.removeEventListener('keydown', escHandler);
+				}
+			});
+		}
+
+		function closeVideoFullscreen() {
+			const modal = document.getElementById('video-fullscreen-modal');
+			if (modal) modal.remove();
 		}
 	</script>
-	<!-- Include WebRTC Logic if not already present -->
-	@VideoClientScript()
-}
+	<style>
+		/* Video container styles */
+		.video-container {
+			position: relative;
+			background: #000;
+			border-radius: 4px;
+			overflow: hidden;
+		}
 
-// Reusing the VideoClientScript logic but ensuring it handles the new class structure
-// This assumes reusing the logic from video.templ, but we might need to adapt it 
-// if the class names or structure differs significantly. 
-// For now, I'll rely on the class names I matched in the template (.video-h264, etc).
+		.video-container .video-mjpeg {
+			width: 100%;
+			height: auto;
+			display: block;
+		}
 
-templ VideoClientScript() {
-    <script type="module">
-        // ... (Check if WebRTCStreamManager exists, if not define it) ...
-        if (!window.WebRTCStreamManager) {
-            class WebRTCStreamManager {
-                constructor() {
-                    this.streams = new Map();
-                }
+		.video-container .video-h264,
+		.video-container .video-canvas {
+			display: none;
+		}
 
-                async subscribe(entityId, container) {
-                    if (this.streams.has(entityId)) return;
-                    console.log(`[C5-WebRTC] Subscribing to ${entityId}`);
-                    
-                    const videoEl = container.querySelector('.video-h264');
-                    const canvas = container.querySelector('.video-canvas');
-                    const mjpeg = container.querySelector('.video-mjpeg');
-                    const fpsEl = container.querySelector('.fps-counter');
+		.video-overlay.no-signal-overlay {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0, 0, 0, 0.85);
+			display: none;
+			align-items: center;
+			justify-content: center;
+			z-index: 10;
+		}
 
-                    if (!videoEl) return;
+		.video-overlay.no-signal-overlay.show {
+			display: flex;
+		}
 
-                    // Reset display
-                    if (canvas) canvas.style.display = 'none';
-                    if (mjpeg) mjpeg.style.display = 'none';
-                    videoEl.style.display = 'block';
+		.no-signal-overlay .no-signal {
+			color: #666;
+			text-align: center;
+			font-size: 14px;
+		}
 
-                    const pc = new RTCPeerConnection({
-                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-                    });
+		.video-controls {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 8px 12px;
+			background: #1a1a1a;
+			border-top: 1px solid #333;
+		}
 
-                    pc.addTransceiver('video', { direction: 'recvonly' });
+		.fps-counter {
+			color: #0ff;
+			font-size: 12px;
+			font-family: monospace;
+		}
 
-                    pc.ontrack = (event) => {
-                        if (videoEl.srcObject !== event.streams[0]) {
-                            videoEl.srcObject = event.streams[0];
-                            videoEl.play().catch(e => console.error("Play error:", e));
-                            this.startFPSCounter(entityId, videoEl, fpsEl);
-                        }
-                    };
+		.btn-fullscreen {
+			background: #0a4;
+			border: none;
+			color: #fff;
+			padding: 6px 12px;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 12px;
+		}
 
-                    try {
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
+		.btn-fullscreen:hover {
+			background: #0b5;
+		}
 
-                        const response = await fetch('/api/v1/webrtc/signal', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ offer: offer, entity_id: entityId })
-                        });
+		/* Fullscreen modal */
+		#video-fullscreen-modal {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: #000;
+			z-index: 10000;
+			display: flex;
+			flex-direction: column;
+		}
 
-                        if (!response.ok) throw new Error('Signal failed');
-                        
-                        const answer = await response.json();
-                        await pc.setRemoteDescription(answer);
-                        
-                        this.streams.set(entityId, { pc, videoEl });
-                    } catch (err) {
-                        console.error("WebRTC Error:", err);
-                        pc.close();
-                        // Fallback to MJPEG?
-                        if (mjpeg) {
-                            videoEl.style.display = 'none';
-                            mjpeg.style.display = 'block';
-                        }
-                    }
-                }
+		.fullscreen-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 10px 20px;
+			background: #111;
+			border-bottom: 1px solid #333;
+		}
 
-                startFPSCounter(entityId, videoEl, fpsEl) {
-                     // Simple FPS implementation
-                     let lastTime = performance.now();
-                     let frames = 0;
-                     const loop = () => {
-                         if (!this.streams.has(entityId)) return;
-                         frames++;
-                         const now = performance.now();
-                         if (now - lastTime >= 1000) {
-                             if (fpsEl) fpsEl.textContent = Math.round(frames * 1000 / (now - lastTime)) + ' fps';
-                             frames = 0;
-                             lastTime = now;
-                         }
-                         if (videoEl.requestVideoFrameCallback) {
-                             videoEl.requestVideoFrameCallback(loop);
-                         } else {
-                             requestAnimationFrame(loop);
-                         }
-                     };
-                     loop();
-                }
+		.fullscreen-header .entity-label {
+			color: #0ff;
+			font-weight: bold;
+		}
 
-                unsubscribe(entityId) {
-                    const stream = this.streams.get(entityId);
-                    if (stream) {
-                        stream.pc.close();
-                        this.streams.delete(entityId);
-                    }
-                }
-            }
-            window.WebRTCStreamManager = WebRTCStreamManager;
-            window.streamManager = new WebRTCStreamManager();
-        }
-    </script>
+		.fullscreen-header .close-btn {
+			background: #a00;
+			border: none;
+			color: #fff;
+			padding: 8px 16px;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		.fullscreen-header .close-btn:hover {
+			background: #c00;
+		}
+
+		.fullscreen-video {
+			flex: 1;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: #000;
+		}
+	</style>
 }
