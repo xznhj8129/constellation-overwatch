@@ -712,6 +712,31 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 			state.DeviceID = deviceID
 		}
 
+		// Extract entity_type if present
+		if entityType, ok := rawData["entity_type"].(string); ok && entityType != "" {
+			state.EntityType = entityType
+		}
+
+		// Extract name if present
+		if name, ok := rawData["name"].(string); ok && name != "" {
+			state.Name = name
+		}
+
+		// Extract status if present
+		if status, ok := rawData["status"].(string); ok && status != "" {
+			state.Status = status
+		}
+
+		// Extract priority if present
+		if priority, ok := rawData["priority"].(string); ok && priority != "" {
+			state.Priority = priority
+		}
+
+		// Extract is_live if present
+		if isLive, ok := rawData["is_live"].(bool); ok {
+			state.IsLive = isLive
+		}
+
 		// Determine data type from key suffix and merge accordingly
 		if strings.Contains(key, ".detections.objects") {
 			h.mergeDetections(&state, rawData)
@@ -868,6 +893,26 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	}
 	if orgName, ok := data["org_name"].(string); ok && orgName != "" {
 		state.OrgName = orgName
+	}
+
+	// Extract entity_type if present
+	if entityType, ok := data["entity_type"].(string); ok && entityType != "" {
+		state.EntityType = entityType
+	}
+
+	// Extract status if present
+	if status, ok := data["status"].(string); ok && status != "" {
+		state.Status = status
+	}
+
+	// Extract priority if present
+	if priority, ok := data["priority"].(string); ok && priority != "" {
+		state.Priority = priority
+	}
+
+	// Extract is_live if present
+	if isLive, ok := data["is_live"].(bool); ok {
+		state.IsLive = isLive
 	}
 
 	if state.OrgID == "" {

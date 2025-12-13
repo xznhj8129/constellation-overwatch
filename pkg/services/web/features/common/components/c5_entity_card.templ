@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/icons"
 )
 
 // C5EntityCard is a robust entity component that combines telemetry and video
@@ -10,7 +11,8 @@ import (
 templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 	<div id={ "c5-entity-" + entity.EntityID }
 		class={ "c5-entity-card", templ.KV("detailed", isDetailed) }
-		data-entity-id={ entity.EntityID }>
+		data-entity-id={ entity.EntityID }
+		data-entity-type={ entity.EntityType }>
 
 		<!-- Header / Simple View -->
 		<div class="c5-card-header" data-on-click={ fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID) }>
@@ -24,13 +26,11 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 						}
 					</div>
 					<div class={ "entity-type", "type-" + shared.GetEntityTypeCategory(entity.EntityType) }>
-						<span class="type-icon"></span>
+						<span class="type-icon">
+							@icons.EntityTypeIcon(entity.EntityType)
+						</span>
 						<span class="type-label">{ shared.GetEntityTypeDisplayName(entity.EntityType) }</span>
 					</div>
-				</div>
-				<div class="entity-status-badge">
-					<span class={ "status-dot", templ.KV("active", entity.Status == "active"), templ.KV("inactive", entity.Status != "active") }></span>
-					<span class="status-text">{ entity.Status }</span>
 				</div>
 			</div>
 
@@ -391,6 +391,63 @@ templ C5EntityCardScript() {
 			color: #666;
 			font-size: 16px;
 			position: absolute;
+		}
+
+		/* Entity Type Styling */
+		.entity-type {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			font-size: 11px;
+			padding: 2px 6px;
+			border-radius: 3px;
+			background: rgba(255,255,255,0.1);
+		}
+
+		.entity-type .type-icon {
+			display: flex;
+			align-items: center;
+		}
+
+		.entity-type .type-icon svg {
+			width: 14px;
+			height: 14px;
+		}
+
+		/* Aircraft types - cyan */
+		.entity-type.type-aircraft {
+			background: rgba(0, 200, 255, 0.15);
+			color: #0cf;
+		}
+
+		/* Ground vehicle types - orange */
+		.entity-type.type-ground {
+			background: rgba(255, 165, 0, 0.15);
+			color: #fa0;
+		}
+
+		/* Marine types - blue */
+		.entity-type.type-marine {
+			background: rgba(0, 100, 255, 0.15);
+			color: #48f;
+		}
+
+		/* System types - green */
+		.entity-type.type-system {
+			background: rgba(0, 255, 100, 0.15);
+			color: #0f8;
+		}
+
+		/* Geographic types - purple */
+		.entity-type.type-geo {
+			background: rgba(180, 100, 255, 0.15);
+			color: #b4f;
+		}
+
+		/* Unknown types - gray */
+		.entity-type.type-unknown {
+			background: rgba(128, 128, 128, 0.15);
+			color: #888;
 		}
 	</style>
 }
