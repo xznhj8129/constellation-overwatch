@@ -23,7 +23,10 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 							{ entity.EntityID }
 						}
 					</div>
-					<div class="entity-type">{ entity.EntityType }</div>
+					<div class={ "entity-type", "type-" + shared.GetEntityTypeCategory(entity.EntityType) }>
+						<span class="type-icon"></span>
+						<span class="type-label">{ shared.GetEntityTypeDisplayName(entity.EntityType) }</span>
+					</div>
 				</div>
 				<div class="entity-status-badge">
 					<span class={ "status-dot", templ.KV("active", entity.Status == "active"), templ.KV("inactive", entity.Status != "active") }></span>

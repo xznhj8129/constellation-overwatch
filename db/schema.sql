@@ -27,7 +27,7 @@ CREATE TABLE entities (
   org_id TEXT NOT NULL,
   name TEXT,
   entity_type TEXT NOT NULL CHECK(entity_type IN (
-    'aircraft_fixed_wing', 'aircraft_multirotor', 'aircraft_vtol', 'aircraft_helicopter',
+    'aircraft_fixed_wing', 'aircraft_multirotor', 'aircraft_vtol', 'aircraft_helicopter', 'aircraft_airship',
     'ground_vehicle_wheeled', 'ground_vehicle_tracked',
     'surface_vessel_usv', 'underwater_vehicle',
     'sensor_platform', 'payload_system', 'operator_station',

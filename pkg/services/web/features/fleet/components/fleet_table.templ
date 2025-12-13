@@ -50,6 +50,7 @@ templ FleetTable(organizations []ontology.Organization, entities []ontology.Enti
 							<option value="aircraft_multirotor">Aircraft - Multirotor</option>
 							<option value="aircraft_vtol">Aircraft - VTOL</option>
 							<option value="aircraft_helicopter">Aircraft - Helicopter</option>
+							<option value="aircraft_airship">Aircraft - Airship</option>
 							<option value="ground_vehicle_wheeled">Ground Vehicle - Wheeled</option>
 							<option value="ground_vehicle_tracked">Ground Vehicle - Tracked</option>
 							<option value="surface_vessel_usv">Surface Vessel - USV</option>
@@ -178,6 +179,7 @@ templ FleetEditRow(organizations []ontology.Organization, entity ontology.Entity
 				<option value="aircraft_multirotor" selected?={ entity.EntityType == "aircraft_multirotor" }>Aircraft - Multirotor</option>
 				<option value="aircraft_vtol" selected?={ entity.EntityType == "aircraft_vtol" }>Aircraft - VTOL</option>
 				<option value="aircraft_helicopter" selected?={ entity.EntityType == "aircraft_helicopter" }>Aircraft - Helicopter</option>
+				<option value="aircraft_airship" selected?={ entity.EntityType == "aircraft_airship" }>Aircraft - Airship</option>
 				<option value="ground_vehicle_wheeled" selected?={ entity.EntityType == "ground_vehicle_wheeled" }>Ground Vehicle - Wheeled</option>
 				<option value="ground_vehicle_tracked" selected?={ entity.EntityType == "ground_vehicle_tracked" }>Ground Vehicle - Tracked</option>
 				<option value="surface_vessel_usv" selected?={ entity.EntityType == "surface_vessel_usv" }>Surface Vessel - USV</option>
