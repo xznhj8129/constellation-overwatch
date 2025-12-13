@@ -71,7 +71,7 @@ func VideoPage(entityIDs []string, natsAuthToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = VideoClientScript().Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = VideoPageStyles().Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -112,7 +112,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"video-panel\" class=\"panel\" data-signals=\"{\n\t\t\tactiveStreams: [],\n\t\t\tstreamCount: 0,\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\tselectedEntity: ''\n\t\t}\" data-init=\"@get('/api/video/list')\"><div class=\"panel-header\"><h2>Video Feeds</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$streamCount + ' active streams'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div class=\"video-controls\" style=\"padding: 15px; border-bottom: 1px solid #333;\"><div style=\"display: flex; gap: 15px; align-items: center;\"><label style=\"color: #888;\">Select Entity:</label> <select data-model=\"selectedEntity\" style=\"background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;\"><option value=\"\">-- All Active Streams --</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"video-panel\" class=\"panel\" data-signals=\"{\n\t\t\tactiveStreams: [],\n\t\t\tstreamCount: 0,\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\tselectedEntity: ''\n\t\t}\" data-init=\"@get('/api/video/list')\"><div class=\"panel-header\"><h2>Video Feeds</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$streamCount + ' active streams'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div class=\"video-controls-bar\" style=\"padding: 15px; border-bottom: 1px solid #333;\"><div style=\"display: flex; gap: 15px; align-items: center;\"><label style=\"color: #888;\">Select Entity:</label> <select data-model=\"selectedEntity\" style=\"background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;\"><option value=\"\">-- All Active Streams --</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -148,7 +148,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</select> <button data-on-click=\"window.location.href = '/api/v1/video/stream/' + $selectedEntity\" data-show=\"$selectedEntity != ''\" style=\"background: #0a4; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;\">Open Fullscreen</button></div></div><div id=\"video-content\" class=\"video-content\" style=\"padding: 20px;\"><!-- Single entity view --><div data-show=\"$selectedEntity != ''\" style=\"display: flex; justify-content: center;\"><div class=\"video-card-large\" style=\"max-width: 1280px; width: 100%;\"><div class=\"video-card-header\" style=\"background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;\"><span style=\"color: #0ff; font-weight: bold;\" data-text=\"'Entity: ' + $selectedEntity\"></span> <span class=\"status-dot connected\"></span></div><div style=\"background: #000; border-radius: 0 0 4px 4px; overflow: hidden;\"><img data-attr-src=\"'/api/v1/video/stream/' + $selectedEntity\" alt=\"Video stream\" style=\"width: 100%; height: auto; display: block;\" onerror=\"this.style.display='none'; this.nextElementSibling.style.display='flex'\"><div style=\"display: none; height: 480px; align-items: center; justify-content: center; color: #666; background: #111;\"><div style=\"text-align: center;\"><div style=\"font-size: 48px; margin-bottom: 10px;\">No video signal</div></div></div></div></div></div><!-- Grid view for all active streams --><div data-show=\"$selectedEntity == ''\"><div id=\"video-grid\" class=\"video-grid\" style=\"display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;\"><!-- Populated by SSE from /api/video/list --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;\"><div style=\"font-size: 48px; margin-bottom: 10px;\"></div><p>No active video streams detected.</p><p style=\"font-size: 12px; margin-top: 10px;\">Waiting for video frames on constellation.video.* subjects...</p></div></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</select> <button data-on-click=\"openVideoFullscreenByEntity($selectedEntity)\" data-show=\"$selectedEntity != ''\" style=\"background: #0a4; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;\">Open Fullscreen</button></div></div><div id=\"video-content\" class=\"video-content\" style=\"padding: 20px;\"><!-- Single entity view (when entity selected) --><div data-show=\"$selectedEntity != ''\" style=\"display: flex; justify-content: center;\"><div class=\"video-card-large\" style=\"max-width: 1280px; width: 100%;\"><div class=\"video-card-header\" style=\"background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;\"><span style=\"color: #0ff; font-weight: bold;\" data-text=\"'Entity: ' + $selectedEntity\"></span> <span class=\"fps-counter\" style=\"color: #888; font-size: 12px;\">-- fps</span></div><div class=\"video-container-dynamic\" style=\"background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative;\"><img class=\"video-mjpeg-dynamic\" data-attr-src=\"$selectedEntity ? '/api/v1/video/stream/' + $selectedEntity : ''\" alt=\"Video stream\" style=\"width: 100%; height: auto; display: block;\"><div class=\"no-signal-overlay\" style=\"display: none;\"><span>No Video Signal</span></div></div></div></div><!-- Grid view for all active streams --><div data-show=\"$selectedEntity == ''\"><div id=\"video-grid\" class=\"video-grid\" style=\"display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;\"><!-- Populated by SSE from /api/video/list --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;\"><p>No active video streams detected.</p><p style=\"font-size: 12px; margin-top: 10px;\">Waiting for video frames on constellation.video.* subjects...</p></div></div></div></div></div><script>\n\t\tfunction openVideoFullscreenByEntity(entityId) {\n\t\t\tif (!entityId) return;\n\t\t\topenVideoFullscreen(entityId);\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -156,6 +156,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 	})
 }
 
+// VideoCard renders a simple video card with MJPEG stream
 func VideoCard(entity shared.EntityState) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -184,7 +185,7 @@ func VideoCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("video-card-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 105, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 109, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -197,13 +198,13 @@ func VideoCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 105, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 109, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" style=\"background: #1a1a1a; border-radius: 4px; overflow: hidden; border: 1px solid #333;\"><div class=\"video-card-header\" style=\"padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;\"><span style=\"color: #0ff; font-weight: bold;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"><div class=\"video-card-header\"><span class=\"entity-name\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -211,7 +212,7 @@ func VideoCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 109, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 113, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -221,40 +222,53 @@ func VideoCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 111, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 115, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span><div style=\"display: flex; align-items: center; gap: 8px;\"><span class=\"format-indicator\" style=\"color: #666; font-size: 10px; text-transform: uppercase;\"></span> <span class=\"fps-counter\" style=\"color: #888; font-size: 11px;\">0 fps</span> <span class=\"status-dot connected\" style=\"width: 8px; height: 8px; background: #0f0; border-radius: 50%;\"></span></div></div><div style=\"background: #000; position: relative;\"><!-- Video element for MPEG-TS/H.264 streams (hardware accelerated) --><video class=\"video-h264\" muted autoplay playsinline style=\"width: 100%; height: auto; display: none;\"></video><!-- Canvas for JPEG/PNG WebSocket frames --><canvas class=\"video-canvas\" style=\"width: 100%; height: auto; display: block;\"></canvas><!-- Fallback: MJPEG stream via img tag --><img class=\"video-mjpeg\" src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span><div class=\"video-card-stats\"><span class=\"fps-counter\">-- fps</span> <span class=\"status-dot connected\"></span></div></div><div class=\"video-container\" data-entity-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("/api/v1/video/stream/" + entity.EntityID)
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 128, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 123, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" alt=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"><div class=\"no-signal-overlay\"><span>No Video Signal</span></div><img class=\"video-mjpeg\" src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("Video stream for " + entity.EntityID)
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("/api/v1/video/stream/" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 129, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 129, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" style=\"width: 100%; height: auto; display: none;\" onerror=\"this.style.display='none'; this.nextElementSibling.style.display='flex'\"><div class=\"no-signal\" style=\"display: none; height: 240px; align-items: center; justify-content: center; color: #666;\"><div style=\"text-align: center;\"><div style=\"font-size: 32px;\"></div><div style=\"font-size: 12px;\">No signal</div></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" alt=\"Video stream\"></div><div class=\"video-card-controls\"><span class=\"fps-counter\">-- fps</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var14 string
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 134, Col: 66}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" onclick=\"openVideoFullscreen(this.dataset.entityId)\">Fullscreen</button></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -262,8 +276,8 @@ func VideoCard(entity shared.EntityState) templ.Component {
 	})
 }
 
-// VideoClientScript handles WebRTC video streaming and FPS monitoring
-func VideoClientScript() templ.Component {
+// VideoPageStyles contains the styles and scripts for the video page
+func VideoPageStyles() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -279,12 +293,12 @@ func VideoClientScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var14 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var14 == nil {
-			templ_7745c5c3_Var14 = templ.NopComponent
+		templ_7745c5c3_Var15 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var15 == nil {
+			templ_7745c5c3_Var15 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<script type=\"module\">\n\t\tclass WebRTCStreamManager {\n\t\t\tconstructor() {\n\t\t\t\tthis.streams = new Map(); // entityId -> { pc, videoEl, fpsInterval }\n\t\t\t}\n\n\t\t\tasync subscribe(entityId, card) {\n\t\t\t\tif (this.streams.has(entityId)) return;\n\n\t\t\t\tconsole.log(`[WebRTC] Subscribing to ${entityId}`);\n\t\t\t\tconst videoEl = card.querySelector('.video-h264');\n\t\t\t\tconst fpsEl = card.querySelector('.fps-counter');\n\t\t\t\tconst statusDot = card.querySelector('.status-dot');\n\t\t\t\tconst canvas = card.querySelector('.video-canvas');\n\t\t\t\tconst mjpeg = card.querySelector('.video-mjpeg');\n\n\t\t\t\t// UI Setup\n\t\t\t\tif (canvas) canvas.style.display = 'none';\n\t\t\t\tif (mjpeg) mjpeg.style.display = 'none';\n\t\t\t\tif (videoEl) videoEl.style.display = 'block';\n\n\t\t\t\tconst pc = new RTCPeerConnection({\n\t\t\t\t\ticeServers: [{ urls: 'stun:stun.l.google.com:19302' }]\n\t\t\t\t});\n\n\t\t\t\t// Add transceiver to receive video\n\t\t\t\tpc.addTransceiver('video', { direction: 'recvonly' });\n\n\t\t\t\tpc.ontrack = (event) => {\n\t\t\t\t\tconsole.log(`[WebRTC] Track received for ${entityId}`);\n\t\t\t\t\tif (videoEl.srcObject !== event.streams[0]) {\n\t\t\t\t\t\tvideoEl.srcObject = event.streams[0];\n\t\t\t\t\t\tvideoEl.play().catch(e => console.error(\"Play error:\", e));\n\n\t\t\t\t\t\t// Start FPS counter\n\t\t\t\t\t\tthis.startFPSCounter(entityId, videoEl, fpsEl);\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t\tpc.onconnectionstatechange = () => {\n\t\t\t\t\tconsole.log(`[WebRTC] Connection state for ${entityId}: ${pc.connectionState}`);\n\t\t\t\t\tif (pc.connectionState === 'connected') {\n\t\t\t\t\t\tif (statusDot) {\n\t\t\t\t\t\t\tstatusDot.classList.remove('disconnected');\n\t\t\t\t\t\t\tstatusDot.classList.add('connected');\n\t\t\t\t\t\t\tstatusDot.style.background = '#0f0';\n\t\t\t\t\t\t}\n\t\t\t\t\t} else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {\n\t\t\t\t\t\tif (statusDot) {\n\t\t\t\t\t\t\tstatusDot.classList.remove('connected');\n\t\t\t\t\t\t\tstatusDot.classList.add('disconnected');\n\t\t\t\t\t\t\tstatusDot.style.background = '#f00';\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t\ttry {\n\t\t\t\t\tconst offer = await pc.createOffer();\n\t\t\t\t\tawait pc.setLocalDescription(offer);\n\n\t\t\t\t\t// Send offer to server\n\t\t\t\t\tconst response = await fetch('/api/v1/webrtc/signal', {\n\t\t\t\t\t\tmethod: 'POST',\n\t\t\t\t\t\theaders: { 'Content-Type': 'application/json' },\n\t\t\t\t\t\tbody: JSON.stringify({\n\t\t\t\t\t\t\toffer: offer,\n\t\t\t\t\t\t\tentity_id: entityId\n\t\t\t\t\t\t})\n\t\t\t\t\t});\n\n\t\t\t\t\tif (!response.ok) {\n\t\t\t\t\t\tthrow new Error(`Signaling failed: ${response.statusText}`);\n\t\t\t\t\t}\n\n\t\t\t\t\tconst answer = await response.json();\n\t\t\t\t\tawait pc.setRemoteDescription(answer);\n\n\t\t\t\t\tthis.streams.set(entityId, { pc, videoEl, fpsEl });\n\t\t\t\t} catch (err) {\n\t\t\t\t\tconsole.error(`[WebRTC] Failed to subscribe to ${entityId}:`, err);\n\t\t\t\t\tpc.close();\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tstartFPSCounter(entityId, videoEl, fpsEl) {\n\t\t\t\tlet lastTime = performance.now();\n\t\t\t\tlet frames = 0;\n\n\t\t\t\tconst loop = (now, metadata) => {\n\t\t\t\t\tconst stream = this.streams.get(entityId);\n\t\t\t\t\tif (!stream) return; // Stopped\n\n\t\t\t\t\tframes++;\n\t\t\t\t\tconst elapsed = now - lastTime;\n\n\t\t\t\t\tif (elapsed >= 1000) {\n\t\t\t\t\t\tconst fps = Math.round((frames * 1000) / elapsed);\n\t\t\t\t\t\tif (fpsEl) fpsEl.textContent = `${fps} fps`;\n\t\t\t\t\t\tframes = 0;\n\t\t\t\t\t\tlastTime = now;\n\t\t\t\t\t}\n\n\t\t\t\t\tif (videoEl.requestVideoFrameCallback) {\n\t\t\t\t\t\tvideoEl.requestVideoFrameCallback(loop);\n\t\t\t\t\t} else {\n\t\t\t\t\t\t// Fallback for browsers without requestVideoFrameCallback (less accurate)\n\t\t\t\t\t\trequestAnimationFrame(() => loop(performance.now()));\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t\tif (videoEl.requestVideoFrameCallback) {\n\t\t\t\t\tvideoEl.requestVideoFrameCallback(loop);\n\t\t\t\t} else {\n\t\t\t\t\trequestAnimationFrame(() => loop(performance.now()));\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tunsubscribe(entityId) {\n\t\t\t\tconst stream = this.streams.get(entityId);\n\t\t\t\tif (stream) {\n\t\t\t\t\tconsole.log(`[WebRTC] Unsubscribing from ${entityId}`);\n\t\t\t\t\tstream.pc.close();\n\t\t\t\t\tthis.streams.delete(entityId);\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\t// Initialize\n\t\tconst streamManager = new WebRTCStreamManager();\n\t\twindow.streamManager = streamManager; // Expose for debugging\n\n\t\t// Observe for dynamically added video cards\n\t\tconst observer = new MutationObserver((mutations) => {\n\t\t\tmutations.forEach(mutation => {\n\t\t\t\tmutation.addedNodes.forEach(node => {\n\t\t\t\t\tif (node.nodeType === Node.ELEMENT_NODE) {\n\t\t\t\t\t\tconst cards = node.classList?.contains('video-card')\n\t\t\t\t\t\t\t? [node]\n\t\t\t\t\t\t\t: node.querySelectorAll?.('.video-card[data-entity-id]') || [];\n\t\t\t\t\t\tcards.forEach(card => {\n\t\t\t\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\t\t\t\tif (entityId) {\n\t\t\t\t\t\t\t\tstreamManager.subscribe(entityId, card);\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\t\t\t\t});\n\n\t\t\t\t// Handle removed nodes\n\t\t\t\tmutation.removedNodes.forEach(node => {\n\t\t\t\t\tif (node.nodeType === Node.ELEMENT_NODE) {\n\t\t\t\t\t\tconst cards = node.classList?.contains('video-card')\n\t\t\t\t\t\t\t? [node]\n\t\t\t\t\t\t\t: node.querySelectorAll?.('.video-card[data-entity-id]') || [];\n\t\t\t\t\t\tcards.forEach(card => {\n\t\t\t\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\t\t\t\tif (entityId) {\n\t\t\t\t\t\t\t\tstreamManager.unsubscribe(entityId);\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\n\t\tobserver.observe(document.body, { childList: true, subtree: true });\n\n\t\t// Initial load\n\t\tdocument.addEventListener('DOMContentLoaded', () => {\n\t\t\tdocument.querySelectorAll('.video-card[data-entity-id]').forEach(card => {\n\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\tif (entityId) {\n\t\t\t\t\tstreamManager.subscribe(entityId, card);\n\t\t\t\t}\n\t\t\t});\n\t\t});\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<script>\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) return;\n\n\t\t\t// Create fullscreen modal\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\t\t\tmodal.innerHTML = `\n\t\t\t\t<div class=\"fullscreen-header\">\n\t\t\t\t\t<span class=\"entity-label\">${entityId}</span>\n\t\t\t\t\t<button class=\"close-btn\" onclick=\"closeVideoFullscreen()\">Close (ESC)</button>\n\t\t\t\t</div>\n\t\t\t\t<div class=\"fullscreen-video\">\n\t\t\t\t\t<img src=\"/api/v1/video/stream/${entityId}\" alt=\"Video stream\"/>\n\t\t\t\t</div>\n\t\t\t`;\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\t</script><style>\n\t\t/* Video Card Styles */\n\t\t.video-card {\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t\tborder: 1px solid #333;\n\t\t}\n\n\t\t.video-card-header {\n\t\t\tpadding: 10px 15px;\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t\tbackground: #1a1a1a;\n\t\t}\n\n\t\t.video-card-header .entity-name {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.video-card-stats {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 8px;\n\t\t}\n\n\t\t.video-card-stats .fps-counter {\n\t\t\tcolor: #888;\n\t\t\tfont-size: 11px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.video-card-stats .status-dot {\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t}\n\n\t\t/* Video Container */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.video-container .no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t\tcolor: #666;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.video-container .no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t/* Video Controls */\n\t\t.video-card-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.video-card-controls .fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen Modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\t</style>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
