@@ -16,6 +16,14 @@
     position: relative;
     min-height: 400px;
     background: #0a0a0a;
+    /* Contain MapLibre canvas within this element */
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* Ensure MapLibre canvas stays within container */
+.map-container canvas {
+    z-index: 1 !important;
 }
 
 /* Map controls - positioned on left side of map */

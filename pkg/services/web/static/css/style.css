@@ -105,6 +105,9 @@ body {
     height: 100vh;
     position: sticky;
     top: 0;
+    /* Ensure nav is always clickable above map canvas */
+    z-index: 1000;
+    pointer-events: auto;
 }
 
 /* C5 Brand Header */

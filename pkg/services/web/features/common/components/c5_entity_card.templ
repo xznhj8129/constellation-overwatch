@@ -137,6 +137,9 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 // C5EntityCardScript contains the JS logic for the card interaction and video
 templ C5EntityCardScript() {
 	<script>
+		// Global FPS tracker state
+		const c5FpsTrackers = {};
+
 		function toggleEntityDetail(entityId) {
 			const card = document.getElementById('c5-entity-' + entityId);
 			if (!card) return;
@@ -161,21 +164,31 @@ templ C5EntityCardScript() {
 			const overlay = container.querySelector('.no-signal-overlay');
 			const fpsEl = card.querySelector('.fps-counter');
 
+			// Skip if already initialized
+			if (c5FpsTrackers[entityId]) return;
+
 			if (mjpegImg) {
-				let frameCount = 0;
-				let lastTime = performance.now();
+				// Initialize tracker
+				c5FpsTrackers[entityId] = {
+					frameCount: 0,
+					lastTime: performance.now()
+				};
 
 				// Track load events for FPS
 				mjpegImg.onload = function() {
 					// Hide overlay on successful load
 					if (overlay) overlay.classList.remove('show');
 
-					frameCount++;
+					const tracker = c5FpsTrackers[entityId];
+					if (!tracker) return;
+
+					tracker.frameCount++;
 					const now = performance.now();
-					if (now - lastTime >= 1000) {
-						if (fpsEl) fpsEl.textContent = Math.round(frameCount * 1000 / (now - lastTime)) + ' fps';
-						frameCount = 0;
-						lastTime = now;
+					if (now - tracker.lastTime >= 1000) {
+						const fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));
+						if (fpsEl) fpsEl.textContent = fps + ' fps';
+						tracker.frameCount = 0;
+						tracker.lastTime = now;
 					}
 				};
 
@@ -187,15 +200,18 @@ templ C5EntityCardScript() {
 		}
 
 		function openVideoFullscreen(entityId) {
-			const card = document.getElementById('c5-entity-' + entityId);
-			if (!card) {
-				// Fallback to direct stream
-				window.open('/api/v1/video/stream/' + entityId, '_blank');
+			if (!entityId) {
+				console.warn('[Video] No entityId provided for fullscreen');
 				return;
 			}
 
-			const container = card.querySelector('.video-container');
-			if (!container) return;
+			// Find the existing video element for this entity
+			const card = document.getElementById('c5-entity-' + entityId);
+			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
+
+			// Remove any existing modal first
+			const existingModal = document.getElementById('video-fullscreen-modal');
+			if (existingModal) existingModal.remove();
 
 			// Create fullscreen modal
 			const modal = document.createElement('div');
@@ -203,21 +219,37 @@ templ C5EntityCardScript() {
 			modal.innerHTML = `
 				<div class="fullscreen-header">
 					<span class="entity-label">${entityId}</span>
-					<button class="close-btn" onclick="closeVideoFullscreen()">Close</button>
+					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
 				</div>
 				<div class="fullscreen-video">
-					<img src="/api/v1/video/stream/${entityId}" alt="Video stream" style="max-width: 100%; max-height: calc(100vh - 60px); object-fit: contain;"/>
 				</div>
 			`;
 			document.body.appendChild(modal);
 
+			// Clone the existing img element to reuse the stream, or create new one
+			const fullscreenContainer = modal.querySelector('.fullscreen-video');
+			if (existingImg && existingImg.src) {
+				const clonedImg = existingImg.cloneNode(true);
+				clonedImg.style.maxWidth = '100%';
+				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
+				clonedImg.style.objectFit = 'contain';
+				fullscreenContainer.appendChild(clonedImg);
+			} else {
+				// Fallback: create new stream connection
+				const img = document.createElement('img');
+				img.src = '/api/v1/video/stream/' + entityId;
+				img.alt = 'Video stream';
+				fullscreenContainer.appendChild(img);
+			}
+
 			// ESC key to close
-			document.addEventListener('keydown', function escHandler(e) {
+			const escHandler = function(e) {
 				if (e.key === 'Escape') {
 					closeVideoFullscreen();
 					document.removeEventListener('keydown', escHandler);
 				}
-			});
+			};
+			document.addEventListener('keydown', escHandler);
 		}
 
 		function closeVideoFullscreen() {
@@ -343,6 +375,19 @@ templ C5EntityCardScript() {
 			align-items: center;
 			justify-content: center;
 			background: #000;
+			position: relative;
+		}
+
+		.fullscreen-video img {
+			max-width: 100%;
+			max-height: calc(100vh - 60px);
+			object-fit: contain;
+		}
+
+		.fullscreen-loading {
+			color: #666;
+			font-size: 16px;
+			position: absolute;
 		}
 	</style>
 }

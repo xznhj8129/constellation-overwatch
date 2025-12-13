@@ -115,9 +115,10 @@ templ VideoCard(entity shared.EntityState) {
 					{ entity.EntityID }
 				}
 			</span>
+			<span class="entity-type">{ entity.EntityType }</span>
 			<div class="video-card-stats">
-				<span class="fps-counter">-- fps</span>
-				<span class="status-dot connected"></span>
+				<span class="fps-counter" id={ "fps-" + entity.EntityID }>-- fps</span>
+				<span class={ "status-dot", templ.KV("connected", entity.Status == "active"), templ.KV("disconnected", entity.Status != "active") }></span>
 			</div>
 		</div>
 		<div class="video-container" data-entity-id={ entity.EntityID }>
@@ -130,7 +131,7 @@ templ VideoCard(entity shared.EntityState) {
 				alt="Video stream"/>
 		</div>
 		<div class="video-card-controls">
-			<span class="fps-counter">-- fps</span>
+			<span class="status-label">{ entity.Status }</span>
 			<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
 				Fullscreen
 			</button>
@@ -141,8 +142,62 @@ templ VideoCard(entity shared.EntityState) {
 // VideoPageStyles contains the styles and scripts for the video page
 templ VideoPageStyles() {
 	<script>
+		// FPS tracking state per entity
+		const fpsTrackers = {};
+
+		function initFpsTracker(entityId) {
+			if (fpsTrackers[entityId]) {
+				// Already tracking, just increment frame count
+				fpsTrackers[entityId].frameCount++;
+				const now = performance.now();
+				if (now - fpsTrackers[entityId].lastTime >= 1000) {
+					const fps = Math.round(fpsTrackers[entityId].frameCount * 1000 / (now - fpsTrackers[entityId].lastTime));
+					const fpsEl = document.getElementById('fps-' + entityId);
+					if (fpsEl) fpsEl.textContent = fps + ' fps';
+					fpsTrackers[entityId].frameCount = 0;
+					fpsTrackers[entityId].lastTime = now;
+				}
+				return;
+			}
+			// Initialize new tracker
+			fpsTrackers[entityId] = {
+				frameCount: 1,
+				lastTime: performance.now()
+			};
+		}
+
+		// Initialize FPS tracking for all video cards on page load
+		document.addEventListener('DOMContentLoaded', function() {
+			document.querySelectorAll('.video-card').forEach(function(card) {
+				const entityId = card.dataset.entityId;
+				const img = card.querySelector('.video-mjpeg');
+				const overlay = card.querySelector('.no-signal-overlay');
+
+				if (img) {
+					img.onload = function() {
+						if (overlay) overlay.style.display = 'none';
+						initFpsTracker(entityId);
+					};
+					img.onerror = function() {
+						if (overlay) overlay.style.display = 'flex';
+					};
+				}
+			});
+		});
+
 		function openVideoFullscreen(entityId) {
-			if (!entityId) return;
+			if (!entityId) {
+				console.warn('[Video] No entityId provided for fullscreen');
+				return;
+			}
+
+			// Find the existing video element for this entity
+			const card = document.getElementById('video-card-' + entityId);
+			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
+
+			// Remove any existing modal first
+			const existingModal = document.getElementById('video-fullscreen-modal');
+			if (existingModal) existingModal.remove();
 
 			// Create fullscreen modal
 			const modal = document.createElement('div');
@@ -153,10 +208,25 @@ templ VideoPageStyles() {
 					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
 				</div>
 				<div class="fullscreen-video">
-					<img src="/api/v1/video/stream/${entityId}" alt="Video stream"/>
 				</div>
 			`;
 			document.body.appendChild(modal);
+
+			// Clone the existing img element to reuse the stream, or create new one
+			const fullscreenContainer = modal.querySelector('.fullscreen-video');
+			if (existingImg && existingImg.src) {
+				const clonedImg = existingImg.cloneNode(true);
+				clonedImg.style.maxWidth = '100%';
+				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
+				clonedImg.style.objectFit = 'contain';
+				fullscreenContainer.appendChild(clonedImg);
+			} else {
+				// Fallback: create new stream connection
+				const img = document.createElement('img');
+				img.src = '/api/v1/video/stream/' + entityId;
+				img.alt = 'Video stream';
+				fullscreenContainer.appendChild(img);
+			}
 
 			// ESC key to close
 			const escHandler = function(e) {
@@ -172,6 +242,7 @@ templ VideoPageStyles() {
 			const modal = document.getElementById('video-fullscreen-modal');
 			if (modal) modal.remove();
 		}
+
 	</script>
 	<style>
 		/* Video Card Styles */
@@ -194,6 +265,16 @@ templ VideoPageStyles() {
 		.video-card-header .entity-name {
 			color: #0ff;
 			font-weight: bold;
+		}
+
+		.video-card-header .entity-type {
+			color: #ff0;
+			font-size: 11px;
+			text-transform: uppercase;
+			background: rgba(255, 255, 0, 0.1);
+			padding: 2px 6px;
+			border-radius: 3px;
+			margin-left: 8px;
 		}
 
 		.video-card-stats {
@@ -260,6 +341,16 @@ templ VideoPageStyles() {
 			color: #0ff;
 			font-size: 12px;
 			font-family: monospace;
+		}
+
+		.video-card-controls .status-label {
+			color: #0f0;
+			font-size: 12px;
+			text-transform: uppercase;
+		}
+
+		.status-dot.disconnected {
+			background: #f00;
 		}
 
 		.btn-fullscreen {

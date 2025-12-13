@@ -204,7 +204,10 @@ templ MapLibreScript() {
 					style: this.styles.dark,
 					center: [0, 0],
 					zoom: 2,
-					attributionControl: false
+					attributionControl: false,
+					// Reduce glyph/label rendering to prevent "too many glyphs" error
+					localIdeographFontFamily: "'Noto Sans', 'Noto Sans CJK SC', sans-serif",
+					maxTileCacheSize: 50
 				});
 
 				// Add navigation controls
@@ -214,6 +217,10 @@ templ MapLibreScript() {
 				// Wait for map to load
 				this.map.on('load', async () => {
 					console.log('[MapLibre] Map loaded');
+
+					// Remove/hide basemap text layers to prevent "too many glyphs" error
+					// CartoCDN styles have many symbol layers that can overwhelm the renderer
+					this.hideBasemapLabels();
 
 					// Add GeoJSON source for trackers
 					this.map.addSource('trackers', {
@@ -470,6 +477,33 @@ templ MapLibreScript() {
 				}
 			}
 
+			// Hide basemap text labels to prevent "too many glyphs" error
+			// This removes place names, road labels, etc. from the basemap
+			// Our own trackers-labels layer is not affected
+			hideBasemapLabels() {
+				const style = this.map.getStyle();
+				if (!style || !style.layers) return;
+
+				const layersToHide = [];
+				for (const layer of style.layers) {
+					// Hide symbol layers that are not our custom layers
+					if (layer.type === 'symbol' &&
+						layer.id !== 'trackers-labels' &&
+						!layer.id.startsWith('trackers')) {
+						layersToHide.push(layer.id);
+					}
+				}
+
+				console.log(`[MapLibre] Hiding ${layersToHide.length} basemap label layers`);
+				for (const layerId of layersToHide) {
+					try {
+						this.map.setLayoutProperty(layerId, 'visibility', 'none');
+					} catch (e) {
+						// Layer may already be removed
+					}
+				}
+			}
+
 			updateTrail(entityId, lng, lat) {
 				if (!this.trails.has(entityId)) {
 					this.trails.set(entityId, []);
@@ -573,6 +607,9 @@ templ MapLibreScript() {
 
 					// Re-add sources and layers after style change
 					this.map.once('style.load', async () => {
+						// Hide basemap labels first to prevent glyph overload
+						this.hideBasemapLabels();
+
 						this.map.addSource('trackers', {
 							type: 'geojson',
 							data: { type: 'FeatureCollection', features: Array.from(this.features.values()) }
@@ -636,6 +673,38 @@ templ MapLibreScript() {
 				}
 			}
 
+			// Cleanup method to destroy all resources
+			destroy() {
+				console.log('[MapLibre] Destroying controller...');
+
+				// Clear all popups
+				for (const popup of this.popups.values()) {
+					popup.remove();
+				}
+				this.popups.clear();
+
+				// Clear features and trails
+				this.features.clear();
+				this.trails.clear();
+				this.markers.clear();
+
+				// Remove the map instance - stop it first to cancel pending requests
+				if (this.map) {
+					// Stop all animations and pending operations
+					this.map.stop();
+					// Set style to empty to cancel glyph/sprite requests
+					try {
+						this.map.setStyle({ version: 8, sources: {}, layers: [] });
+					} catch (e) {
+						// Ignore errors during cleanup
+					}
+					this.map.remove();
+					this.map = null;
+				}
+
+				console.log('[MapLibre] Controller destroyed');
+			}
+
 		}
 
 		// Initialize map controller when DOM is ready
@@ -646,6 +715,22 @@ templ MapLibreScript() {
 		} else {
 			window.mapController = new MapLibreController();
 		}
+
+		// Cleanup on page unload using pagehide (more reliable than beforeunload)
+		window.addEventListener('pagehide', () => {
+			if (window.mapController) {
+				window.mapController.destroy();
+				window.mapController = null;
+			}
+		});
+
+		// Also cleanup on visibility change (catches some edge cases)
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'hidden' && window.mapController) {
+				// Don't fully destroy, just stop pending requests
+				window.mapController.map?.stop();
+			}
+		});
 	</script>
 }
 
