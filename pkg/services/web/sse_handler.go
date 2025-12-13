@@ -3,12 +3,11 @@ package web
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/templates"
 	"net/http"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	"github.com/nats-io/nats.go"
 )
 
@@ -272,6 +271,3 @@ func renderStreamMessageWithType(subject, timestamp, msgType, data string) strin
 		</div>
 	`, subject, subject, timestamp, msgType, data)
 }
-
-// Ensure template is used (even if not actively called)
-var _ = templates.StreamMessage
