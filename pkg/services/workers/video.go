@@ -51,12 +51,12 @@ func (w *VideoWorker) Start(ctx context.Context) error {
 }
 
 // handleVideoFrame processes a single video frame message
-func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
+func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) error {
 	// Parse subject: constellation.video.{entity_id}
 	entityID, err := w.parseSubject(msg.Subject)
 	if err != nil {
 		logger.Errorw("Failed to parse video subject", "worker", w.Name(), "subject", msg.Subject, "error", err)
-		return
+		return fmt.Errorf("failed to parse video subject: %w", err)
 	}
 
 	var frame shared.VideoFrame
@@ -67,14 +67,14 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 		frame = w.wrapRawImage(entityID, msg.Data)
 	} else if w.isMPEGTS(msg.Data) {
 		// MPEG-TS data - handled by transcoder service, skip silently
-		return
+		return nil
 	} else {
 		// Try JSON unmarshal
 		if err := json.Unmarshal(msg.Data, &frame); err != nil {
 			// Empty data or other unrecognized format - skip silently
 			// The transcoder or other services may handle these
 			if len(msg.Data) == 0 {
-				return
+				return nil
 			}
 			// Log first few bytes to help debug (only for non-empty unknown formats)
 			preview := msg.Data
@@ -85,7 +85,7 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 				"worker", w.Name(),
 				"data_length", len(msg.Data),
 				"first_bytes", fmt.Sprintf("%x", preview))
-			return
+			return nil
 		}
 	}
 
@@ -123,6 +123,8 @@ func (w *VideoWorker) handleVideoFrame(msg *nats.Msg) {
 	// 2. Update entity state with latest frame metadata (not full frame)
 	// 3. Forward to analytics pipeline if needed
 	// 4. Implement frame sampling for high-frequency streams
+
+	return nil
 }
 
 // isRawImage checks if the data starts with known image magic bytes

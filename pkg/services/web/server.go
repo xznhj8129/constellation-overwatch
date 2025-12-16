@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -68,15 +69,21 @@ func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddedn
 
 // Start starts the web server
 func (s *Server) Start(ctx context.Context) error {
+	logger.Infof("Starting web server on %s", s.bindAddr)
+
+	// Bind to the port first to ensure it's available before returning
+	listener, err := net.Listen("tcp", s.bindAddr)
+	if err != nil {
+		return fmt.Errorf("failed to bind to %s: %w", s.bindAddr, err)
+	}
+
 	s.server = &http.Server{
 		Addr:    s.bindAddr,
 		Handler: s.mux,
 	}
 
-	logger.Infof("Starting web server on %s", s.bindAddr)
-
 	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Errorw("Web server failed", "error", err)
 		}
 	}()

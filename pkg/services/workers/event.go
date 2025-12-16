@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -36,31 +37,51 @@ func (w *EventWorker) Start(ctx context.Context) error {
 	return w.processMessages(ctx, w.handleEvent)
 }
 
-func (w *EventWorker) handleEvent(msg *nats.Msg) {
+// extractEntityID extracts the entity_id from an event using a consistent fallback chain:
+// 1. event.entity_id (preferred)
+// 2. event.source.entity_id (nested fallback)
+// 3. event.device_id (device fallback)
+// 4. event.source.device_id (last resort)
+func extractEntityID(event map[string]interface{}) string {
+	// Try root level entity_id first
+	if entityID, ok := event["entity_id"].(string); ok && entityID != "" {
+		return entityID
+	}
+
+	// Get source object for fallbacks
+	source, hasSource := event["source"].(map[string]interface{})
+
+	// Try source.entity_id
+	if hasSource {
+		if srcEntityID, ok := source["entity_id"].(string); ok && srcEntityID != "" {
+			return srcEntityID
+		}
+	}
+
+	// Try root level device_id
+	if deviceID, ok := event["device_id"].(string); ok && deviceID != "" {
+		return deviceID
+	}
+
+	// Try source.device_id as last resort
+	if hasSource {
+		if srcDeviceID, ok := source["device_id"].(string); ok && srcDeviceID != "" {
+			return srcDeviceID
+		}
+	}
+
+	return ""
+}
+
+func (w *EventWorker) handleEvent(msg *nats.Msg) error {
 	var event map[string]interface{}
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
 		logger.Errorw("Failed to unmarshal event", "worker", w.Name(), "error", err)
-		return
+		return fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 
 	eventType, _ := event["event_type"].(string)
-	entityID, _ := event["entity_id"].(string)
-
-	// Try to get entity_id from various locations if empty
-	if entityID == "" {
-		// Try root level device_id
-		if deviceID, ok := event["device_id"].(string); ok && deviceID != "" {
-			entityID = deviceID
-		} else if source, ok := event["source"].(map[string]interface{}); ok {
-			// Try source.entity_id
-			if srcEntityID, ok := source["entity_id"].(string); ok && srcEntityID != "" {
-				entityID = srcEntityID
-			} else if srcDeviceID, ok := source["device_id"].(string); ok && srcDeviceID != "" {
-				// Try source.device_id
-				entityID = srcDeviceID
-			}
-		}
-	}
+	entityID := extractEntityID(event)
 
 	// Log all events for debugging
 	prettyJSON, _ := json.MarshalIndent(event, "", "  ")
@@ -73,34 +94,13 @@ func (w *EventWorker) handleEvent(msg *nats.Msg) {
 	case "shutdown", "delete":
 		w.handleShutdown(entityID)
 	}
+
+	return nil
 }
 
 func (w *EventWorker) handleBootSequence(event map[string]interface{}) {
-	// Extract entity_id - could be in the event or source
-	entityID, _ := event["entity_id"].(string)
-
-	// Get source object for fallbacks
-	source, hasSource := event["source"].(map[string]interface{})
-
-	// If not in event, check source object
-	if entityID == "" && hasSource {
-		entityID, _ = source["entity_id"].(string)
-	}
-
-	// If still no entity_id, try device_id as fallback (check both root and source)
-	if entityID == "" {
-		// Try root level device_id first
-		if deviceID, ok := event["device_id"].(string); ok && deviceID != "" {
-			logger.Infow("No entity_id in bootsequence, using device_id from root", "worker", w.Name(), "device_id", deviceID)
-			entityID = deviceID
-		} else if hasSource {
-			// Try device_id inside source
-			if deviceID, ok := source["device_id"].(string); ok && deviceID != "" {
-				logger.Infow("No entity_id in bootsequence, using device_id from source", "worker", w.Name(), "device_id", deviceID)
-				entityID = deviceID
-			}
-		}
-	}
+	// Use shared extraction function for consistent entity_id resolution
+	entityID := extractEntityID(event)
 
 	if entityID == "" {
 		logger.Warnw("Bootsequence event missing both entity_id and device_id, cannot register", "worker", w.Name())

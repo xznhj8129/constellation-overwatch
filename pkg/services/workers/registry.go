@@ -138,13 +138,18 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 			continue
 		}
 
-		// Check if KV entry already exists
+		// Check if KV entry already exists - if so, preserve it
 		kvKey := shared.EntityKey(entityID)
 		_, err := kv.Get(kvKey)
-		exists := err == nil
+		if err == nil {
+			// Entry exists - skip it to preserve runtime telemetry data
+			skipped++
+			logger.Debugw("Skipped existing KV entry", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID)
+			continue
+		}
 
-		// Create minimal initial EntityState - just enough for the UI to display
-		// Telemetry and detection workers will populate the rest
+		// Entry doesn't exist - create minimal initial EntityState
+		// Just enough for the UI to display; telemetry and detection workers will populate the rest
 		state := shared.EntityState{
 			EntityID:   entityID,
 			OrgID:      orgID,
@@ -169,17 +174,20 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 			continue
 		}
 
-		if _, err := kv.Put(kvKey, data); err != nil {
-			logger.Errorw("Failed to put KV entry", "component", "EntityRegistry", "entity_id", entityID, "error", err)
+		// Use Create instead of Put - will fail if key exists (race condition protection)
+		if _, err := kv.Create(kvKey, data); err != nil {
+			if err == nats.ErrKeyExists {
+				// Race condition: key was created between our check and now, this is fine
+				skipped++
+				logger.Debugw("Race condition: KV entry created concurrently", "component", "EntityRegistry", "entity_id", entityID)
+			} else {
+				logger.Errorw("Failed to create KV entry", "component", "EntityRegistry", "entity_id", entityID, "error", err)
+			}
 			continue
 		}
 
-		if exists {
-			logger.Infow("🔄 Updated KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "name", name)
-		} else {
-			initialized++
-			logger.Infow("✅ Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "kv_key", kvKey)
-		}
+		initialized++
+		logger.Infow("✅ Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "kv_key", kvKey)
 	}
 
 	logger.Infow("🎉 KV store initialization complete", "component", "EntityRegistry", "initialized", initialized, "skipped", skipped, "total_processed", initialized+skipped)

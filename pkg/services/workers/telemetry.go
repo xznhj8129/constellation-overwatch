@@ -50,19 +50,19 @@ func (w *TelemetryWorker) Start(ctx context.Context) error {
 }
 
 // handleTelemetryMessage processes a single telemetry message
-func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
+func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
 	// Parse subject: constellation.telemetry.{entity_id}.{message_type}
 	entityID, orgID, err := w.parseSubject(msg.Subject)
 	if err != nil {
 		logger.Errorw("Failed to parse subject", "worker", w.Name(), "subject", msg.Subject, "error", err)
-		return
+		return fmt.Errorf("failed to parse subject: %w", err)
 	}
 
 	// Parse MAVLink telemetry
 	var telemetry shared.MAVLinkTelemetry
 	if err := json.Unmarshal(msg.Data, &telemetry); err != nil {
 		logger.Errorw("Failed to unmarshal telemetry", "worker", w.Name(), "error", err)
-		return
+		return fmt.Errorf("failed to unmarshal telemetry: %w", err)
 	}
 
 	// Parse timestamp
@@ -86,7 +86,7 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 	state, err := w.getOrCreateEntityState(entityID, orgID)
 	if err != nil {
 		logger.Errorw("Failed to get entity state", "worker", w.Name(), "entity_id", entityID, "error", err)
-		return
+		return fmt.Errorf("failed to get entity state: %w", err)
 	}
 
 	// Update state based on message type
@@ -108,6 +108,7 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) {
 	w.updateCache(state)
 
 	logger.Debugw("Processed telemetry (KV write disabled)", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
+	return nil
 }
 
 // parseSubject extracts entity_id and message_type from NATS subject

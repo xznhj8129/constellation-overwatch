@@ -141,9 +141,9 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 						}
 
 						if err := video_pages.VideoCard(entityState).Render(context.Background(), &cardHTML); err == nil {
-							// Remove empty state if it's the first stream
+							// Remove empty state if it's the first stream (use specific selector)
 							if len(knownStreams) == 0 {
-								sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))
+								sse.PatchElements("", datastar.WithSelector("#video-grid .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))
 							}
 
 							sse.PatchElements(cardHTML.String(),

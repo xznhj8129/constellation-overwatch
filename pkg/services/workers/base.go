@@ -56,7 +56,7 @@ func (w *BaseWorker) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg)) error {
+func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg) error) error {
 	sub, err := w.js.PullSubscribe(w.subject, "",
 		nats.Durable(w.consumer),
 		nats.ManualAck(),
@@ -100,9 +100,20 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 			}
 
 			for _, msg := range msgs {
-				handler(msg)
-				if err := msg.Ack(); err != nil {
-					logger.Errorw("Error acknowledging message", "worker", w.name, "error", err)
+				if err := handler(msg); err != nil {
+					// Handler failed - use negative acknowledgement to trigger redelivery
+					if nakErr := msg.Nak(); nakErr != nil {
+						logger.Errorw("Error sending NAK", "worker", w.name, "error", nakErr)
+					}
+					logger.Errorw("Handler failed, message NAK'd for redelivery",
+						"worker", w.name,
+						"subject", msg.Subject,
+						"error", err)
+				} else {
+					// Handler succeeded - acknowledge the message
+					if ackErr := msg.Ack(); ackErr != nil {
+						logger.Errorw("Error acknowledging message", "worker", w.name, "error", ackErr)
+					}
 				}
 			}
 		}

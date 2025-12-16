@@ -56,31 +56,8 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 		<!-- Detailed View (Collapsible) -->
 		<div class="c5-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
 
-			<!-- Video Player Section -->
-			<div class="video-section">
-				<div class="video-container" data-entity-id={ entity.EntityID }>
-					<!-- No Signal Overlay (hidden by default, shown on error) -->
-					<div class="video-overlay no-signal-overlay">
-						<div class="no-signal">
-							<span>No Video Signal</span>
-						</div>
-					</div>
-					<!-- MJPEG stream (primary - works with transcoder) -->
-					<img
-						class="video-mjpeg"
-						src={ "/api/v1/video/stream/" + entity.EntityID }
-						alt="Video stream"/>
-					<!-- Video element for WebRTC H.264 (alternative) -->
-					<video class="video-h264" muted autoplay playsinline></video>
-					<canvas class="video-canvas"></canvas>
-				</div>
-				<div class="video-controls">
-					<span class="fps-counter">-- fps</span>
-					<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
-						Fullscreen
-					</button>
-				</div>
-			</div>
+			<!-- Video Player Placeholder - video component appended separately via SSE to avoid morph recreation -->
+			<div class="video-section" id={ "video-section-" + entity.EntityID } data-ignore-morph></div>
 
 			<!-- Telemetry Grid -->
 			<div class="telemetry-grid">
@@ -209,10 +186,30 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 	</div>
 }
 
+// C5VideoPlayer is a standalone video component that gets appended once (not morphed)
+// This separation prevents MJPEG stream connection duplication during card morphs
+templ C5VideoPlayer(entityID string) {
+	<div class="video-container" data-entity-id={ entityID }>
+		<div class="no-signal-overlay">
+			<span>No Video Signal</span>
+		</div>
+		<img
+			class="video-mjpeg"
+			src={ "/api/v1/video/stream/" + entityID }
+			alt="Video stream"/>
+	</div>
+	<div class="video-controls">
+		<span class="fps-counter" id={ "c5-fps-" + entityID }>-- fps</span>
+		<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
+			Fullscreen
+		</button>
+	</div>
+}
+
 // C5EntityCardScript contains the JS logic for the card interaction and video
 templ C5EntityCardScript() {
 	<script>
-		// Global FPS tracker state
+		// FPS tracking for video streams
 		const c5FpsTrackers = {};
 
 		function toggleEntityDetail(entityId) {
@@ -224,55 +221,59 @@ templ C5EntityCardScript() {
 
 			if (isDetailed) {
 				body.style.display = 'block';
-				// Initialize video stream
-				initVideoStream(card, entityId);
+				// Initialize FPS tracking for this card's video
+				initFpsTracker(card, entityId);
 			} else {
 				body.style.display = 'none';
+				// Clean up FPS tracker
+				delete c5FpsTrackers[entityId];
+				const fpsEl = document.getElementById('c5-fps-' + entityId);
+				if (fpsEl) fpsEl.textContent = '-- fps';
 			}
 		}
 
-		function initVideoStream(card, entityId) {
-			const container = card.querySelector('.video-container');
-			if (!container) return;
+		function initFpsTracker(card, entityId) {
+			const mjpegImg = card.querySelector('.video-mjpeg');
+			const overlay = card.querySelector('.no-signal-overlay');
+			const fpsEl = document.getElementById('c5-fps-' + entityId);
 
-			const mjpegImg = container.querySelector('.video-mjpeg');
-			const overlay = container.querySelector('.no-signal-overlay');
-			const fpsEl = card.querySelector('.fps-counter');
+			if (!mjpegImg) return;
 
-			// Skip if already initialized
-			if (c5FpsTrackers[entityId]) return;
+			// Initialize FPS tracker
+			c5FpsTrackers[entityId] = {
+				frameCount: 0,
+				lastTime: performance.now()
+			};
 
-			if (mjpegImg) {
-				// Initialize tracker
-				c5FpsTrackers[entityId] = {
-					frameCount: 0,
-					lastTime: performance.now()
-				};
+			// Set up handlers for FPS tracking
+			mjpegImg.onload = function() {
+				if (overlay) overlay.style.display = 'none';
 
-				// Track load events for FPS
-				mjpegImg.onload = function() {
-					// Hide overlay on successful load
-					if (overlay) overlay.classList.remove('show');
+				const tracker = c5FpsTrackers[entityId];
+				if (!tracker) return;
 
-					const tracker = c5FpsTrackers[entityId];
-					if (!tracker) return;
+				tracker.frameCount++;
+				const now = performance.now();
+				if (now - tracker.lastTime >= 1000) {
+					const fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));
+					if (fpsEl) fpsEl.textContent = fps + ' fps';
+					tracker.frameCount = 0;
+					tracker.lastTime = now;
+				}
+			};
 
-					tracker.frameCount++;
-					const now = performance.now();
-					if (now - tracker.lastTime >= 1000) {
-						const fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));
-						if (fpsEl) fpsEl.textContent = fps + ' fps';
-						tracker.frameCount = 0;
-						tracker.lastTime = now;
-					}
-				};
-
-				mjpegImg.onerror = function() {
-					// Show overlay on error
-					if (overlay) overlay.classList.add('show');
-				};
-			}
+			mjpegImg.onerror = function() {
+				if (overlay) overlay.style.display = 'flex';
+			};
 		}
+
+		// Initialize FPS tracking for any cards that start in detailed mode
+		document.addEventListener('DOMContentLoaded', function() {
+			document.querySelectorAll('.c5-entity-card.detailed').forEach(function(card) {
+				const entityId = card.dataset.entityId;
+				if (entityId) initFpsTracker(card, entityId);
+			});
+		});
 
 		function openVideoFullscreen(entityId) {
 			if (!entityId) {
@@ -347,12 +348,7 @@ templ C5EntityCardScript() {
 			display: block;
 		}
 
-		.video-container .video-h264,
-		.video-container .video-canvas {
-			display: none;
-		}
-
-		.video-overlay.no-signal-overlay {
+		.no-signal-overlay {
 			position: absolute;
 			top: 0;
 			left: 0;
@@ -363,16 +359,13 @@ templ C5EntityCardScript() {
 			align-items: center;
 			justify-content: center;
 			z-index: 10;
-		}
-
-		.video-overlay.no-signal-overlay.show {
-			display: flex;
-		}
-
-		.no-signal-overlay .no-signal {
 			color: #666;
 			text-align: center;
 			font-size: 14px;
+		}
+
+		.no-signal-overlay.show {
+			display: flex;
 		}
 
 		.video-controls {
