@@ -138,7 +138,6 @@ func main() {
 	if err := dbService.Start(ctx); err != nil {
 		logger.Fatalw("Failed to start database service", "error", err)
 	}
-	defer dbService.Stop(ctx)
 
 	// 2. Initialize Embedded NATS
 	natsService, err := embeddednats.NewService()
@@ -148,7 +147,6 @@ func main() {
 	if err := natsService.Start(ctx); err != nil {
 		logger.Fatalw("Failed to start NATS service", "error", err)
 	}
-	defer natsService.Stop(ctx)
 
 	// Wait for NATS to be ready
 	time.Sleep(1 * time.Second)
@@ -168,7 +166,6 @@ func main() {
 	if err := workerManager.Start(); err != nil {
 		logger.Fatalw("Failed to start workers", "error", err)
 	}
-	defer workerManager.Stop(ctx)
 	logger.Info("Workers started")
 
 	// 3b. Initialize Video Transcoder (converts MPEG-TS to JPEG)
@@ -198,7 +195,6 @@ func main() {
 		logger.Fatalw("Failed to start web server", "error", err)
 	}
 	logger.Info("Web server start command issued")
-	defer webServer.Stop(ctx)
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
@@ -207,11 +203,34 @@ func main() {
 	sig := <-sigChan
 	logger.Infow("Received signal, shutting down...", "signal", sig)
 
-	// Cancel context to stop all services
+	// Create shutdown context with timeout for graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	// Stop services in reverse order with timeout context
+	logger.Info("Stopping web server...")
+	if err := webServer.Stop(shutdownCtx); err != nil {
+		logger.Errorw("Error stopping web server", "error", err)
+	}
+
+	logger.Info("Stopping workers...")
+	if err := workerManager.Stop(shutdownCtx); err != nil {
+		logger.Errorw("Error stopping workers", "error", err)
+	}
+
+	logger.Info("Stopping NATS service...")
+	if err := natsService.Stop(shutdownCtx); err != nil {
+		logger.Errorw("Error stopping NATS service", "error", err)
+	}
+
+	logger.Info("Stopping database service...")
+	if err := dbService.Stop(shutdownCtx); err != nil {
+		logger.Errorw("Error stopping database service", "error", err)
+	}
+
+	// Cancel main context
 	cancel()
 
-	// Give services time to shut down
-	time.Sleep(2 * time.Second)
 	logger.Info("Shutdown complete")
 }
 

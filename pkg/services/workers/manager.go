@@ -109,14 +109,29 @@ func (m *Manager) Stop(ctx context.Context) error {
 	// Step 2: Cancel context to break any remaining fetch loops
 	m.cancel()
 
-	// Step 3: Wait for all worker goroutines to complete
-	m.wg.Wait()
+	// Step 3: Wait for all worker goroutines to complete (with timeout)
+	done := make(chan struct{})
+	go func() {
+		m.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logger.Info("All workers stopped")
+	case <-ctx.Done():
+		logger.Warn("Timeout waiting for workers to stop")
+		// Close NATS connection even on timeout to help unblock stuck workers
+		if m.nc != nil {
+			m.nc.Close()
+		}
+		return ctx.Err()
+	}
 
 	// Step 4: Finally close NATS connection
 	if m.nc != nil {
 		m.nc.Close()
 	}
 
-	logger.Info("All workers stopped")
 	return nil
 }
