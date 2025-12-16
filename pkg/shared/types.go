@@ -402,7 +402,7 @@ const (
 	EntityTypeGroundVehicleWheeled = "ground_vehicle_wheeled"
 	EntityTypeGroundVehicleTracked = "ground_vehicle_tracked"
 	// Marine
-	EntityTypeSurfaceVesselUSV = "surface_vessel_usv"
+	EntityTypeSurfaceVesselUSV  = "surface_vessel_usv"
 	EntityTypeUnderwaterVehicle = "underwater_vehicle"
 	// Platforms & Systems
 	EntityTypeSensorPlatform  = "sensor_platform"
