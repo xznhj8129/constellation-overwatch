@@ -56,7 +56,7 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 		// Entities
 		r.Route("/entities", func(r chi.Router) {
 			r.Use(middleware.BearerAuth)
-			r.Get("/", entityHandler.List)
+			r.Get("/", entityHandler.ListOrGet)
 			r.Post("/", entityHandler.Create)
 			r.Put("/", entityHandler.Update)
 			r.Delete("/", entityHandler.Delete)
