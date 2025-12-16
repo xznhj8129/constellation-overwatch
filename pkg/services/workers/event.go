@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -36,11 +37,11 @@ func (w *EventWorker) Start(ctx context.Context) error {
 	return w.processMessages(ctx, w.handleEvent)
 }
 
-func (w *EventWorker) handleEvent(msg *nats.Msg) {
+func (w *EventWorker) handleEvent(msg *nats.Msg) error {
 	var event map[string]interface{}
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
 		logger.Errorw("Failed to unmarshal event", "worker", w.Name(), "error", err)
-		return
+		return fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 
 	eventType, _ := event["event_type"].(string)
@@ -73,6 +74,8 @@ func (w *EventWorker) handleEvent(msg *nats.Msg) {
 	case "shutdown", "delete":
 		w.handleShutdown(entityID)
 	}
+
+	return nil
 }
 
 func (w *EventWorker) handleBootSequence(event map[string]interface{}) {
