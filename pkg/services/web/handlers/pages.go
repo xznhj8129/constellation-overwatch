@@ -67,7 +67,9 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 	}
 
 	component := org_pages.OrganizationsPage(orgs, orgID, entities)
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render entities page: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +103,9 @@ func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	component := org_components.EntityForm(orgID, entity, isEdit)
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render entity form: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleStreamsPage(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +123,9 @@ func (h *PageHandler) HandleStreamsPage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	component := streams_pages.StreamsPage()
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render streams page: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleOrganizationForm(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +144,9 @@ func (h *PageHandler) HandleOrganizationForm(w http.ResponseWriter, r *http.Requ
 	}
 
 	component := org_components.OrganizationForm()
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render organization form: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +164,9 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 	}
 
 	component := overwatch_pages.OverwatchPage()
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render overwatch page: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
@@ -188,7 +198,9 @@ func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	component := fleet_pages.FleetPage(orgs, entities)
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render fleet page: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
@@ -222,12 +234,16 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	component := video_pages.VideoPage(entityIDs, natsAuthToken)
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render video page: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
 	component := docs_pages.DocsPage()
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render docs page: %v", err)
+	}
 }
 
 func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
@@ -245,5 +261,7 @@ func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	component := map_pages.MapPage()
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render map page: %v", err)
+	}
 }

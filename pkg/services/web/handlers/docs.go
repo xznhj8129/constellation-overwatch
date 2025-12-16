@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	docs_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/docs/pages"
 )
 
@@ -14,5 +15,7 @@ func NewDocsHandler() *DocsHandler {
 
 func (h *DocsHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
 	component := docs_pages.DocsPage()
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render docs page: %v", err)
+	}
 }

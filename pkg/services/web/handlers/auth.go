@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	auth_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/auth/pages"
 )
 
@@ -34,7 +35,9 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// GET - show login page
 	component := auth_pages.LoginPage("")
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render login page: %v", err)
+	}
 }
 
 func (h *AuthHandler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +46,9 @@ func (h *AuthHandler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	if !h.sessionAuth.ValidatePassword(password) {
 		component := auth_pages.LoginPage("Invalid access code")
 		w.WriteHeader(http.StatusUnauthorized)
-		component.Render(r.Context(), w)
+		if err := component.Render(r.Context(), w); err != nil {
+			logger.Errorf("Failed to render login page with error: %v", err)
+		}
 		return
 	}
 
@@ -52,7 +57,9 @@ func (h *AuthHandler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		component := auth_pages.LoginPage("Authentication error")
 		w.WriteHeader(http.StatusInternalServerError)
-		component.Render(r.Context(), w)
+		if err := component.Render(r.Context(), w); err != nil {
+			logger.Errorf("Failed to render login page with auth error: %v", err)
+		}
 		return
 	}
 
