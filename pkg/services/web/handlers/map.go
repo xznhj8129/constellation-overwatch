@@ -372,9 +372,29 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 			return
 		}
 
-		// Patch Signal
+		// Patch Signal with minimal entity metadata (for map marker updates)
+		// Full entity data is already rendered in the card HTML
+		minimalEntitySignal := map[string]interface{}{
+			"entityId":   entityID,
+			"orgId":      entityState.OrgID,
+			"name":       entityState.Name,
+			"entityType": entityState.EntityType,
+			"status":     entityState.Status,
+			"isLive":     entityState.IsLive,
+		}
+		// Position is critical for map view
+		if entityState.Position != nil && entityState.Position.Global != nil {
+			minimalEntitySignal["lat"] = entityState.Position.Global.Latitude
+			minimalEntitySignal["lng"] = entityState.Position.Global.Longitude
+			minimalEntitySignal["alt"] = entityState.Position.Global.AltitudeMSL
+		}
+		// Include heading for map marker rotation
+		if entityState.VFR != nil {
+			minimalEntitySignal["heading"] = entityState.VFR.Heading
+		}
+
 		if err := sse.PatchSignals(map[string]interface{}{
-			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entityState,
+			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): minimalEntitySignal,
 		}); err != nil {
 			logger.Debugw("[Map] Failed to patch entity signals, connection may be closed", "entity_id", entityID, "error", err)
 			return

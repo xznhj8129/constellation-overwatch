@@ -519,9 +519,37 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			return
 		}
 
-		// Patch Signal (Same for both views)
+		// For new entities (append mode), also append the video player component separately
+		// This ensures video is only added once and never morphed, preventing connection duplication
+		if patchMode == datastar.ElementPatchModeAppend && viewMode == "map" {
+			var videoHTML strings.Builder
+			if err := common_components.C5VideoPlayer(entityID).Render(context.Background(), &videoHTML); err == nil {
+				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
+				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithMode(datastar.ElementPatchModeInner)); err != nil {
+					logger.Debugw("Failed to append video player", "entity_id", entityID, "error", err)
+				}
+			}
+		}
+
+		// Patch Signal with minimal entity metadata (not the full state - that's too large!)
+		// The full entity data is already rendered server-side in the card HTML
+		minimalEntitySignal := map[string]interface{}{
+			"entityId":   entityID,
+			"orgId":      entityState.OrgID,
+			"name":       entityState.Name,
+			"entityType": entityState.EntityType,
+			"status":     entityState.Status,
+			"isLive":     entityState.IsLive,
+		}
+		// Add position if available (for map integration)
+		if entityState.Position != nil && entityState.Position.Global != nil {
+			minimalEntitySignal["lat"] = entityState.Position.Global.Latitude
+			minimalEntitySignal["lng"] = entityState.Position.Global.Longitude
+			minimalEntitySignal["alt"] = entityState.Position.Global.AltitudeMSL
+		}
+
 		if err := sse.PatchSignals(map[string]interface{}{
-			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entityState,
+			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): minimalEntitySignal,
 		}); err != nil {
 			logger.Debugw("Failed to patch entity signals, connection may be closed", "entity_id", entityID, "error", err)
 			return
