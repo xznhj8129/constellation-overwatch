@@ -348,7 +348,7 @@ templ C5EntityCardScript() {
 			display: block;
 		}
 
-		.video-overlay.no-signal-overlay {
+		.no-signal-overlay {
 			position: absolute;
 			top: 0;
 			left: 0;
@@ -359,16 +359,13 @@ templ C5EntityCardScript() {
 			align-items: center;
 			justify-content: center;
 			z-index: 10;
-		}
-
-		.video-overlay.no-signal-overlay.show {
-			display: flex;
-		}
-
-		.no-signal-overlay .no-signal {
 			color: #666;
 			text-align: center;
 			font-size: 14px;
+		}
+
+		.no-signal-overlay.show {
+			display: flex;
 		}
 
 		.video-controls {
