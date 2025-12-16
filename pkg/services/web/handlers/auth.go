@@ -67,7 +67,7 @@ func (h *AuthHandler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	middleware.SetSessionCookie(w, token)
 
 	// Redirect to map
-	http.Redirect(w, r, "/map", http.StatusFound)
+	http.Redirect(w, r, "/overwatch", http.StatusFound)
 }
 
 // HandleLogout handles the logout request

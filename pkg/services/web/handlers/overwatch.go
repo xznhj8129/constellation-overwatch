@@ -463,7 +463,8 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			if viewMode != "map" && !knownOrgs[entityState.OrgID] {
 				// Create Org Container
 				if len(knownOrgs) == 0 {
-					if err := sse.PatchElements("", datastar.WithSelector(".empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+					// Use specific selector to only target empty state within our container
+					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
 						logger.Debugw("Failed to patch empty state, connection may be closed", "error", err)
 						return
 					}
@@ -564,11 +565,15 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		orgs, _ := h.orgSvc.ListOrganizations()
 		totalOrgs := len(orgs)
 
+		// Compute analytics from the current snapshot
+		analytics := h.computeAnalytics(snapshot)
+
 		if err := sse.PatchSignals(map[string]interface{}{
 			"lastUpdate":    time.Now().Format("15:04:05"),
 			"totalEntities": totalEntities,
 			"totalOrgs":     totalOrgs,
 			"_isConnected":  true,
+			"analytics":     analytics,
 		}); err != nil {
 			logger.Debugw("Failed to patch final signals, connection may be closed", "error", err)
 			return
@@ -585,6 +590,98 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				flusher.Flush()
 			}
 		}()
+	}
+}
+
+// computeAnalytics computes aggregated analytics from entity states
+func (h *OverwatchHandler) computeAnalytics(entities []shared.EntityState) map[string]interface{} {
+	typeCounts := make(map[string]int)
+	statusCounts := map[string]int{
+		"active":      0,
+		"maintenance": 0,
+		"unknown":     0,
+	}
+	activeThreats := 0
+	criticalThreats := 0
+	highThreats := 0
+	trackedObjects := 0
+	activeDetections := 0
+
+	for _, entity := range entities {
+		// Count by entity type
+		if entity.EntityType != "" {
+			typeCounts[entity.EntityType]++
+		} else {
+			typeCounts["unknown"]++
+		}
+
+		// Count by status
+		switch entity.Status {
+		case "active", "online", "connected":
+			statusCounts["active"]++
+		case "maintenance", "offline", "disconnected":
+			statusCounts["maintenance"]++
+		default:
+			statusCounts["unknown"]++
+		}
+
+		// Aggregate threat data
+		if entity.Analytics != nil {
+			activeThreats += entity.Analytics.ActiveThreatCount
+
+			// Count by threat distribution
+			if entity.Analytics.ThreatDistribution != nil {
+				if count, ok := entity.Analytics.ThreatDistribution["critical"]; ok {
+					criticalThreats += count
+				}
+				if count, ok := entity.Analytics.ThreatDistribution["HIGH_THREAT"]; ok {
+					highThreats += count
+				}
+				if count, ok := entity.Analytics.ThreatDistribution["high"]; ok {
+					highThreats += count
+				}
+			}
+		}
+
+		if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
+			activeThreats += entity.ThreatIntel.ThreatSummary.TotalThreats
+		}
+
+		// Aggregate vision/detection data
+		if entity.Detections != nil {
+			for _, obj := range entity.Detections.TrackedObjects {
+				trackedObjects++
+				if obj.IsActive {
+					activeDetections++
+				}
+			}
+		}
+
+		if entity.Analytics != nil {
+			// Use analytics counts if no detections
+			if trackedObjects == 0 {
+				trackedObjects = entity.Analytics.TrackedObjectsCount
+			}
+			if activeDetections == 0 {
+				activeDetections = entity.Analytics.ActiveObjectsCount
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"typeCounts":   typeCounts,
+		"statusCounts": statusCounts,
+		"threats": map[string]interface{}{
+			"active": activeThreats,
+			"priority": map[string]int{
+				"critical": criticalThreats,
+				"high":     highThreats,
+			},
+		},
+		"vision": map[string]interface{}{
+			"tracked":    trackedObjects,
+			"detections": activeDetections,
+		},
 	}
 }
 

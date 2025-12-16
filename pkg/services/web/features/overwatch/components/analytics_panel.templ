@@ -1,0 +1,433 @@
+package components
+
+// AnalyticsPanel provides a comprehensive overwatch view with:
+// - Connection status and stats
+// - Entity list with SSE updates
+// - Debug panel for signal inspection
+// - Analytics widgets for entity types, status, threats, and vision
+// Note: This panel intentionally excludes the map component
+templ AnalyticsPanel() {
+	<div id="analytics-overwatch-panel"
+		class="panel analytics-overwatch-panel"
+		data-signals="{
+			entityStatesByOrg: {},
+			lastUpdate: '',
+			_isConnected: false,
+			totalEntities: 0,
+			totalOrgs: 0,
+			debugMode: false,
+			analytics: {
+				typeCounts: {},
+				statusCounts: {},
+				threats: { active: 0, priority: {} },
+				vision: { tracked: 0, detections: 0 }
+			}
+		}"
+		data-init="@get('/api/overwatch/kv/watch')">
+
+		<!-- Header with connection status -->
+		<div class="panel-header">
+			<h2>Overwatch Analytics</h2>
+			<div class="status-bar">
+				<span class="connection-status" data-show="$_isConnected">
+					<span class="status-dot connected"></span>
+					Connected
+				</span>
+				<span class="connection-status" data-show="!$_isConnected">
+					<span class="status-dot disconnected"></span>
+					Connecting...
+				</span>
+				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+					<span data-text="$totalOrgs + ' orgs'"></span>
+					<span data-text="' • ' + $totalEntities + ' entities'"></span>
+				</span>
+				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
+				<button data-on-click="$debugMode = !$debugMode" style="margin-left: 20px; padding: 4px 8px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 3px;">
+					<span data-text="$debugMode ? 'Hide Debug' : 'Show Debug'"></span>
+				</button>
+			</div>
+		</div>
+
+		<div class="analytics-overwatch-content">
+			<!-- Analytics Summary Grid -->
+			<div class="analytics-grid">
+				<!-- Entity Type Distribution -->
+				<div class="analytics-card">
+					<h4>Entity Types</h4>
+					<div class="chart-container type-chart">
+						<div class="bar-chart">
+							<template data-for="(count, type) in $analytics.typeCounts">
+								<div class="chart-row">
+									<span class="label" data-text="type"></span>
+									<div class="bar-track">
+										<div class="bar-fill"
+											data-bind-style="{
+												width: (count / Math.max(1, Object.values($analytics.typeCounts).reduce((a, b) => a + b, 0)) * 100) + '%',
+												backgroundColor: getTypeColor(type)
+											}"></div>
+									</div>
+									<span class="value" data-text="count"></span>
+								</div>
+							</template>
+						</div>
+					</div>
+				</div>
+
+				<!-- Operational Status -->
+				<div class="analytics-card">
+					<h4>Operational Status</h4>
+					<div class="status-stats">
+						<div class="stat-item status-active">
+							<span class="stat-value" data-text="$analytics.statusCounts.active || 0">0</span>
+							<span class="stat-label">Active</span>
+						</div>
+						<div class="stat-item status-maintenance">
+							<span class="stat-value" data-text="$analytics.statusCounts.maintenance || 0">0</span>
+							<span class="stat-label">Maint</span>
+						</div>
+						<div class="stat-item status-unknown">
+							<span class="stat-value" data-text="$analytics.statusCounts.unknown || 0">0</span>
+							<span class="stat-label">Unknown</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Threat Assessment -->
+				<div class="analytics-card">
+					<h4>Threat Level</h4>
+					<div class="threat-summary" data-class="{ 'high-alert': $analytics.threats.active > 0 }">
+						<div class="main-threat-count">
+							<span class="count" data-text="$analytics.threats.active">0</span>
+							<span class="label">Active Threats</span>
+						</div>
+						<div class="priority-breakdown">
+							<div class="p-item p-critical" data-show="$analytics.threats.priority.critical > 0">
+								<span data-text="$analytics.threats.priority.critical">0</span> Critical
+							</div>
+							<div class="p-item p-high" data-show="$analytics.threats.priority.high > 0">
+								<span data-text="$analytics.threats.priority.high">0</span> High
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Global Vision -->
+				<div class="analytics-card">
+					<h4>Global Vision</h4>
+					<div class="vision-stats">
+						<div class="vision-row">
+							<span class="label">Tracked Objects</span>
+							<span class="value" data-text="$analytics.vision.tracked">0</span>
+						</div>
+						<div class="vision-row">
+							<span class="label">Active Detections</span>
+							<span class="value highlight" data-text="$analytics.vision.detections">0</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Debug Panel -->
+			<div data-show="$debugMode" class="debug-panel">
+				<h4 style="color: #0f0; margin-top: 0;">Signal Store Debug</h4>
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+					<div>
+						<strong style="color: #888;">Total Orgs:</strong> <span style="color: #fff;" data-text="$totalOrgs"></span>
+					</div>
+					<div>
+						<strong style="color: #888;">Total Entities:</strong> <span style="color: #fff;" data-text="$totalEntities"></span>
+					</div>
+					<div>
+						<strong style="color: #888;">Connected:</strong> <span style="color: #fff;" data-text="$_isConnected ? 'Yes' : 'No'"></span>
+					</div>
+					<div>
+						<strong style="color: #888;">Last Update:</strong> <span style="color: #fff;" data-text="$lastUpdate || 'Never'"></span>
+					</div>
+				</div>
+				<details style="margin-top: 10px;">
+					<summary style="color: #0ff; cursor: pointer; margin-bottom: 10px;">View Raw Signal Data</summary>
+					<pre data-text="JSON.stringify($entityStatesByOrg, null, 2)" style="color: #888; font-size: 10px; max-height: 400px; overflow: auto; background: #0a0a0a; padding: 10px; border-radius: 3px;"></pre>
+				</details>
+			</div>
+
+			<!-- Entities Container - Server-rendered HTML via SSE -->
+			<div id="entities-container" class="entities-grid">
+				<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
+					<p>No entity states in global store. Waiting for telemetry data...</p>
+					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			function getTypeColor(type) {
+				switch(type) {
+					case 'aircraft_multirotor': return '#00d4ff';
+					case 'ground_vehicle': return '#ffa500';
+					case 'sensor_fixed': return '#00ff64';
+					case 'control_station': return '#b464ff';
+					default: return '#888';
+				}
+			}
+		</script>
+
+		<style>
+			.analytics-overwatch-panel {
+				display: flex;
+				flex-direction: column;
+				height: 100%;
+			}
+
+			.analytics-overwatch-panel .panel-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 15px 20px;
+				border-bottom: 1px solid #333;
+				background: #0a0a0a;
+			}
+
+			.analytics-overwatch-panel .panel-header h2 {
+				margin: 0;
+				color: #0ff;
+				font-size: 18px;
+			}
+
+			.analytics-overwatch-panel .status-bar {
+				display: flex;
+				align-items: center;
+				gap: 15px;
+			}
+
+			.analytics-overwatch-panel .connection-status {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+				font-size: 12px;
+			}
+
+			.analytics-overwatch-panel .status-dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+			}
+
+			.analytics-overwatch-panel .status-dot.connected {
+				background: #0f0;
+				box-shadow: 0 0 6px #0f0;
+			}
+
+			.analytics-overwatch-panel .status-dot.disconnected {
+				background: #f00;
+				animation: blink 1s infinite;
+			}
+
+			@keyframes blink {
+				50% { opacity: 0.3; }
+			}
+
+			.analytics-overwatch-panel .last-update {
+				color: #888;
+				font-size: 11px;
+			}
+
+			.analytics-overwatch-content {
+				flex: 1;
+				overflow-y: auto;
+				padding: 15px;
+			}
+
+			.analytics-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+				gap: 15px;
+				margin-bottom: 20px;
+			}
+
+			.analytics-card {
+				background: #111;
+				border: 1px solid #333;
+				border-radius: 6px;
+				padding: 15px;
+			}
+
+			.analytics-card h4 {
+				margin: 0 0 12px 0;
+				color: #0ff;
+				font-size: 12px;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
+
+			/* Bar chart styles */
+			.bar-chart {
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+			}
+
+			.chart-row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+
+			.chart-row .label {
+				width: 100px;
+				font-size: 10px;
+				color: #888;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+
+			.bar-track {
+				flex: 1;
+				height: 12px;
+				background: #1a1a1a;
+				border-radius: 3px;
+				overflow: hidden;
+			}
+
+			.bar-fill {
+				height: 100%;
+				transition: width 0.3s ease;
+			}
+
+			.chart-row .value {
+				min-width: 24px;
+				text-align: right;
+				font-size: 11px;
+				color: #fff;
+				font-weight: bold;
+			}
+
+			/* Status stats */
+			.status-stats {
+				display: flex;
+				justify-content: space-around;
+			}
+
+			.stat-item {
+				text-align: center;
+				padding: 10px;
+			}
+
+			.stat-item .stat-value {
+				display: block;
+				font-size: 24px;
+				font-weight: bold;
+				color: #fff;
+			}
+
+			.stat-item .stat-label {
+				font-size: 10px;
+				color: #888;
+				text-transform: uppercase;
+			}
+
+			.stat-item.status-active .stat-value { color: #0f0; }
+			.stat-item.status-maintenance .stat-value { color: #ff0; }
+			.stat-item.status-unknown .stat-value { color: #666; }
+
+			/* Threat summary */
+			.threat-summary {
+				text-align: center;
+				padding: 10px;
+			}
+
+			.threat-summary.high-alert {
+				background: rgba(255, 0, 0, 0.1);
+				border: 1px solid rgba(255, 0, 0, 0.3);
+				border-radius: 4px;
+			}
+
+			.main-threat-count .count {
+				font-size: 32px;
+				font-weight: bold;
+				color: #f00;
+			}
+
+			.main-threat-count .label {
+				display: block;
+				font-size: 10px;
+				color: #888;
+				text-transform: uppercase;
+			}
+
+			.priority-breakdown {
+				margin-top: 10px;
+				display: flex;
+				justify-content: center;
+				gap: 15px;
+			}
+
+			.p-item {
+				font-size: 11px;
+				padding: 4px 8px;
+				border-radius: 3px;
+			}
+
+			.p-item.p-critical {
+				background: rgba(255, 0, 0, 0.2);
+				color: #f66;
+			}
+
+			.p-item.p-high {
+				background: rgba(255, 170, 0, 0.2);
+				color: #fa0;
+			}
+
+			/* Vision stats */
+			.vision-stats {
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+			}
+
+			.vision-row {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 8px;
+				background: #1a1a1a;
+				border-radius: 4px;
+			}
+
+			.vision-row .label {
+				font-size: 11px;
+				color: #888;
+			}
+
+			.vision-row .value {
+				font-size: 14px;
+				font-weight: bold;
+				color: #fff;
+			}
+
+			.vision-row .value.highlight {
+				color: #0f0;
+			}
+
+			/* Debug panel */
+			.debug-panel {
+				background: #1a1a1a;
+				padding: 15px;
+				margin-bottom: 15px;
+				border-radius: 4px;
+				border: 1px solid #333;
+			}
+
+			/* Entities grid */
+			.entities-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+				gap: 15px;
+			}
+
+			.empty-state {
+				grid-column: 1 / -1;
+			}
+		</style>
+	</div>
+}
