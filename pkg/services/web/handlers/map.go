@@ -508,6 +508,7 @@ func (h *MapHandler) mergeEntityData(entityID string, dataMap map[string][]byte)
 // mergeMAVLinkData merges MAVLink telemetry data
 func (h *MapHandler) mergeMAVLinkData(state *shared.EntityState, data map[string]interface{}) {
 	// Extract position data
+	// MAVLink sends lat/lng as degE7 (multiply by 1e7), altitude in mm
 	if lat, ok := getFloat64(data, "latitude"); ok {
 		if lng, ok := getFloat64(data, "longitude"); ok {
 			if state.Position == nil {
@@ -516,26 +517,36 @@ func (h *MapHandler) mergeMAVLinkData(state *shared.EntityState, data map[string
 			if state.Position.Global == nil {
 				state.Position.Global = &shared.GlobalPosition{}
 			}
-			state.Position.Global.Latitude = lat
-			state.Position.Global.Longitude = lng
+			// Convert from degE7 to degrees
+			state.Position.Global.Latitude = lat / 1e7
+			state.Position.Global.Longitude = lng / 1e7
 
-			if alt, ok := getFloat64(data, "altitude_msl"); ok {
-				state.Position.Global.AltitudeMSL = alt
+			// Altitude is in mm, convert to meters
+			if alt, ok := getFloat64(data, "altitude"); ok {
+				state.Position.Global.AltitudeMSL = alt / 1000.0
 			}
-			if altRel, ok := getFloat64(data, "altitude_relative"); ok {
-				state.Position.Global.AltitudeRelative = altRel
+			if altRel, ok := getFloat64(data, "relative_alt"); ok {
+				state.Position.Global.AltitudeRelative = altRel / 1000.0
 			}
 		}
 	}
 
 	// Extract VFR data
+	// Try both naming conventions (snake_case from mavlink2constellation, camelCase from legacy)
 	if heading, ok := getFloat64(data, "heading"); ok {
 		if state.VFR == nil {
 			state.VFR = &shared.VFRState{}
 		}
-		state.VFR.Heading = int16(heading)
+		// Heading is in cdeg (centidegrees), convert to degrees
+		state.VFR.Heading = int16(heading / 100.0)
 	}
-	if groundspeed, ok := getFloat64(data, "groundspeed"); ok {
+	// Try ground_speed first (mavlink2constellation format), then groundspeed
+	if groundspeed, ok := getFloat64(data, "ground_speed"); ok {
+		if state.VFR == nil {
+			state.VFR = &shared.VFRState{}
+		}
+		state.VFR.Groundspeed = groundspeed
+	} else if groundspeed, ok := getFloat64(data, "groundspeed"); ok {
 		if state.VFR == nil {
 			state.VFR = &shared.VFRState{}
 		}
@@ -553,9 +564,21 @@ func (h *MapHandler) mergeMAVLinkData(state *shared.EntityState, data map[string
 		}
 		state.VFR.ClimbRate = climb
 	}
+	if throttle, ok := getFloat64(data, "throttle"); ok {
+		if state.VFR == nil {
+			state.VFR = &shared.VFRState{}
+		}
+		state.VFR.Throttle = uint16(throttle)
+	}
 
 	// Extract battery data
-	if voltage, ok := getFloat64(data, "battery_voltage"); ok {
+	// voltage_battery is in mV, convert to volts
+	if voltage, ok := getFloat64(data, "voltage_battery"); ok {
+		if state.Power == nil {
+			state.Power = &shared.PowerState{}
+		}
+		state.Power.Voltage = voltage / 1000.0 // mV to V
+	} else if voltage, ok := getFloat64(data, "battery_voltage"); ok {
 		if state.Power == nil {
 			state.Power = &shared.PowerState{}
 		}
@@ -566,6 +589,12 @@ func (h *MapHandler) mergeMAVLinkData(state *shared.EntityState, data map[string
 			state.Power = &shared.PowerState{}
 		}
 		state.Power.BatteryRemain = int8(remaining)
+	}
+	if load, ok := getFloat64(data, "load"); ok {
+		if state.VehicleStatus == nil {
+			state.VehicleStatus = &shared.VehicleStatusState{}
+		}
+		state.VehicleStatus.Load = uint16(load)
 	}
 
 	// Extract status info
@@ -580,6 +609,19 @@ func (h *MapHandler) mergeMAVLinkData(state *shared.EntityState, data map[string
 			state.VehicleStatus = &shared.VehicleStatusState{}
 		}
 		state.VehicleStatus.Armed = armed
+	}
+
+	// Extract source as entity name if not already set
+	if source, ok := data["source"].(string); ok && state.Name == "" {
+		state.Name = source
+	}
+
+	// Extract vehicle type for icon mapping
+	if vehicleType, ok := data["vehicle_type"].(string); ok {
+		// Map MAVLink vehicle types to entity types if not set
+		if state.EntityType == "" {
+			state.EntityType = mapMAVLinkVehicleType(vehicleType)
+		}
 	}
 }
 
@@ -645,9 +687,43 @@ func getFloat64(data map[string]interface{}, key string) (float64, bool) {
 		return float64(v), true
 	case int:
 		return float64(v), true
+	case int32:
+		return float64(v), true
 	case int64:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case uint64:
 		return float64(v), true
 	default:
 		return 0, false
+	}
+}
+
+// mapMAVLinkVehicleType maps MAVLink vehicle type strings to entity types
+func mapMAVLinkVehicleType(mavType string) string {
+	switch mavType {
+	case "MAV_TYPE_HEXAROTOR", "MAV_TYPE_QUADROTOR", "MAV_TYPE_OCTOROTOR", "MAV_TYPE_TRICOPTER":
+		return shared.EntityTypeAircraftMultirotor
+	case "MAV_TYPE_FIXED_WING":
+		return shared.EntityTypeAircraftFixedWing
+	case "MAV_TYPE_HELICOPTER":
+		return shared.EntityTypeAircraftHelicopter
+	case "MAV_TYPE_VTOL_DUOROTOR", "MAV_TYPE_VTOL_QUADROTOR", "MAV_TYPE_VTOL_TILTROTOR":
+		return shared.EntityTypeAircraftVTOL
+	case "MAV_TYPE_AIRSHIP":
+		return shared.EntityTypeAircraftAirship
+	case "MAV_TYPE_GROUND_ROVER":
+		return shared.EntityTypeGroundVehicleWheeled
+	case "MAV_TYPE_SURFACE_BOAT":
+		return shared.EntityTypeSurfaceVesselUSV
+	case "MAV_TYPE_SUBMARINE":
+		return shared.EntityTypeUnderwaterVehicle
+	case "MAV_TYPE_GCS":
+		return shared.EntityTypeOperatorStation
+	default:
+		return shared.EntityTypeAircraftMultirotor // Default fallback
 	}
 }
