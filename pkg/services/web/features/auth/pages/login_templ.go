@@ -29,7 +29,7 @@ func LoginPage(errorMsg string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Login - C5 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head><body><div class=\"login-page\"><div class=\"warp-tunnel\"><div class=\"starfield\"><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div></div></div><div class=\"login-box\"><div class=\"login-header\"><div class=\"login-brand\">C5</div><h1>Overwatch</h1><div class=\"subtitle\">Edge Awareness Kit</div></div><form class=\"login-form\" method=\"POST\" action=\"/login\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Login - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head><body><div class=\"login-page\"><div class=\"warp-tunnel\"><div class=\"starfield\"><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div><div class=\"star\"></div></div></div><div class=\"login-box\"><div class=\"login-header\"><div class=\"login-brand\">C4</div><h1>Constellation</h1><h1>Overwatch</h1><div class=\"subtitle\">Industrial Data Fabric<br>Edge Awareness Kit</div></div><form class=\"login-form\" method=\"POST\" action=\"/login\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -41,7 +41,7 @@ func LoginPage(errorMsg string) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(errorMsg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/auth/pages/login.templ`, Line: 47, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/auth/pages/login.templ`, Line: 48, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {

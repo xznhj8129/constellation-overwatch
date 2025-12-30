@@ -109,8 +109,8 @@ func DefaultConfig() *Config {
 		MaxFileStore:     getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
 		JetStreamDomain:  getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
 		EnableTLS:        getEnv("NATS_ENABLE_TLS", "false") == "true",
-		EnableAuth:       getEnv("NATS_ENABLE_AUTH", "false") == "true",
-		AuthToken:        getEnv("NATS_AUTH_TOKEN", ""),
+		EnableAuth:       getEnv("OVERWATCH_TOKEN", "") != "", // Enable auth if OVERWATCH_TOKEN is set
+		AuthToken:        getEnv("OVERWATCH_TOKEN", ""),
 	}
 }
 

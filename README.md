@@ -38,19 +38,19 @@ Constellation Overwatch is a distributed, event-driven C4ISR (Command, Control, 
 * **Type-Safe Templates** using Templ for reactive Go-based web components
 * **libSQL Database** with auto-initialization and schema management
 * **Event-Driven Architecture** with workers for entities, commands, telemetry, and events
+* **Interactive Maps** using MapLibre web components with global KV watcher
 
 The following features are on our current roadmap:
 
-* **Enhanced SSE Integration** with PatchElements and PatchSignal for KV watcher on `/overwatch`
-* **Interactive Maps** using Mapbox or MapLibre web components with global KV watcher
+* **Embedded AI Assistant** Context aware private / local AI assistant
+* **Background Mavlink Bidirectional Routing** for QGroundControl + TAK Support
 * **Video Stream Proxy** for 1:n video streaming to web UI
 * **TLS 1.3 Encryption** for enhanced NATS security
-* **Unified API Layer** consolidating REST and SSE endpoints
 * **Logging Stream UI** for centralized log viewing
-* **WebSocket Support** for alternative real-time communication
-* **Kubernetes Deployment** manifests and Helm charts
+* **Kubernetes Deployment** manifests and Helm charts and maximum availability + durability
 * **Prometheus Metrics** integration for observability
 * **Edge Client SDKs** for Go, Python, and Rust
+* **Various Autonomoy and Service Support** for drones, robots, and other autonomous systems i.e VSLOAM, Flight Loader, Mission Recap, etc - Needs further input
 
 ## Architecture
 
@@ -165,8 +165,8 @@ Please see the [Quick Start Guide](#quick-start-examples) below for detailed usa
 <summary>📋 Prerequisites</summary>
 <br>
 
-- Go 1.24 or higher
-- [Task](https://taskfile.dev/) - Task runner (optional, recommended)
+* Go 1.24 or higher
+* [Task](https://taskfile.dev/) - Task runner (optional, recommended)
 
 </details>
 
@@ -192,8 +192,9 @@ go run ./cmd/microlith/main.go
 ```
 
 The server will start:
-- **API Server & Web UI**: `http://localhost:8080`
-- **Embedded NATS**: `nats://localhost:4222`
+
+* **API Server & Web UI**: `http://localhost:8080`
+* **Embedded NATS**: `nats://localhost:4222`
 
 </details>
 
@@ -223,17 +224,20 @@ scoop install task
 Access the real-time web interface at `http://localhost:8080`
 
 **Features:**
-- View organizations and entities in real-time
-- Monitor NATS streams and key-value stores
-- Create and manage fleet entities
-- Watch live telemetry data
+
+* View organizations and entities in real-time
+* Monitor NATS streams and key-value stores
+* Create and manage fleet entities
+* Watch live telemetry data
 
 **Technology Stack:**
-- **Templ** - Type-safe Go HTML templates
-- **Datastar** - Hypermedia framework for reactive UI
-- **Server-Sent Events (SSE)** - Real-time data streaming
+
+* **Templ** - Type-safe Go HTML templates
+* **Datastar** - Hypermedia framework for reactive UI
+* **Server-Sent Events (SSE)** - Real-time data streaming
 
 **Development Mode:**
+
 ```bash
 task dev  # Auto-rebuilds templ templates on changes
 ```
@@ -269,17 +273,17 @@ cp .env.example .env
 
 Configuration options:
 
-- `API_BEARER_TOKEN` - Bearer token for API authentication (default: `reindustrialize-dev-token`)
-- `PORT` - HTTP server port (default: `8080`)
-- `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
-- `NATS_PORT` - NATS server port (default: `4222`)
-- `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
-- `WEB_UI_PASSWORD` - Password for Web UI access (leave empty to disable)
+* `OVERWATCH_TOKEN` - Unified token for API and NATS authentication (default: `reindustrialize-dev-token`)
+* `PORT` - HTTP server port (default: `8080`)
+* `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
+* `NATS_PORT` - NATS server port (default: `4222`)
+* `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
+* `WEB_UI_PASSWORD` - Password for Web UI access (leave empty to disable)
 
 Example `.env` file:
 
 ```bash
-API_BEARER_TOKEN=reindustrialize-dev-token
+OVERWATCH_TOKEN=reindustrialize-dev-token
 PORT=8080
 DB_PATH=./db/constellation.db
 NATS_PORT=4222
@@ -299,9 +303,10 @@ WEB_UI_PASSWORD=your-secure-password
 ```
 
 When enabled:
-- Accessing any protected route redirects to `/login`
-- Sessions are stored in-memory with 24-hour expiration
-- Logout is available at `/logout`
+
+* Accessing any protected route redirects to `/login`
+* Sessions are stored in-memory with 24-hour expiration
+* Logout is available at `/logout`
 
 **To disable Web UI authentication:**
 
@@ -346,6 +351,7 @@ curl -s -X POST http://localhost:8080/api/v1/organizations \
 **Allowed `org_type` values:** `military`, `civilian`, `commercial`, `ngo`
 
 **Example Response:**
+
 ```json
 {
   "success": true,
@@ -363,6 +369,7 @@ curl -s -X POST http://localhost:8080/api/v1/organizations \
 **Step 3: Register entities to the organization**
 
 Extract the `org_id` from the response above:
+
 ```sh
 export ORG_ID='ae9c65d0-b5f3-4cec-8ffa-68ff1173e050'
 curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
@@ -380,6 +387,7 @@ curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
 ```
 
 **Example Response:**
+
 ```json
 {
   "success": true,
@@ -426,34 +434,44 @@ curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$
 ## API Endpoints
 
 ### Organizations
-- `POST /api/v1/organizations` - Create organization
-- `GET /api/v1/organizations` - List organizations
-- `GET /api/v1/organizations?org_id=xxx` - Get organization
+
+* `POST /api/v1/organizations` - Create organization
+
+* `GET /api/v1/organizations` - List organizations
+* `GET /api/v1/organizations?org_id=xxx` - Get organization
 
 ### Entities
-- `POST /api/v1/entities?org_id=xxx` - Create entity
-- `GET /api/v1/entities?org_id=xxx` - List entities
-- `GET /api/v1/entities?org_id=xxx&entity_id=yyy` - Get entity
-- `PUT /api/v1/entities?org_id=xxx&entity_id=yyy` - Update entity
-- `DELETE /api/v1/entities?org_id=xxx&entity_id=yyy` - Delete entity
+
+* `POST /api/v1/entities?org_id=xxx` - Create entity
+
+* `GET /api/v1/entities?org_id=xxx` - List entities
+* `GET /api/v1/entities?org_id=xxx&entity_id=yyy` - Get entity
+* `PUT /api/v1/entities?org_id=xxx&entity_id=yyy` - Update entity
+* `DELETE /api/v1/entities?org_id=xxx&entity_id=yyy` - Delete entity
 
 ### Health Check
-- `GET /health` - Service health status
+
+* `GET /health` - Service health status
 
 ## NATS Subjects
 
 ### Entity Events
-- `constellation.entities.{org_id}.created`
-- `constellation.entities.{org_id}.updated`
-- `constellation.entities.{org_id}.deleted`
-- `constellation.entities.{org_id}.status`
+
+* `constellation.entities.{org_id}.created`
+
+* `constellation.entities.{org_id}.updated`
+* `constellation.entities.{org_id}.deleted`
+* `constellation.entities.{org_id}.status`
 
 ### Telemetry
-- `constellation.telemetry.{org_id}.{entity_id}`
+
+* `constellation.telemetry.{org_id}.{entity_id}`
 
 ### Commands
-- `constellation.commands.{org_id}.{entity_id}`
-- `constellation.commands.{org_id}.broadcast`
+
+* `constellation.commands.{org_id}.{entity_id}`
+
+* `constellation.commands.{org_id}.broadcast`
 
 ## Project Structure
 
@@ -499,6 +517,19 @@ constellation-overwatch/
 └── nats.conf                   # NATS server configuration
 ```
 
+## Updating
+
+Update to the latest version with a single command:
+
+```bash
+overwatch --update
+```
+
+This will:
+1. Check GitHub for the latest release
+2. Download the appropriate binary for your platform
+3. Replace the current binary with the new version
+
 ## Development
 
 <details>
@@ -541,19 +572,25 @@ task --list
 ## Security
 
 <details>
-EXPERIMENTAL
-<summary>🔒 NATS Authentication</summary>
+<summary>🔒 Token Authentication</summary>
 <br>
 
-Enable NATS authentication with environment variables:
+Authentication is enabled automatically when `OVERWATCH_TOKEN` is set. This single token secures both the REST API and NATS connections:
 
 ```bash
-NATS_AUTH_ENABLED=true
-NATS_USER=your_username
-NATS_PASSWORD=your_password
+# In your .env file
+OVERWATCH_TOKEN=your-secure-token
 ```
 
-When enabled, all NATS clients must authenticate using these credentials.
+**REST API:** Include the token in the Authorization header:
+```bash
+curl -H "Authorization: Bearer your-secure-token" http://localhost:8080/api/v1/organizations
+```
+
+**NATS Clients:** Connect with the token:
+```bash
+nats sub "constellation.>" --server nats://localhost:4222 --creds-token your-secure-token
+```
 
 </details>
 
@@ -564,11 +601,13 @@ When enabled, all NATS clients must authenticate using these credentials.
 Enable TLS 1.3 for NATS connections:
 
 **Step 1: Generate certificates (development)**
+
 ```bash
 task generate-certs
 ```
 
 **Step 2: Configure environment variables**
+
 ```bash
 NATS_TLS_ENABLED=true
 NATS_TLS_CERT=/path/to/server.crt
@@ -591,11 +630,11 @@ We welcome contributions to Constellation Overwatch! Please check out our [contr
 
 ### Development Guidelines
 
-- Follow Go best practices and conventions
-- Add tests for new features
-- Update documentation as needed
-- Run `go fmt ./...` and `go vet ./...` before committing
-- Ensure all tests pass with `go test ./...`
+* Follow Go best practices and conventions
+* Add tests for new features
+* Update documentation as needed
+* Run `go fmt ./...` and `go vet ./...` before committing
+* Ensure all tests pass with `go test ./...`
 
 ## License
 

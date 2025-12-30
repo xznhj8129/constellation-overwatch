@@ -6,7 +6,7 @@ templ LoginPage(errorMsg string) {
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Login - C5 Overwatch</title>
+			<title>Login - C4 Overwatch</title>
 			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
 			<link rel="stylesheet" href="/static/css/style.css"/>
 		</head>
@@ -38,9 +38,10 @@ templ LoginPage(errorMsg string) {
 				</div>
 				<div class="login-box">
 					<div class="login-header">
-						<div class="login-brand">C5</div>
+						<div class="login-brand">C4</div>
+						<h1>Constellation</h1>
 						<h1>Overwatch</h1>
-						<div class="subtitle">Edge Awareness Kit</div>
+						<div class="subtitle">Industrial Data Fabric<br>Edge Awareness Kit</div>
 					</div>
 					<form class="login-form" method="POST" action="/login">
 						if errorMsg != "" {

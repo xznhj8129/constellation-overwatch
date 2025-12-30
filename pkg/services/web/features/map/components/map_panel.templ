@@ -70,7 +70,7 @@ templ MapPanel() {
 		</div>
 	</div>
 	@MapLibreScript()
-	@common.C5EntityCardScript()
+	@common.C4EntityCardScript()
 }
 
 // MapControls provides the control buttons for the map
@@ -394,7 +394,7 @@ templ MapLibreScript() {
 			}
 
 			setupSignalWatcher() {
-				// Watch #entity-list for C5EntityCard elements being added/updated by SSE
+				// Watch #entity-list for C4EntityCard elements being added/updated by SSE
 				const entityList = document.getElementById('entity-list');
 				if (!entityList) {
 					console.warn('[MapLibre] entity-list not found');
@@ -420,8 +420,8 @@ templ MapLibreScript() {
 			}
 
 			processEntityCards() {
-				// Find all C5EntityCard elements and extract entity data from data attributes
-				const cards = document.querySelectorAll('#entity-list .c5-entity-card[data-entity-id]');
+				// Find all C4EntityCard elements and extract entity data from data attributes
+				const cards = document.querySelectorAll('#entity-list .c4-entity-card[data-entity-id]');
 				console.log(`[MapLibre] Processing ${cards.length} entity cards`);
 
 				const currentIds = new Set();
