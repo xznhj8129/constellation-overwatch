@@ -38,6 +38,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/transcoder"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/updater"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -87,11 +88,12 @@ func main() {
 	var (
 		showVersion = flag.Bool("version", false, "Print version and exit")
 		showHelp    = flag.Bool("help", false, "Show help message")
+		doUpdate    = flag.Bool("update", false, "Update to the latest version")
 		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
 		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
-		natsPort = flag.String("nats-port", "", "NATS server port (default: 4222)")
-		token    = flag.String("token", "", "Overwatch auth token (for API and NATS)")
-		dataDir  = flag.String("data-dir", "", "Data directory (default: ./data)")
+		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
+		token       = flag.String("token", "", "Overwatch auth token (for API and NATS)")
+		dataDir     = flag.String("data-dir", "", "Data directory (default: ./data)")
 		envFile     = flag.String("env", ".env", "Path to .env file")
 	)
 	flag.Parse()
@@ -103,6 +105,14 @@ func main() {
 
 	if *showHelp {
 		printHelp()
+		os.Exit(0)
+	}
+
+	if *doUpdate {
+		if err := updater.Update(version, false); err != nil {
+			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 
@@ -246,6 +256,7 @@ OPTIONS:
     -token <TOKEN>        Auth token for API and NATS (default: reindustrialize-dev-token)
     -data-dir <PATH>      Data directory (default: ./data)
     -env <PATH>           Path to .env file (default: .env)
+    -update               Download and install the latest version
     -version              Print version and exit
     -help                 Show this help message
 
@@ -258,6 +269,9 @@ QUICK START:
 
     # Run with custom token
     overwatch -token mysecuretoken
+
+    # Update to the latest version
+    overwatch -update
 
 ENVIRONMENT:
     All options can also be set via environment variables or .env file:
