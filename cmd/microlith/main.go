@@ -84,6 +84,9 @@ func fileExists(path string) bool {
 }
 
 func main() {
+	// Override default flag usage with custom help
+	flag.Usage = printHelp
+
 	// CLI flags
 	var (
 		showVersion = flag.Bool("version", false, "Print version and exit")
@@ -250,28 +253,28 @@ USAGE:
     overwatch [OPTIONS]
 
 OPTIONS:
-    -port <PORT>          Web UI and API port (default: 8080)
-    -host <HOST>          Bind address (default: 0.0.0.0)
-    -nats-port <PORT>     NATS server port (default: 4222)
-    -token <TOKEN>        Auth token for API and NATS (default: reindustrialize-dev-token)
-    -data-dir <PATH>      Data directory (default: ./data)
-    -env <PATH>           Path to .env file (default: .env)
-    -update               Download and install the latest version
-    -version              Print version and exit
-    -help                 Show this help message
+    --port <PORT>          HTTP server port for Web UI and REST API (default: 8080)
+    --host <HOST>          Network bind address (default: 0.0.0.0)
+    --nats-port <PORT>     NATS TCP port for edge device connections (default: 4222)
+    --token <TOKEN>        Auth token for API and NATS (default: reindustrialize-dev-token)
+    --data-dir <PATH>      Data directory for database and NATS storage (default: ./data)
+    --env <PATH>           Path to .env configuration file (default: .env)
+    --update               Download and install the latest version
+    --version              Print version and exit
+    --help                 Show this help message
 
 QUICK START:
-    # Run with defaults (creates .env from .env.example if needed)
+    # Run with defaults
     overwatch
 
     # Run on a different port
-    overwatch -port 9090
+    overwatch --port 9090
 
     # Run with custom token
-    overwatch -token mysecuretoken
+    overwatch --token mysecuretoken
 
     # Update to the latest version
-    overwatch -update
+    overwatch --update
 
 ENVIRONMENT:
     All options can also be set via environment variables or .env file:
@@ -282,7 +285,8 @@ ENVIRONMENT:
 ENDPOINTS:
     Web UI:     http://localhost:8080
     REST API:   http://localhost:8080/api/v1/
-    NATS:       nats://localhost:4222 (with token auth)
+    NATS TCP:   nats://localhost:4222 (edge devices connect here with token auth)
+    NATS WS:    ws://localhost:8222 (browser WebSocket connections)
     Health:     http://localhost:8080/health
 
 DOCUMENTATION:
