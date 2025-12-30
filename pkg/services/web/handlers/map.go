@@ -337,10 +337,10 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 	containerSelector := "#entity-list"
 
 	for _, entityState := range snapshot {
-		// Render card using C5EntityCard
+		// Render card using C4EntityCard
 		var cardHTML strings.Builder
-		if err := common_components.C5EntityCard(entityState, false).Render(context.Background(), &cardHTML); err != nil {
-			logger.Errorw("[Map] Error rendering C5 entity card", "error", err)
+		if err := common_components.C4EntityCard(entityState, false).Render(context.Background(), &cardHTML); err != nil {
+			logger.Errorw("[Map] Error rendering C4 entity card", "error", err)
 			continue
 		}
 

@@ -430,11 +430,11 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		// Render card based on view mode
 		var cardHTML strings.Builder
 		if viewMode == "map" {
-			// Map View: Use C5EntityCard (Simple Mode initially)
-			// Selector: #c5-entity-{id}
+			// Map View: Use C4EntityCard (Simple Mode initially)
+			// Selector: #c4-entity-{id}
 			// Container: #entity-list
-			if err := common_components.C5EntityCard(entityState, false).Render(context.Background(), &cardHTML); err != nil {
-				logger.Errorw("Error rendering C5 entity card", "error", err)
+			if err := common_components.C4EntityCard(entityState, false).Render(context.Background(), &cardHTML); err != nil {
+				logger.Errorw("Error rendering C4 entity card", "error", err)
 				continue
 			}
 		} else {
@@ -523,7 +523,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		// This ensures video is only added once and never morphed, preventing connection duplication
 		if patchMode == datastar.ElementPatchModeAppend && viewMode == "map" {
 			var videoHTML strings.Builder
-			if err := common_components.C5VideoPlayer(entityID).Render(context.Background(), &videoHTML); err == nil {
+			if err := common_components.C4VideoPlayer(entityID).Render(context.Background(), &videoHTML); err == nil {
 				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
 				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithMode(datastar.ElementPatchModeInner)); err != nil {
 					logger.Debugw("Failed to append video player", "entity_id", entityID, "error", err)

@@ -6,16 +6,16 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/icons"
 )
 
-// C5EntityCard is a robust entity component that combines telemetry and video
+// C4EntityCard is a robust entity component that combines telemetry and video
 // It can optionally show a detailed view with expanded telemetry and video player
-templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
-	<div id={ "c5-entity-" + entity.EntityID }
-		class={ "c5-entity-card", templ.KV("detailed", isDetailed) }
+templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
+	<div id={ "c4-entity-" + entity.EntityID }
+		class={ "c4-entity-card", templ.KV("detailed", isDetailed) }
 		data-entity-id={ entity.EntityID }
 		data-entity-type={ entity.EntityType }>
 
 		<!-- Header / Simple View -->
-		<div class="c5-card-header" data-on-click={ fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID) }>
+		<div class="c4-card-header" data-on-click={ fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID) }>
 			<div class="header-top">
 				<div class="entity-identity">
 					<div class="entity-name">
@@ -54,7 +54,7 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 		</div>
 
 		<!-- Detailed View (Collapsible) -->
-		<div class="c5-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
+		<div class="c4-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
 
 			<!-- Video Player Placeholder - video component appended separately via SSE to avoid morph recreation -->
 			<div class="video-section" id={ "video-section-" + entity.EntityID } data-ignore-morph></div>
@@ -186,9 +186,9 @@ templ C5EntityCard(entity shared.EntityState, isDetailed bool) {
 	</div>
 }
 
-// C5VideoPlayer is a standalone video component that gets appended once (not morphed)
+// C4VideoPlayer is a standalone video component that gets appended once (not morphed)
 // This separation prevents MJPEG stream connection duplication during card morphs
-templ C5VideoPlayer(entityID string) {
+templ C4VideoPlayer(entityID string) {
 	<div class="video-container" data-entity-id={ entityID }>
 		<div class="no-signal-overlay">
 			<span>No Video Signal</span>
@@ -199,24 +199,24 @@ templ C5VideoPlayer(entityID string) {
 			alt="Video stream"/>
 	</div>
 	<div class="video-controls">
-		<span class="fps-counter" id={ "c5-fps-" + entityID }>-- fps</span>
+		<span class="fps-counter" id={ "c4-fps-" + entityID }>-- fps</span>
 		<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
 			Fullscreen
 		</button>
 	</div>
 }
 
-// C5EntityCardScript contains the JS logic for the card interaction and video
-templ C5EntityCardScript() {
+// C4EntityCardScript contains the JS logic for the card interaction and video
+templ C4EntityCardScript() {
 	<script>
 		// FPS tracking for video streams
-		const c5FpsTrackers = {};
+		const c4FpsTrackers = {};
 
 		function toggleEntityDetail(entityId) {
-			const card = document.getElementById('c5-entity-' + entityId);
+			const card = document.getElementById('c4-entity-' + entityId);
 			if (!card) return;
 
-			const body = card.querySelector('.c5-card-body');
+			const body = card.querySelector('.c4-card-body');
 			const isDetailed = card.classList.toggle('detailed');
 
 			if (isDetailed) {
@@ -226,8 +226,8 @@ templ C5EntityCardScript() {
 			} else {
 				body.style.display = 'none';
 				// Clean up FPS tracker
-				delete c5FpsTrackers[entityId];
-				const fpsEl = document.getElementById('c5-fps-' + entityId);
+				delete c4FpsTrackers[entityId];
+				const fpsEl = document.getElementById('c4-fps-' + entityId);
 				if (fpsEl) fpsEl.textContent = '-- fps';
 			}
 		}
@@ -235,12 +235,12 @@ templ C5EntityCardScript() {
 		function initFpsTracker(card, entityId) {
 			const mjpegImg = card.querySelector('.video-mjpeg');
 			const overlay = card.querySelector('.no-signal-overlay');
-			const fpsEl = document.getElementById('c5-fps-' + entityId);
+			const fpsEl = document.getElementById('c4-fps-' + entityId);
 
 			if (!mjpegImg) return;
 
 			// Initialize FPS tracker
-			c5FpsTrackers[entityId] = {
+			c4FpsTrackers[entityId] = {
 				frameCount: 0,
 				lastTime: performance.now()
 			};
@@ -249,7 +249,7 @@ templ C5EntityCardScript() {
 			mjpegImg.onload = function() {
 				if (overlay) overlay.style.display = 'none';
 
-				const tracker = c5FpsTrackers[entityId];
+				const tracker = c4FpsTrackers[entityId];
 				if (!tracker) return;
 
 				tracker.frameCount++;
@@ -269,7 +269,7 @@ templ C5EntityCardScript() {
 
 		// Initialize FPS tracking for any cards that start in detailed mode
 		document.addEventListener('DOMContentLoaded', function() {
-			document.querySelectorAll('.c5-entity-card.detailed').forEach(function(card) {
+			document.querySelectorAll('.c4-entity-card.detailed').forEach(function(card) {
 				const entityId = card.dataset.entityId;
 				if (entityId) initFpsTracker(card, entityId);
 			});
@@ -282,7 +282,7 @@ templ C5EntityCardScript() {
 			}
 
 			// Find the existing video element for this entity
-			const card = document.getElementById('c5-entity-' + entityId);
+			const card = document.getElementById('c4-entity-' + entityId);
 			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
 
 			// Remove any existing modal first
