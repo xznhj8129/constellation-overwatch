@@ -31,7 +31,7 @@ func Navigation(activeTab string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav class=\"side-nav\" data-ignore><div class=\"nav-brand\"><div class=\"brand-top\"><img src=\"/static/images/c5.png\" alt=\"C5\" class=\"brand-logo\"> <span class=\"brand-text\">C5</span></div><div class=\"brand-bottom\"><span class=\"brand-title\">Constellation</span> <span class=\"brand-subtitle\">Overwatch</span></div></div><div id=\"nav-content\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav class=\"side-nav\" data-ignore><div class=\"nav-brand\"><div class=\"brand-top\"><img src=\"/static/images/c4.png\" alt=\"C4\" class=\"brand-logo\"> <span class=\"brand-text\">C4</span></div><div class=\"brand-bottom\"><span class=\"brand-title\">Constellation</span> <span class=\"brand-subtitle\">Overwatch</span></div></div><div id=\"nav-content\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

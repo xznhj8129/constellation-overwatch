@@ -217,8 +217,8 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		entityIDs = append(entityIDs, entity.EntityID)
 	}
 
-	// Get NATS auth token for WebSocket connection
-	natsAuthToken := os.Getenv("NATS_AUTH_TOKEN")
+	// Get auth token for WebSocket connection
+	natsAuthToken := os.Getenv("OVERWATCH_TOKEN")
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {

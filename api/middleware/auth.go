@@ -189,9 +189,9 @@ func BearerAuth(next http.Handler) http.Handler {
 		}
 
 		token := parts[1]
-		expectedToken := os.Getenv("API_BEARER_TOKEN")
+		expectedToken := os.Getenv("OVERWATCH_TOKEN")
 		if expectedToken == "" {
-			expectedToken = "constellation-dev-token" // Default for dev
+			expectedToken = "reindustrialize-dev-token" // Default for dev
 		}
 
 		if token != expectedToken {

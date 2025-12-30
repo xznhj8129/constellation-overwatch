@@ -89,10 +89,9 @@ func main() {
 		showHelp    = flag.Bool("help", false, "Show help message")
 		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
 		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
-		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
-		apiToken    = flag.String("api-token", "", "API bearer token")
-		natsToken   = flag.String("nats-token", "", "NATS auth token")
-		dataDir     = flag.String("data-dir", "", "Data directory (default: ./data)")
+		natsPort = flag.String("nats-port", "", "NATS server port (default: 4222)")
+		token    = flag.String("token", "", "Overwatch auth token (for API and NATS)")
+		dataDir  = flag.String("data-dir", "", "Data directory (default: ./data)")
 		envFile     = flag.String("env", ".env", "Path to .env file")
 	)
 	flag.Parse()
@@ -119,7 +118,7 @@ func main() {
 	}
 
 	// Apply CLI flag overrides to environment (flags take precedence)
-	applyFlagOverrides(*port, *host, *natsPort, *apiToken, *natsToken, *dataDir)
+	applyFlagOverrides(*port, *host, *natsPort, *token, *dataDir)
 
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
@@ -244,8 +243,7 @@ OPTIONS:
     -port <PORT>          Web UI and API port (default: 8080)
     -host <HOST>          Bind address (default: 0.0.0.0)
     -nats-port <PORT>     NATS server port (default: 4222)
-    -api-token <TOKEN>    API bearer token (default: constellation-dev-token)
-    -nats-token <TOKEN>   NATS auth token (default: reindustrialize-america)
+    -token <TOKEN>        Auth token for API and NATS (default: reindustrialize-dev-token)
     -data-dir <PATH>      Data directory (default: ./data)
     -env <PATH>           Path to .env file (default: .env)
     -version              Print version and exit
@@ -258,12 +256,12 @@ QUICK START:
     # Run on a different port
     overwatch -port 9090
 
-    # Run with custom tokens
-    overwatch -api-token mytoken -nats-token mytoken
+    # Run with custom token
+    overwatch -token mysecuretoken
 
 ENVIRONMENT:
     All options can also be set via environment variables or .env file:
-    PORT, HOST, NATS_PORT, API_BEARER_TOKEN, NATS_AUTH_TOKEN, NATS_DATA_DIR, DB_PATH
+    PORT, HOST, NATS_PORT, OVERWATCH_TOKEN, NATS_DATA_DIR, DB_PATH
 
     Priority: CLI flags > environment variables > .env file > defaults
 
@@ -277,7 +275,7 @@ DOCUMENTATION:
     https://github.com/Constellation-Overwatch/constellation-overwatch`)
 }
 
-func applyFlagOverrides(port, host, natsPort, apiToken, natsToken, dataDir string) {
+func applyFlagOverrides(port, host, natsPort, token, dataDir string) {
 	if port != "" {
 		os.Setenv("PORT", port)
 	}
@@ -287,12 +285,8 @@ func applyFlagOverrides(port, host, natsPort, apiToken, natsToken, dataDir strin
 	if natsPort != "" {
 		os.Setenv("NATS_PORT", natsPort)
 	}
-	if apiToken != "" {
-		os.Setenv("API_BEARER_TOKEN", apiToken)
-	}
-	if natsToken != "" {
-		os.Setenv("NATS_AUTH_TOKEN", natsToken)
-		os.Setenv("NATS_ENABLE_AUTH", "true")
+	if token != "" {
+		os.Setenv("OVERWATCH_TOKEN", token)
 	}
 	if dataDir != "" {
 		os.Setenv("NATS_DATA_DIR", dataDir+"/overwatch")

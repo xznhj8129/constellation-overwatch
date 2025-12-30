@@ -269,7 +269,7 @@ cp .env.example .env
 
 Configuration options:
 
-- `API_BEARER_TOKEN` - Bearer token for API authentication (default: `reindustrialize-dev-token`)
+- `OVERWATCH_TOKEN` - Unified token for API and NATS authentication (default: `reindustrialize-dev-token`)
 - `PORT` - HTTP server port (default: `8080`)
 - `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
 - `NATS_PORT` - NATS server port (default: `4222`)
@@ -279,7 +279,7 @@ Configuration options:
 Example `.env` file:
 
 ```bash
-API_BEARER_TOKEN=reindustrialize-dev-token
+OVERWATCH_TOKEN=reindustrialize-dev-token
 PORT=8080
 DB_PATH=./db/constellation.db
 NATS_PORT=4222
