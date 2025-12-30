@@ -517,6 +517,19 @@ constellation-overwatch/
 └── nats.conf                   # NATS server configuration
 ```
 
+## Updating
+
+Update to the latest version with a single command:
+
+```bash
+overwatch --update
+```
+
+This will:
+1. Check GitHub for the latest release
+2. Download the appropriate binary for your platform
+3. Replace the current binary with the new version
+
 ## Development
 
 <details>
@@ -559,19 +572,25 @@ task --list
 ## Security
 
 <details>
-EXPERIMENTAL
-<summary>🔒 NATS Authentication</summary>
+<summary>🔒 Token Authentication</summary>
 <br>
 
-Enable NATS authentication with environment variables:
+Authentication is enabled automatically when `OVERWATCH_TOKEN` is set. This single token secures both the REST API and NATS connections:
 
 ```bash
-NATS_AUTH_ENABLED=true
-NATS_USER=your_username
-NATS_PASSWORD=your_password
+# In your .env file
+OVERWATCH_TOKEN=your-secure-token
 ```
 
-When enabled, all NATS clients must authenticate using these credentials.
+**REST API:** Include the token in the Authorization header:
+```bash
+curl -H "Authorization: Bearer your-secure-token" http://localhost:8080/api/v1/organizations
+```
+
+**NATS Clients:** Connect with the token:
+```bash
+nats sub "constellation.>" --server nats://localhost:4222 --creds-token your-secure-token
+```
 
 </details>
 
