@@ -106,12 +106,6 @@ func (r *EntityRegistry) GetAll() []string {
 // InitializeKVStoreFromDB ensures all entities in the database have a corresponding KV entry
 // This is called on boot to populate the KV store with initial entity states
 func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
-	logger.Infow("Initializing KV store from database entities", "component", "EntityRegistry")
-
-	// First, count how many entities exist in the registry
-	entityCount := r.Count()
-	logger.Infow("Entity registry status", "component", "EntityRegistry", "registered_entities", entityCount)
-
 	// Query all entities from the database - keep it simple, just essential info
 	// Publishers (telemetry, detection workers) will fill in the rest
 	query := `
@@ -119,7 +113,6 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 		FROM entities e
 		LEFT JOIN organizations o ON e.org_id = o.org_id`
 
-	logger.Infow("Querying database for entities", "component", "EntityRegistry")
 	rows, err := r.db.Query(query)
 	if err != nil {
 		logger.Errorw("Failed to query entities from database", "component", "EntityRegistry", "error", err)
@@ -187,13 +180,12 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 		}
 
 		initialized++
-		logger.Infow("Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID, "kv_key", kvKey)
+		logger.Debugw("Initialized KV entry for entity", "component", "EntityRegistry", "entity_id", entityID, "org_id", orgID)
 	}
 
-	logger.Infow("KV store initialization complete", "component", "EntityRegistry", "initialized", initialized, "skipped", skipped, "total_processed", initialized+skipped)
-
-	if initialized == 0 && skipped == 0 {
-		logger.Warnw("No entities were processed - database might be empty", "component", "EntityRegistry")
+	total := initialized + skipped
+	if total > 0 {
+		logger.Infow("KV store initialized", "component", "EntityRegistry", "new", initialized, "existing", skipped)
 	}
 
 	return rows.Err()

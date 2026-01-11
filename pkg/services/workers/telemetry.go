@@ -45,7 +45,6 @@ func NewTelemetryWorker(nc *nats.Conn, js nats.JetStreamContext, db *sql.DB, kv 
 }
 
 func (w *TelemetryWorker) Start(ctx context.Context) error {
-	logger.Infow("Starting with global state management", "worker", w.Name())
 	return w.processMessages(ctx, w.handleTelemetryMessage)
 }
 

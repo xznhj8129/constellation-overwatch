@@ -76,22 +76,17 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 }
 
 func (m *Manager) Start() error {
-	logger.Info("Starting NATS workers...")
-
 	for _, worker := range m.workers {
 		m.wg.Add(1)
 		go func(w Worker) {
 			defer m.wg.Done()
-
-			logger.Infow("Starting worker", "worker", w.Name())
 			if err := w.Start(m.ctx); err != nil && err != context.Canceled {
 				logger.Errorw("Worker error", "worker", w.Name(), "error", err)
 			}
-			logger.Infow("Worker stopped", "worker", w.Name())
 		}(worker)
 	}
 
-	logger.Infow("Started workers", "count", len(m.workers))
+	logger.Infow("Workers started", "count", len(m.workers))
 	return nil
 }
 

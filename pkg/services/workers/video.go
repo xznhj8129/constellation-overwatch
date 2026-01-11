@@ -46,7 +46,6 @@ func NewVideoWorker(nc *nats.Conn, js nats.JetStreamContext, registry *EntityReg
 }
 
 func (w *VideoWorker) Start(ctx context.Context) error {
-	logger.Infow("Starting video frame processing", "worker", w.Name())
 	return w.processMessages(ctx, w.handleVideoFrame)
 }
 

@@ -167,46 +167,33 @@ func main() {
 	nc := natsService.Connection()
 
 	// 3. Initialize Workers
-	logger.Info("Initializing workers...")
 	workerManager, err := workers.NewManager(natsService, dbService.GetDB())
 	if err != nil {
 		logger.Fatalw("Failed to initialize worker manager", "error", err)
 	}
-
-	// Start workers
-	logger.Info("Starting workers...")
 	if err := workerManager.Start(); err != nil {
 		logger.Fatalw("Failed to start workers", "error", err)
 	}
-	logger.Info("Workers started")
 
 	// 3b. Initialize Video Transcoder (converts MPEG-TS to JPEG)
-	logger.Info("Initializing video transcoder...")
 	videoTranscoder := transcoder.New(nc)
 	go func() {
 		if err := videoTranscoder.Start(ctx); err != nil {
 			logger.Errorw("Video transcoder error", "error", err)
 		}
 	}()
-	logger.Info("Video transcoder started")
 
 	// 4. Initialize API Router
-	logger.Info("Initializing API router...")
 	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
 
 	// 5. Initialize Web Server
-	logger.Info("Initializing web server...")
 	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
 	if err != nil {
 		logger.Fatalw("Failed to initialize web server", "error", err)
 	}
-
-	// Start web server
-	logger.Info("Starting web server...")
 	if err := webServer.Start(ctx); err != nil {
 		logger.Fatalw("Failed to start web server", "error", err)
 	}
-	logger.Info("Web server start command issued")
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
