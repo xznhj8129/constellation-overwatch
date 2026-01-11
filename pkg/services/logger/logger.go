@@ -12,6 +12,7 @@ import (
 var Logger *zap.Logger
 var Sugar *zap.SugaredLogger
 var pid = os.Getpid()
+var tuiHook *TUIHook
 
 func init() {
 	var err error
@@ -163,4 +164,77 @@ func Fatalw(msg string, keysAndValues ...interface{}) {
 
 func Sync() error {
 	return Logger.Sync()
+}
+
+// AttachTUIHook attaches a hook for TUI log display
+func AttachTUIHook(hook *TUIHook) error {
+	tuiHook = hook
+
+	// Get the current logger's core and wrap it with TUI support
+	newLogger, err := newLoggerWithHook(hook)
+	if err != nil {
+		return err
+	}
+
+	Logger = newLogger
+	Sugar = Logger.Sugar()
+	return nil
+}
+
+// DetachTUIHook removes the TUI hook and restores normal logging
+func DetachTUIHook() {
+	if tuiHook != nil {
+		tuiHook.Close()
+		tuiHook = nil
+	}
+
+	// Rebuild logger without hook
+	var err error
+	Logger, err = NewLogger()
+	if err != nil {
+		// Fallback to basic logger if rebuild fails
+		Logger, _ = zap.NewProduction()
+	}
+	Sugar = Logger.Sugar()
+}
+
+// newLoggerWithHook creates a logger that also sends entries to the TUI hook
+func newLoggerWithHook(hook *TUIHook) (*zap.Logger, error) {
+	// Create encoder config
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:          "time",
+		LevelKey:         "level",
+		NameKey:          "logger",
+		CallerKey:        "",
+		FunctionKey:      zapcore.OmitKey,
+		MessageKey:       "msg",
+		StacktraceKey:    "stacktrace",
+		LineEnding:       zapcore.DefaultLineEnding,
+		EncodeLevel:      natsStyleLevelEncoder,
+		EncodeTime:       natsStyleTimeEncoder,
+		EncodeDuration:   zapcore.SecondsDurationEncoder,
+		ConsoleSeparator: " ",
+	}
+
+	// Create console encoder
+	encoder := zapcore.NewConsoleEncoder(encoderConfig)
+
+	// Create write syncer for stdout
+	writer := zapcore.AddSync(os.Stdout)
+
+	// Create base core
+	baseCore := zapcore.NewCore(encoder, writer, getLogLevel())
+
+	// Wrap with TUI hook
+	wrappedCore := newTUICore(baseCore, hook)
+
+	// Build logger with wrapped core
+	logger := zap.New(wrappedCore, zap.AddCallerSkip(1))
+
+	return logger, nil
+}
+
+// GetTUIHook returns the current TUI hook if attached
+func GetTUIHook() *TUIHook {
+	return tuiHook
 }

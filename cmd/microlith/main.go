@@ -38,6 +38,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/transcoder"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/tui"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/updater"
 
 	"github.com/joho/godotenv"
@@ -92,6 +93,7 @@ func main() {
 		showVersion = flag.Bool("version", false, "Print version and exit")
 		showHelp    = flag.Bool("help", false, "Show help message")
 		doUpdate    = flag.Bool("update", false, "Update to the latest version")
+		tuiMode     = flag.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
 		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
 		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
 		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
@@ -196,12 +198,39 @@ func main() {
 		logger.Fatalw("Failed to start web server", "error", err)
 	}
 
-	// Wait for interrupt signal
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	// TUI mode or headless mode
+	if *tuiMode {
+		// Create TUI log hook to capture logs
+		logHook := logger.NewTUIHook(1000)
+		if err := logger.AttachTUIHook(logHook); err != nil {
+			logger.Errorw("Failed to attach TUI log hook", "error", err)
+		}
 
-	sig := <-sigChan
-	logger.Infow("Received signal, shutting down...", "signal", sig)
+		// Create TUI data sources
+		dataSources := tui.DataSources{
+			WorkerManager: workerManager,
+			JetStream:     workerManager.GetJetStream(),
+			KeyValue:      workerManager.GetKeyValue(),
+			LogHook:       logHook,
+		}
+
+		// Start TUI (blocks until quit)
+		logger.Info("Starting TUI dashboard...")
+		if err := tui.Run(dataSources); err != nil {
+			logger.Errorw("TUI error", "error", err)
+		}
+
+		// Detach TUI hook before shutdown
+		logger.DetachTUIHook()
+		logger.Info("TUI closed, shutting down...")
+	} else {
+		// Headless mode: wait for interrupt signal
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		sig := <-sigChan
+		logger.Infow("Received signal, shutting down...", "signal", sig)
+	}
 
 	// Create shutdown context with timeout for graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -241,6 +270,7 @@ USAGE:
     overwatch [OPTIONS]
 
 OPTIONS:
+    --tui                  Start with TUI dashboard (interactive terminal UI)
     --port <PORT>          HTTP server port for Web UI and REST API (default: 8080)
     --host <HOST>          Network bind address (default: 0.0.0.0)
     --nats-port <PORT>     NATS TCP port for edge device connections (default: 4222)
@@ -252,8 +282,11 @@ OPTIONS:
     --help                 Show this help message
 
 QUICK START:
-    # Run with defaults
+    # Run with defaults (headless)
     overwatch
+
+    # Run with TUI dashboard
+    overwatch --tui
 
     # Run on a different port
     overwatch --port 9090
@@ -263,6 +296,14 @@ QUICK START:
 
     # Update to the latest version
     overwatch --update
+
+TUI CONTROLS:
+    Tab/Shift+Tab  Navigate between panels
+    j/k or arrows  Scroll within panel
+    v              Toggle entities/streams view
+    r              Refresh all data
+    ?              Show help
+    q              Quit
 
 ENVIRONMENT:
     All options can also be set via environment variables or .env file:

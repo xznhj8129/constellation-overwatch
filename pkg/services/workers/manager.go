@@ -90,6 +90,26 @@ func (m *Manager) Start() error {
 	return nil
 }
 
+// GetWorkers returns all workers for status monitoring
+func (m *Manager) GetWorkers() []Worker {
+	return m.workers
+}
+
+// GetRegistry returns the entity registry
+func (m *Manager) GetRegistry() *EntityRegistry {
+	return m.registry
+}
+
+// GetJetStream returns the JetStream context
+func (m *Manager) GetJetStream() nats.JetStreamContext {
+	return m.js
+}
+
+// GetKeyValue returns the KV store
+func (m *Manager) GetKeyValue() nats.KeyValue {
+	return m.kv
+}
+
 func (m *Manager) Stop(ctx context.Context) error {
 	logger.Info("Stopping NATS workers...")
 
