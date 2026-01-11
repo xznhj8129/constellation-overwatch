@@ -60,11 +60,13 @@ func (m LogsModel) Update(msg tea.Msg) (LogsModel, tea.Cmd) {
 			m.entries = m.entries[len(m.entries)-maxLogEntries:]
 		}
 
+		// Auto-scroll to bottom only if we were already there
+		wasAtBottom := m.viewport.AtBottom()
+
 		// Update viewport content
 		m.viewport.SetContent(m.renderEntries())
 
-		// Auto-scroll to bottom if we were at the bottom
-		if m.viewport.AtBottom() || m.viewport.YOffset == 0 {
+		if wasAtBottom {
 			m.viewport.GotoBottom()
 		}
 
@@ -114,7 +116,11 @@ func (m LogsModel) formatEntry(entry LogEntry) string {
 	case "FATAL", "FTL":
 		levelStr = styles.LogFatalStyle.Render("[FTL]")
 	default:
-		levelStr = styles.StatusMutedStyle.Render(fmt.Sprintf("[%s]", entry.Level[:3]))
+		abbr := entry.Level
+		if len(abbr) > 3 {
+			abbr = abbr[:3]
+		}
+		levelStr = styles.StatusMutedStyle.Render(fmt.Sprintf("[%s]", abbr))
 	}
 
 	// Truncate message if too long

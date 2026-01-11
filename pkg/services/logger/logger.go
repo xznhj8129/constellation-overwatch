@@ -168,14 +168,14 @@ func Sync() error {
 
 // AttachTUIHook attaches a hook for TUI log display
 func AttachTUIHook(hook *TUIHook) error {
-	tuiHook = hook
-
-	// Get the current logger's core and wrap it with TUI support
+	// Build the logger first so we don't leave globals in a partially-attached state
 	newLogger, err := newLoggerWithHook(hook)
 	if err != nil {
 		return err
 	}
 
+	// Only set globals after success
+	tuiHook = hook
 	Logger = newLogger
 	Sugar = Logger.Sugar()
 	return nil

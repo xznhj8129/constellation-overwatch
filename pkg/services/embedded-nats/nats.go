@@ -339,24 +339,21 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 	}
 
 	// Try to update stream if it exists, otherwise create it
-	stream, err := en.js.StreamInfo(streamConfig.Name)
+	_, err := en.js.StreamInfo(streamConfig.Name)
 	if err == nil {
 		// Stream exists, update it
-		stream, err = en.js.UpdateStream(config)
-		if err != nil {
+		if _, err = en.js.UpdateStream(config); err != nil {
 			return fmt.Errorf("failed to update stream %s: %w", streamConfig.Name, err)
 		}
 	} else {
 		// Stream doesn't exist, create it
-		stream, err = en.js.AddStream(config)
-		if err != nil {
+		if _, err = en.js.AddStream(config); err != nil {
 			return fmt.Errorf("failed to add stream %s: %w", streamConfig.Name, err)
 		}
 		logger.Debug("Created stream", zap.String("stream", streamConfig.Name))
 	}
 
 	en.streams[streamConfig.Name] = streamConfig
-	_ = stream // suppress unused variable warning
 
 	return nil
 }

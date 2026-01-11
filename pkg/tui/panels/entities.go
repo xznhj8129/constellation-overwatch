@@ -63,15 +63,6 @@ func (m EntitiesModel) Update(msg tea.Msg) (EntitiesModel, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.focused {
 			switch msg.String() {
-			case "v":
-				// Toggle view mode
-				if m.viewMode == ViewEntities {
-					m.viewMode = ViewStreams
-				} else {
-					m.viewMode = ViewEntities
-				}
-				m.cursor = 0
-				m.scrollPos = 0
 			case "up", "k":
 				if m.cursor > 0 {
 					m.cursor--

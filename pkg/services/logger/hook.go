@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -61,13 +62,13 @@ func (h *TUIHook) Close() {
 	}
 }
 
-// tuiCore wraps a zapcore.Core to also send entries to the TUI hook
+// tuiCore wraps a zapcore.Core to send entries ONLY to the TUI hook (no stdout in TUI mode)
 type tuiCore struct {
-	zapcore.Core
-	hook *TUIHook
+	zapcore.Core // embedded for Enabled() check, but we don't write to it
+	hook         *TUIHook
 }
 
-// newTUICore creates a new core that tees output to both the original core and the TUI hook
+// newTUICore creates a new core that sends output ONLY to the TUI hook (suppresses stdout)
 func newTUICore(original zapcore.Core, hook *TUIHook) zapcore.Core {
 	return &tuiCore{
 		Core: original,
@@ -75,9 +76,9 @@ func newTUICore(original zapcore.Core, hook *TUIHook) zapcore.Core {
 	}
 }
 
-// Write intercepts log writes to also send them to the TUI
+// Write sends log entries ONLY to the TUI hook (no stdout output)
 func (c *tuiCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	// Send to TUI hook
+	// Send to TUI hook only - do NOT write to stdout in TUI mode
 	fieldsMap := make(map[string]interface{})
 	for _, f := range fields {
 		switch f.Type {
@@ -85,8 +86,10 @@ func (c *tuiCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 			fieldsMap[f.Key] = f.String
 		case zapcore.Int64Type, zapcore.Int32Type, zapcore.Int16Type, zapcore.Int8Type:
 			fieldsMap[f.Key] = f.Integer
-		case zapcore.Float64Type, zapcore.Float32Type:
-			fieldsMap[f.Key] = f.Integer
+		case zapcore.Float64Type:
+			fieldsMap[f.Key] = math.Float64frombits(uint64(f.Integer))
+		case zapcore.Float32Type:
+			fieldsMap[f.Key] = math.Float32frombits(uint32(f.Integer))
 		case zapcore.BoolType:
 			fieldsMap[f.Key] = f.Integer != 0
 		default:
@@ -103,8 +106,8 @@ func (c *tuiCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		Fields:  fieldsMap,
 	})
 
-	// Write to original core
-	return c.Core.Write(entry, fields)
+	// Don't write to stdout - TUI handles display
+	return nil
 }
 
 // Check wraps the original Check

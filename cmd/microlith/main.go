@@ -41,6 +41,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/tui"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/updater"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -138,6 +139,27 @@ func main() {
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
 
+	// Variables for TUI mode
+	var tuiProgram *tea.Program
+	var tuiErrCh <-chan error
+	var logHook *logger.TUIHook
+
+	// TUI mode: Start TUI early so boot logs are visible
+	if *tuiMode {
+		// Create TUI log hook BEFORE any service initialization
+		logHook = logger.NewTUIHook(1000)
+		if err := logger.AttachTUIHook(logHook); err != nil {
+			// Fall back to headless if TUI hook fails
+			fmt.Fprintf(os.Stderr, "Failed to attach TUI log hook: %v\n", err)
+			*tuiMode = false
+		} else {
+			// Start TUI immediately with minimal data sources
+			tuiProgram, tuiErrCh = tui.RunMinimal(tui.MinimalDataSources{
+				LogHook: logHook,
+			})
+		}
+	}
+
 	// Print startup banner with version info
 	logger.PrintStartupBanner(version, commit, date)
 
@@ -146,6 +168,7 @@ func main() {
 	defer cancel()
 
 	// 1. Initialize Database
+	logger.Info("Initializing database service...")
 	dbService, err := db.NewService()
 	if err != nil {
 		logger.Fatalw("Failed to initialize database service", "error", err)
@@ -155,6 +178,7 @@ func main() {
 	}
 
 	// 2. Initialize Embedded NATS
+	logger.Info("Initializing NATS service...")
 	natsService, err := embeddednats.NewService()
 	if err != nil {
 		logger.Fatalw("Failed to initialize NATS service", "error", err)
@@ -170,6 +194,7 @@ func main() {
 	nc := natsService.Connection()
 
 	// 3. Initialize Workers
+	logger.Info("Initializing workers...")
 	workerManager, err := workers.NewManager(natsService, dbService.GetDB())
 	if err != nil {
 		logger.Fatalw("Failed to initialize worker manager", "error", err)
@@ -179,6 +204,7 @@ func main() {
 	}
 
 	// 3b. Initialize Video Transcoder (converts MPEG-TS to JPEG)
+	logger.Info("Initializing video transcoder...")
 	videoTranscoder := transcoder.New(nc)
 	go func() {
 		if err := videoTranscoder.Start(ctx); err != nil {
@@ -187,9 +213,11 @@ func main() {
 	}()
 
 	// 4. Initialize API Router
+	logger.Info("Initializing API router...")
 	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
 
 	// 5. Initialize Web Server
+	logger.Info("Initializing web server...")
 	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
 	if err != nil {
 		logger.Fatalw("Failed to initialize web server", "error", err)
@@ -198,25 +226,19 @@ func main() {
 		logger.Fatalw("Failed to start web server", "error", err)
 	}
 
-	// TUI mode or headless mode
-	if *tuiMode {
-		// Create TUI log hook to capture logs
-		logHook := logger.NewTUIHook(1000)
-		if err := logger.AttachTUIHook(logHook); err != nil {
-			logger.Errorw("Failed to attach TUI log hook", "error", err)
-		}
+	logger.Info("All services started successfully")
 
-		// Create TUI data sources
-		dataSources := tui.DataSources{
+	// TUI mode or headless mode
+	if *tuiMode && tuiProgram != nil {
+		// Send DataSourcesReadyMsg to TUI now that services are initialized
+		tuiProgram.Send(tui.DataSourcesReadyMsg{
 			WorkerManager: workerManager,
 			JetStream:     workerManager.GetJetStream(),
 			KeyValue:      workerManager.GetKeyValue(),
-			LogHook:       logHook,
-		}
+		})
 
-		// Start TUI (blocks until quit)
-		logger.Info("Starting TUI dashboard...")
-		if err := tui.Run(dataSources); err != nil {
+		// Wait for TUI to exit
+		if err := <-tuiErrCh; err != nil {
 			logger.Errorw("TUI error", "error", err)
 		}
 

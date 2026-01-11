@@ -39,6 +39,11 @@ type DataSources struct {
 	LogHook       *logger.TUIHook
 }
 
+// MinimalDataSources holds only the log hook for early TUI startup
+type MinimalDataSources struct {
+	LogHook *logger.TUIHook
+}
+
 // AppModel is the root TUI model
 type AppModel struct {
 	// Panels
@@ -55,12 +60,14 @@ type AppModel struct {
 	logSource      *datasource.LogSource
 
 	// State
-	focusedPanel int
-	showHelp     bool
-	keys         KeyMap
-	width        int
-	height       int
-	ready        bool
+	focusedPanel    int
+	showHelp        bool
+	keys            KeyMap
+	width           int
+	height          int
+	ready           bool
+	servicesReady   bool // true when all services are initialized
+	initializingMsg string
 
 	// Tick counters for different refresh rates
 	tickCount int
@@ -69,7 +76,7 @@ type AppModel struct {
 	quitting bool
 }
 
-// NewApp creates a new TUI application
+// NewApp creates a new TUI application with full data sources
 func NewApp(sources DataSources) *AppModel {
 	// Create data sources
 	metricsSource := datasource.NewRuntimeMetrics()
@@ -90,6 +97,27 @@ func NewApp(sources DataSources) *AppModel {
 		logSource:      logSource,
 		focusedPanel:   PanelLogs,
 		keys:           DefaultKeyMap(),
+		servicesReady:  true,
+	}
+}
+
+// NewAppMinimal creates a TUI application with only log support (for early startup)
+func NewAppMinimal(sources MinimalDataSources) *AppModel {
+	// Only create metrics and log source - others will be added when services are ready
+	metricsSource := datasource.NewRuntimeMetrics()
+	logSource := datasource.NewLogSource(sources.LogHook)
+
+	return &AppModel{
+		systemPanel:     panels.NewSystemModel(),
+		workersPanel:    panels.NewWorkersModel(),
+		logsPanel:       panels.NewLogsModel(),
+		entitiesPanel:   panels.NewEntitiesModel(),
+		metricsSource:   metricsSource,
+		logSource:       logSource,
+		focusedPanel:    PanelLogs,
+		keys:            DefaultKeyMap(),
+		servicesReady:   false,
+		initializingMsg: "Initializing services...",
 	}
 }
 
@@ -181,34 +209,80 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		metricsMsg := m.metricsSource.Collect()
 		m.systemPanel, _ = m.systemPanel.Update(metricsMsg)
 
-		// Update workers every 5 ticks (5s)
-		if m.tickCount%5 == 0 {
-			statuses := m.workersMonitor.GetStatuses()
-			workersMsg := panels.WorkersUpdateMsg{Workers: statuses}
-			m.workersPanel, _ = m.workersPanel.Update(workersMsg)
-		}
+		// Only update service-dependent panels if services are ready
+		if m.servicesReady {
+			// Update workers every 5 ticks (5s)
+			if m.tickCount%5 == 0 && m.workersMonitor != nil {
+				statuses := m.workersMonitor.GetStatuses()
+				workersMsg := panels.WorkersUpdateMsg{Workers: statuses}
+				m.workersPanel, _ = m.workersPanel.Update(workersMsg)
+			}
 
-		// Update entities every 3 ticks (3s)
-		if m.tickCount%3 == 0 {
-			entities := m.entityMonitor.GetEntities()
-			entitiesMsg := panels.EntitiesUpdateMsg{Entities: entities}
-			m.entitiesPanel, _ = m.entitiesPanel.Update(entitiesMsg)
-		}
+			// Update entities every 3 ticks (3s)
+			if m.tickCount%3 == 0 && m.entityMonitor != nil {
+				entities := m.entityMonitor.GetEntities()
+				entitiesMsg := panels.EntitiesUpdateMsg{Entities: entities}
+				m.entitiesPanel, _ = m.entitiesPanel.Update(entitiesMsg)
+			}
 
-		// Update streams every 5 ticks (5s)
-		if m.tickCount%5 == 0 {
-			streams := m.natsStats.GetStreamStats()
-			streamsMsg := panels.StreamsUpdateMsg{Streams: streams}
-			m.entitiesPanel, _ = m.entitiesPanel.Update(streamsMsg)
+			// Update streams every 5 ticks (5s)
+			if m.tickCount%5 == 0 && m.natsStats != nil {
+				streams := m.natsStats.GetStreamStats()
+				streamsMsg := panels.StreamsUpdateMsg{Streams: streams}
+				m.entitiesPanel, _ = m.entitiesPanel.Update(streamsMsg)
+			}
 		}
 
 		// Continue ticking
 		cmds = append(cmds, m.tickCmd())
 
+	case DataSourcesReadyMsg:
+		// Services are now ready - initialize the remaining data sources
+		if wm, ok := msg.WorkerManager.(*workers.Manager); ok {
+			m.workersMonitor = datasource.NewWorkersMonitor(wm)
+			if js, ok := msg.JetStream.(nats.JetStreamContext); ok {
+				m.natsStats = datasource.NewNATSStats(js)
+			}
+			if kv, ok := msg.KeyValue.(nats.KeyValue); ok {
+				m.entityMonitor = datasource.NewEntityMonitor(wm.GetRegistry(), kv)
+			}
+		}
+		m.servicesReady = true
+		m.initializingMsg = ""
+
+		// Force an immediate refresh
+		cmds = append(cmds, m.refreshAll())
+
 	case panels.LogEntryMsg:
 		m.logsPanel, _ = m.logsPanel.Update(msg)
 		// Continue listening for logs
 		cmds = append(cmds, m.listenForLogs())
+
+	case RefreshMsg:
+		// Force refresh all data immediately
+		metricsMsg := m.metricsSource.Collect()
+		m.systemPanel, _ = m.systemPanel.Update(metricsMsg)
+
+		// Only refresh service-dependent data if services are ready
+		if m.servicesReady {
+			if m.workersMonitor != nil {
+				statuses := m.workersMonitor.GetStatuses()
+				workersMsg := panels.WorkersUpdateMsg{Workers: statuses}
+				m.workersPanel, _ = m.workersPanel.Update(workersMsg)
+			}
+
+			if m.entityMonitor != nil {
+				entities := m.entityMonitor.GetEntities()
+				entitiesMsg := panels.EntitiesUpdateMsg{Entities: entities}
+				m.entitiesPanel, _ = m.entitiesPanel.Update(entitiesMsg)
+			}
+
+			if m.natsStats != nil {
+				streams := m.natsStats.GetStreamStats()
+				streamsMsg := panels.StreamsUpdateMsg{Streams: streams}
+				m.entitiesPanel, _ = m.entitiesPanel.Update(streamsMsg)
+			}
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -340,10 +414,26 @@ func (m AppModel) renderFullHelp() string {
 	return styles.HelpBarStyle.Render(sb.String())
 }
 
-// Run starts the TUI application
+// Run starts the TUI application with full data sources (blocking)
 func Run(sources DataSources) error {
 	app := NewApp(sources)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
+}
+
+// RunMinimal starts the TUI with minimal data sources and returns the program
+// for sending DataSourcesReadyMsg later. The returned channel signals when TUI exits.
+func RunMinimal(sources MinimalDataSources) (*tea.Program, <-chan error) {
+	app := NewAppMinimal(sources)
+	p := tea.NewProgram(app, tea.WithAltScreen())
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := p.Run()
+		errCh <- err
+		close(errCh)
+	}()
+
+	return p, errCh
 }

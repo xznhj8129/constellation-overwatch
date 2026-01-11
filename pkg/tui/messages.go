@@ -51,3 +51,10 @@ type ErrorMsg struct {
 
 // QuitMsg signals the app should quit
 type QuitMsg struct{}
+
+// DataSourcesReadyMsg signals that data sources are now available
+type DataSourcesReadyMsg struct {
+	WorkerManager interface{} // *workers.Manager - use interface to avoid import cycle
+	JetStream     interface{} // nats.JetStreamContext
+	KeyValue      interface{} // nats.KeyValue
+}
