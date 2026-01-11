@@ -18,6 +18,17 @@ tasks:
       - echo "Running {{.BINARY_NAME}}..."
       - ./bin/{{.BINARY_NAME}}
 
+  tui:
+    desc: Run with TUI dashboard
+    cmds:
+      - go run ./cmd/microlith/main.go --tui
+
+  build-tui:
+    desc: Build binary and run TUI
+    deps: [build]
+    cmds:
+      - ./bin/{{.BINARY_NAME}} --tui
+
   docker-build:
     desc: Build Docker image
     cmds:

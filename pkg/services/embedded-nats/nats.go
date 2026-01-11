@@ -339,27 +339,21 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 	}
 
 	// Try to update stream if it exists, otherwise create it
-	stream, err := en.js.StreamInfo(streamConfig.Name)
+	_, err := en.js.StreamInfo(streamConfig.Name)
 	if err == nil {
 		// Stream exists, update it
-		stream, err = en.js.UpdateStream(config)
-		if err != nil {
+		if _, err = en.js.UpdateStream(config); err != nil {
 			return fmt.Errorf("failed to update stream %s: %w", streamConfig.Name, err)
 		}
-		logger.Info("Updated existing stream", zap.String("stream", streamConfig.Name))
 	} else {
 		// Stream doesn't exist, create it
-		stream, err = en.js.AddStream(config)
-		if err != nil {
+		if _, err = en.js.AddStream(config); err != nil {
 			return fmt.Errorf("failed to add stream %s: %w", streamConfig.Name, err)
 		}
-		logger.Info("Created new stream", zap.String("stream", streamConfig.Name))
+		logger.Debug("Created stream", zap.String("stream", streamConfig.Name))
 	}
 
 	en.streams[streamConfig.Name] = streamConfig
-	logger.Info("Stream configured",
-		zap.String("stream", stream.Config.Name),
-		zap.Strings("subjects", stream.Config.Subjects))
 
 	return nil
 }
@@ -472,9 +466,7 @@ func (en *EmbeddedNATS) CreateGlobalStateKV(bucketName string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create KV bucket %s: %w", bucketName, err)
 		}
-		logger.Info("Created KV bucket", zap.String("bucket", bucketName))
-	} else {
-		logger.Info("Using existing KV bucket", zap.String("bucket", bucketName))
+		logger.Debug("Created KV bucket", zap.String("bucket", bucketName))
 	}
 
 	en.kv = kv
@@ -522,7 +514,7 @@ func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, f
 		return fmt.Errorf("failed to create consumer %s: %w", consumerName, err)
 	}
 
-	logger.Info("Created durable consumer",
+	logger.Debug("Created durable consumer",
 		zap.String("consumer", consumerName),
 		zap.String("stream", streamName))
 	return nil
@@ -592,7 +584,7 @@ func (en *EmbeddedNATS) WatchKV(ctx context.Context, callback func(key string, e
 		}
 	}()
 
-	logger.Infow("KV Watcher started", "bucket", "CONSTELLATION_GLOBAL_STATE")
+	logger.Debugw("KV watcher started", "bucket", "CONSTELLATION_GLOBAL_STATE")
 
 	for {
 		select {

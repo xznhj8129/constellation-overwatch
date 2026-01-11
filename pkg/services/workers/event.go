@@ -33,7 +33,6 @@ func NewEventWorker(nc *nats.Conn, js nats.JetStreamContext, db *sql.DB, registr
 }
 
 func (w *EventWorker) Start(ctx context.Context) error {
-	logger.Infow("Starting with entity lifecycle management", "worker", w.Name())
 	return w.processMessages(ctx, w.handleEvent)
 }
 

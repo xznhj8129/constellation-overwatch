@@ -69,17 +69,13 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 	}
 	w.sub = sub
 
-	logger.Infow("Starting worker", "worker", w.name, "stream", w.stream, "consumer", w.consumer)
-
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infow("Worker stopping", "worker", w.name)
 			return ctx.Err()
 		default:
 			// Check if subscription is still valid before attempting fetch
 			if w.sub != nil && !w.sub.IsValid() {
-				logger.Infow("Subscription invalid, worker exiting gracefully", "worker", w.name)
 				return nil
 			}
 
@@ -91,7 +87,6 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 				}
 				// These errors indicate shutdown or connection closure - exit gracefully
 				if err == nats.ErrBadSubscription || err == nats.ErrConnectionClosed {
-					logger.Infow("Subscription closed, worker exiting gracefully", "worker", w.name, "error", err)
 					return nil
 				}
 				// For other errors, log and continue

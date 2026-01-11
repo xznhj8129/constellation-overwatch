@@ -76,8 +76,6 @@ func New(config *Config) (*Service, error) {
 	}
 
 	connStr := "file:" + absPath + "?_pragma=foreign_keys(1)"
-
-	logger.Infow("Opening database connection", "connection_string", connStr)
 	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -97,14 +95,13 @@ func New(config *Config) (*Service, error) {
 
 	// Initialize schema if database is new and auto-initialization is enabled
 	if !dbExists && config.AutoInitialize {
-		logger.Info("Database not found, initializing schema...")
 		if err := service.InitializeSchema(); err != nil {
 			return nil, fmt.Errorf("failed to initialize schema: %w", err)
 		}
-		logger.Info("Database schema initialized successfully")
+		logger.Info("Database schema initialized")
 	}
 
-	logger.Infow("Database service initialized", "db_path", config.DBPath)
+	logger.Infow("Database ready", "path", config.DBPath)
 	return service, nil
 }
 
@@ -122,14 +119,11 @@ func (s *Service) Name() string {
 func (s *Service) Start(ctx context.Context) error {
 	// Verify schema is properly initialized
 	if err := s.VerifySchema(); err != nil {
-		logger.Error("Schema verification failed", zap.Error(err))
-		logger.Info("Attempting to initialize schema...")
+		logger.Warn("Schema verification failed, reinitializing", zap.Error(err))
 		if err := s.InitializeSchema(); err != nil {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
-
-	logger.Info("Database service started successfully")
 	return nil
 }
 
@@ -152,7 +146,6 @@ func (s *Service) InitializeSchema() error {
 	}
 
 	// Execute schema
-	logger.Infow("Executing schema SQL", "bytes", len(schemaSQL))
 
 	// Parse and execute schema statement by statement
 	// We need to handle triggers specially as they contain internal semicolons
@@ -176,8 +169,6 @@ func (s *Service) InitializeSchema() error {
 			return fmt.Errorf("failed to execute schema statement %d: %w", i, err)
 		}
 	}
-
-	logger.Info("Schema execution completed")
 
 	return nil
 }
@@ -271,7 +262,6 @@ func (s *Service) VerifySchema() error {
 		}
 	}
 
-	logger.Info("Schema verification successful - all required tables present")
 	return nil
 }
 

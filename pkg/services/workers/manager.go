@@ -76,23 +76,38 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 }
 
 func (m *Manager) Start() error {
-	logger.Info("Starting NATS workers...")
-
 	for _, worker := range m.workers {
 		m.wg.Add(1)
 		go func(w Worker) {
 			defer m.wg.Done()
-
-			logger.Infow("Starting worker", "worker", w.Name())
 			if err := w.Start(m.ctx); err != nil && err != context.Canceled {
 				logger.Errorw("Worker error", "worker", w.Name(), "error", err)
 			}
-			logger.Infow("Worker stopped", "worker", w.Name())
 		}(worker)
 	}
 
-	logger.Infow("Started workers", "count", len(m.workers))
+	logger.Infow("Workers started", "count", len(m.workers))
 	return nil
+}
+
+// GetWorkers returns all workers for status monitoring
+func (m *Manager) GetWorkers() []Worker {
+	return m.workers
+}
+
+// GetRegistry returns the entity registry
+func (m *Manager) GetRegistry() *EntityRegistry {
+	return m.registry
+}
+
+// GetJetStream returns the JetStream context
+func (m *Manager) GetJetStream() nats.JetStreamContext {
+	return m.js
+}
+
+// GetKeyValue returns the KV store
+func (m *Manager) GetKeyValue() nats.KeyValue {
+	return m.kv
 }
 
 func (m *Manager) Stop(ctx context.Context) error {
