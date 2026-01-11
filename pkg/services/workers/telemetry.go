@@ -50,7 +50,7 @@ func (w *TelemetryWorker) Start(ctx context.Context) error {
 
 // handleTelemetryMessage processes a single telemetry message
 func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
-	// Parse subject: constellation.telemetry.{entity_id}.{message_type}
+	// Parse subject: constellation.telemetry.{org_id}.{entity_id}
 	entityID, orgID, err := w.parseSubject(msg.Subject)
 	if err != nil {
 		logger.Errorw("Failed to parse subject", "worker", w.Name(), "subject", msg.Subject, "error", err)
@@ -110,29 +110,42 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
 	return nil
 }
 
-// parseSubject extracts entity_id and message_type from NATS subject
+// parseSubject extracts entity_id and org_id from NATS subject
 func (w *TelemetryWorker) parseSubject(subject string) (entityID, orgID string, err error) {
-	// Subject format: constellation.telemetry.{entity_id}.{message_type}
+	// Subject format: constellation.telemetry.{org_id}.{entity_id}
+	// Also supports: constellation.telemetry.{category}.{org_id}.{entity_id}
 	parts := strings.Split(subject, ".")
 
 	logger.Debugw("Parsing subject", "worker", w.Name(), "subject", subject, "parts", len(parts))
 
-	// Must have at least constellation.telemetry.entity_id.message_type (4 parts)
+	// Must have at least constellation.telemetry.org_id.entity_id (4 parts)
 	if len(parts) < 4 {
 		return "", "", fmt.Errorf("invalid subject format (too few parts): %s", subject)
 	}
 
-	// New format: constellation.telemetry.{entity_id}.{message_type}
-	entityID = parts[2]
-	// message_type = parts[3] (we don't need it here, just for validation)
+	// Support both 4-part and 5-part subjects:
+	// 4-part: constellation.telemetry.{org_id}.{entity_id}
+	// 5-part: constellation.telemetry.{category}.{org_id}.{entity_id}
+	if len(parts) == 4 {
+		orgID = parts[2]
+		entityID = parts[3]
+	} else {
+		// 5+ parts: last two are org_id and entity_id
+		orgID = parts[len(parts)-2]
+		entityID = parts[len(parts)-1]
+		logger.Debugw("Using extended subject format", "worker", w.Name(), "category", parts[2])
+	}
 
 	// Validate entity_id is not empty
 	if entityID == "" {
 		return "", "", fmt.Errorf("entity_id is empty in subject: %s", subject)
 	}
 
-	// Set orgID to unknown since it's not in the subject anymore
-	orgID = "unknown"
+	// Validate org_id is not empty
+	if orgID == "" {
+		logger.Warnw("org_id is empty in subject", "worker", w.Name(), "subject", subject)
+		orgID = "unknown"
+	}
 
 	logger.Debugw("Parsed subject", "worker", w.Name(), "subject", subject, "entity_id", entityID, "org_id", orgID)
 	return entityID, orgID, nil
