@@ -193,7 +193,7 @@ func (r *EntityRegistry) InitializeKVStoreFromDB(kv nats.KeyValue) error {
 	logger.Infow("KV store initialization complete", "component", "EntityRegistry", "initialized", initialized, "skipped", skipped, "total_processed", initialized+skipped)
 
 	if initialized == 0 && skipped == 0 {
-		logger.Warnw("⚠️  No entities were processed - database might be empty", "component", "EntityRegistry")
+		logger.Warnw("No entities were processed - database might be empty", "component", "EntityRegistry")
 	}
 
 	return rows.Err()
