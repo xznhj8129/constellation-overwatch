@@ -229,7 +229,41 @@ func main() {
 	logger.Info("All services started successfully")
 
 	// TUI mode or headless mode
+	// TUI mode or headless mode
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+
 	if *tuiMode && tuiProgram != nil {
+		// Send DataSourcesReadyMsg to TUI now that services are initialized
+		tuiProgram.Send(tui.DataSourcesReadyMsg{
+			WorkerManager: workerManager,
+			JetStream:     workerManager.GetJetStream(),
+			KeyValue:      workerManager.GetKeyValue(),
+		})
+
+		// Wait for TUI to exit or a shutdown signal
+		select {
+		case err := <-tuiErrCh:
+			if err != nil {
+				logger.Errorw("TUI error", "error", err)
+			}
+		case sig := <-sigChan:
+			logger.Infow("Received signal, shutting down...", "signal", sig)
+			tuiProgram.Quit()
+			if err := <-tuiErrCh; err != nil {
+				logger.Errorw("TUI error", "error", err)
+			}
+		}
+
+		// Detach TUI hook before shutdown
+		logger.DetachTUIHook()
+		logger.Info("TUI closed, shutting down...")
+	} else {
+		// Headless mode: wait for interrupt signal
+		sig := <-sigChan
+		logger.Infow("Received signal, shutting down...", "signal", sig)
+	}
 		// Send DataSourcesReadyMsg to TUI now that services are initialized
 		tuiProgram.Send(tui.DataSourcesReadyMsg{
 			WorkerManager: workerManager,
