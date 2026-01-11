@@ -136,7 +136,8 @@ func main() {
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
 
-	logger.Info("Starting Constellation Overwatch Microlith...")
+	// Print startup banner with version info
+	logger.PrintStartupBanner(version, commit, date)
 
 	// Context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
