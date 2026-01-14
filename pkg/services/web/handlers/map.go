@@ -362,7 +362,7 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 			knownEntities[entityID] = entityState.OrgID
 		} else {
 			patchMode = datastar.ElementPatchModeMorph
-			selector = fmt.Sprintf("#c5-entity-%s", entityID)
+			selector = fmt.Sprintf("#c4-entity-%s", entityID)
 			knownEntities[entityID] = entityState.OrgID
 		}
 
@@ -409,7 +409,7 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 			logger.Infow("[Map] Removing entity", "entity_id", entityID)
 
 			// Remove from DOM
-			selector := fmt.Sprintf("#c5-entity-%s", entityID)
+			selector := fmt.Sprintf("#c4-entity-%s", entityID)
 			if err := sse.PatchElements("", datastar.WithSelector(selector), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
 				logger.Debugw("[Map] Failed to remove entity element", "error", err)
 			}

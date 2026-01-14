@@ -505,7 +505,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		} else {
 			patchMode = datastar.ElementPatchModeMorph
 			if viewMode == "map" {
-				selector = fmt.Sprintf("#c5-entity-%s", entityID)
+				selector = fmt.Sprintf("#c4-entity-%s", entityID)
 			} else {
 				selector = fmt.Sprintf("#entity-%s", entityID)
 			}
@@ -567,7 +567,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			// Remove from DOM
 			var selector string
 			if viewMode == "map" {
-				selector = fmt.Sprintf("#c5-entity-%s", entityID)
+				selector = fmt.Sprintf("#c4-entity-%s", entityID)
 			} else {
 				selector = fmt.Sprintf("#entity-%s", entityID)
 			}
