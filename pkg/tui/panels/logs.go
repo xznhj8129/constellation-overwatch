@@ -126,7 +126,7 @@ func (m LogsModel) formatEntry(entry LogEntry) string {
 	// Truncate message if too long
 	msg := entry.Message
 	maxMsgLen := m.width - 20 // Account for timestamp and level
-	if maxMsgLen > 0 && len(msg) > maxMsgLen {
+	if maxMsgLen > 3 && len(msg) > maxMsgLen {
 		msg = msg[:maxMsgLen-3] + "..."
 	}
 
