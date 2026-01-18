@@ -8,6 +8,9 @@ import (
 // RegisterPProf registers pprof handlers on the given mux
 // The protect function wraps handlers with authentication if needed
 func RegisterPProf(mux *http.ServeMux, protect func(http.HandlerFunc) http.Handler) {
+	if protect == nil {
+		protect = func(h http.HandlerFunc) http.Handler { return h }
+	}
 	// Index
 	mux.Handle("/debug/pprof/", protect(pprof.Index))
 	mux.Handle("/debug/pprof/cmdline", protect(pprof.Cmdline))

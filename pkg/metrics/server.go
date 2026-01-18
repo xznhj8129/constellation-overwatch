@@ -16,7 +16,6 @@ func Handler() http.Handler {
 
 // HandlerFunc returns the Prometheus metrics handler as an http.HandlerFunc
 func HandlerFunc() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		Handler().ServeHTTP(w, r)
-	}
+	h := Handler()
+	return h.ServeHTTP
 }

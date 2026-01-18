@@ -17,7 +17,7 @@ func NewPrometheusAdapter() *PrometheusAdapter {
 
 // Collect gathers metrics from the Prometheus registry
 func (a *PrometheusAdapter) Collect() MetricsSnapshot {
-	mfs, err := metrics.Registry.Gather()
+	mfs, err := metrics.Gather()
 	if err != nil {
 		// Fallback to direct runtime collection
 		return a.collectDirect()
@@ -37,7 +37,7 @@ func (a *PrometheusAdapter) Collect() MetricsSnapshot {
 			snapshot.HeapAlloc = uint64(getGaugeValue(mf))
 		case "go_goroutines":
 			snapshot.NumGoroutines = int(getGaugeValue(mf))
-		case "go_gc_cycles_total_gc_cycles_total":
+		case "go_gc_cycles_total":
 			snapshot.NumGC = uint32(getCounterValue(mf))
 		}
 	}
@@ -77,8 +77,11 @@ func getGaugeValue(mf *dto.MetricFamily) float64 {
 
 // getCounterValue extracts counter value from MetricFamily
 func getCounterValue(mf *dto.MetricFamily) float64 {
-	if len(mf.GetMetric()) > 0 && mf.GetMetric()[0].GetCounter() != nil {
-		return mf.GetMetric()[0].GetCounter().GetValue()
+	var total float64
+	for _, metric := range mf.GetMetric() {
+		if metric.GetCounter() != nil {
+			total += metric.GetCounter().GetValue()
+		}
 	}
-	return 0
+	return total
 }

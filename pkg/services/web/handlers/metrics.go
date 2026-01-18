@@ -76,12 +76,14 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 				"numGoroutines": runtime.NumGoroutine(),
 				"numCPU":        runtime.NumCPU(),
 				"numGC":         m.NumGC,
-				"gcPauseNs":     m.PauseNs[(m.NumGC+255)%256],
-				"timestamp":     time.Now().Format("15:04:05"),
+				"gcPauseNs":            m.PauseNs[(m.NumGC+255)%256],
+				"httpRequestsTotal":    0,
+				"httpRequestsInFlight": 0,
+				"timestamp":            time.Now().Format("15:04:05"),
 			}
 
 			// Add custom metrics from Prometheus registry
-			mfs, err := metrics.Registry.Gather()
+			mfs, err := metrics.Gather()
 			if err == nil {
 				for _, mf := range mfs {
 					name := mf.GetName()
