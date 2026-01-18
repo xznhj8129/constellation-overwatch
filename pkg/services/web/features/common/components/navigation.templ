@@ -51,6 +51,12 @@ templ Navigation(activeTab string) {
 				</span>
 				<span>Video</span>
 			</a>
+			<a href="/metrics-ui" class={ "nav-button", templ.KV("active", activeTab == "metrics") }>
+				<span class="nav-icon">
+					@icons.Gauge()
+				</span>
+				<span>Metrics</span>
+			</a>
 			<div class="nav-footer">
 				<div class="nav-footer-divider"></div>
 				<a href="/docs" target="_blank" rel="noopener noreferrer" class="nav-docs-link">
