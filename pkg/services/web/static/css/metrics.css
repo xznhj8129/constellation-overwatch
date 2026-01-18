@@ -59,7 +59,7 @@
 }
 
 .metrics-section {
-    background: var(--card-bg, #1a1a1a);
+    background: var(--metrics-card-bg, #1a1a1a);
     border: 1px solid var(--border-color, #333);
     border-radius: 8px;
     padding: 16px;
@@ -81,7 +81,7 @@
 }
 
 .metric-card {
-    background: var(--card-bg-darker, #0a0a0a);
+    background: var(--metrics-card-bg-darker, #0a0a0a);
     border: 1px solid var(--border-color, #333);
     border-radius: 6px;
     padding: 16px;
@@ -89,11 +89,11 @@
 }
 
 .metric-card:hover {
-    border-color: var(--accent-color, #4ade80);
+    border-color: var(--metrics-accent-color, #4ade80);
 }
 
 .metric-label {
-    color: var(--text-secondary, #888);
+    color: #888;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -103,7 +103,7 @@
 .metric-value {
     font-size: 1.5rem;
     font-weight: 600;
-    color: var(--accent-color, #4ade80);
+    color: var(--metrics-accent-color, #4ade80);
     font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
 }
 
@@ -117,12 +117,12 @@
 }
 
 .timestamp {
-    color: var(--text-secondary, #666);
+    color: #666;
     font-size: 0.75rem;
 }
 
 .prometheus-link {
-    color: var(--accent-color, #4ade80);
+    color: var(--metrics-accent-color, #4ade80);
     font-size: 0.875rem;
     text-decoration: none;
     transition: opacity 0.2s ease;
@@ -133,12 +133,9 @@
     text-decoration: underline;
 }
 
-/* Dark theme variables (if not already defined) */
+/* Metrics-specific variables */
 :root {
-    --card-bg: #1a1a1a;
-    --card-bg-darker: #0a0a0a;
-    --border-color: #333;
-    --text-primary: #fff;
-    --text-secondary: #888;
-    --accent-color: #4ade80;
+    --metrics-card-bg: #1a1a1a;
+    --metrics-card-bg-darker: #0a0a0a;
+    --metrics-accent-color: #4ade80;
 }
