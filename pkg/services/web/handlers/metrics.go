@@ -40,6 +40,12 @@ type MetricsSignals struct {
 
 // HandleSSE streams metrics via Server-Sent Events using Datastar
 func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
+	// CRITICAL: Set SSE headers BEFORE creating SSE generator or writing anything
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
