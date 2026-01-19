@@ -13,5 +13,157 @@ templ OverwatchPage() {
 				@overwatch.AnalyticsPanel()
 			</div>
 		}
+		@entityCardScripts()
 	}
+}
+
+templ entityCardScripts() {
+	<script>
+		// Event delegation for entity card actions (handles dynamically added cards)
+		document.addEventListener('click', function(e) {
+			const target = e.target.closest('[data-action]');
+			if (!target) {
+				// Close dropdowns when clicking outside
+				if (!e.target.closest('.entity-dropdown')) {
+					closeAllDropdowns();
+				}
+				return;
+			}
+
+			const action = target.dataset.action;
+			const entityId = target.dataset.entityId;
+
+			switch(action) {
+				case 'toggle-dropdown':
+					e.stopPropagation();
+					toggleDropdown(entityId);
+					break;
+				case 'copy-id':
+					e.stopPropagation();
+					copyEntityId(entityId);
+					break;
+				case 'copy-json':
+					e.stopPropagation();
+					copyEntityJson(entityId);
+					break;
+				case 'toggle-section':
+					e.stopPropagation();
+					toggleSection(target);
+					break;
+			}
+		});
+
+		// Toggle dropdown menu
+		function toggleDropdown(entityId) {
+			const menu = document.getElementById('dropdown-' + entityId);
+			if (!menu) return;
+
+			const allMenus = document.querySelectorAll('.entity-dropdown__menu');
+
+			// Close all other dropdowns
+			allMenus.forEach(m => {
+				if (m.id !== 'dropdown-' + entityId) {
+					m.classList.remove('show');
+				}
+			});
+
+			// Toggle this dropdown
+			menu.classList.toggle('show');
+		}
+
+		// Copy entity ID to clipboard
+		function copyEntityId(entityId) {
+			navigator.clipboard.writeText(entityId).then(() => {
+				showToast('Entity ID copied!');
+			}).catch(err => {
+				console.error('Failed to copy:', err);
+			});
+			closeAllDropdowns();
+		}
+
+		// Copy entity as JSON - reads full entity data from card's data-entity-json attribute
+		function copyEntityJson(entityId) {
+			let entityData = null;
+
+			// Get the entity card element
+			const cardElement = document.getElementById('entity-' + entityId);
+			if (cardElement && cardElement.dataset.entityJson) {
+				try {
+					// Parse the HTML-escaped JSON from data attribute
+					const jsonStr = cardElement.dataset.entityJson;
+					entityData = JSON.parse(jsonStr);
+				} catch (err) {
+					console.warn('Failed to parse entity JSON:', err);
+				}
+			}
+
+			// If we found entity data, copy it; otherwise show a message
+			if (entityData) {
+				navigator.clipboard.writeText(JSON.stringify(entityData, null, 2)).then(() => {
+					showToast('Full entity JSON copied!');
+				}).catch(err => {
+					console.error('Failed to copy:', err);
+				});
+			} else {
+				// Fallback: copy just the entity ID
+				navigator.clipboard.writeText(entityId).then(() => {
+					showToast('Entity ID copied (JSON not available)');
+				}).catch(err => {
+					console.error('Failed to copy:', err);
+				});
+			}
+			closeAllDropdowns();
+		}
+
+		// Toggle collapsible section
+		function toggleSection(header) {
+			const section = header.closest('.entity-section');
+			if (section) {
+				section.classList.toggle('collapsed');
+			}
+		}
+
+		// Close all dropdown menus
+		function closeAllDropdowns() {
+			document.querySelectorAll('.entity-dropdown__menu').forEach(m => {
+				m.classList.remove('show');
+			});
+		}
+
+		// Simple toast notification
+		function showToast(message) {
+			const toast = document.createElement('div');
+			toast.className = 'toast-notification';
+			toast.textContent = message;
+			toast.style.cssText = `
+				position: fixed;
+				bottom: 20px;
+				right: 20px;
+				background: rgba(0, 212, 255, 0.9);
+				color: #000;
+				padding: 10px 20px;
+				border-radius: 4px;
+				font-size: 0.85rem;
+				font-weight: 600;
+				z-index: 1000;
+				animation: fadeIn 0.2s ease;
+			`;
+			document.body.appendChild(toast);
+			setTimeout(() => toast.remove(), 2000);
+		}
+
+		// Entity type icons
+		window.getEntityIcon = function(entityType) {
+			const icons = {
+				'aircraft_vtol': '🚁',
+				'aircraft_multirotor': '🚁',
+				'ground_vehicle': '🚗',
+				'sensor_fixed': '📡',
+				'control_station': '🖥️',
+				'sensor': '📡',
+				'default': '📍'
+			};
+			return icons[entityType] || icons['default'];
+		};
+	</script>
 }
