@@ -1,5 +1,7 @@
 package layouts
 
+import "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/dev"
+
 templ Base(title string) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -12,6 +14,13 @@ templ Base(title string) {
 			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
 		</head>
 		<body>
+			if dev.IsDev() {
+				<!-- Hot reload connection (dev mode only) -->
+				<div
+					data-init={ dev.DevReloadScript() }
+					style="display: none;"
+				></div>
+			}
 			<div class="app-container">
 				<div class="main-layout">
 					{ children... }
@@ -37,6 +46,13 @@ templ BaseWithStyles(title string, styles []string) {
 			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"></script>
 		</head>
 		<body>
+			if dev.IsDev() {
+				<!-- Hot reload connection (dev mode only) -->
+				<div
+					data-init={ dev.DevReloadScript() }
+					style="display: none;"
+				></div>
+			}
 			<div class="app-container">
 				<div class="main-layout">
 					{ children... }

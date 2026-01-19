@@ -14,6 +14,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	common_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/signals"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
@@ -372,29 +373,12 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 			return
 		}
 
-		// Patch Signal with minimal entity metadata (for map marker updates)
+		// Patch Signal with typed entity metadata (for map marker updates)
 		// Full entity data is already rendered in the card HTML
-		minimalEntitySignal := map[string]interface{}{
-			"entityId":   entityID,
-			"orgId":      entityState.OrgID,
-			"name":       entityState.Name,
-			"entityType": entityState.EntityType,
-			"status":     entityState.Status,
-			"isLive":     entityState.IsLive,
-		}
-		// Position is critical for map view
-		if entityState.Position != nil && entityState.Position.Global != nil {
-			minimalEntitySignal["lat"] = entityState.Position.Global.Latitude
-			minimalEntitySignal["lng"] = entityState.Position.Global.Longitude
-			minimalEntitySignal["alt"] = entityState.Position.Global.AltitudeMSL
-		}
-		// Include heading for map marker rotation
-		if entityState.VFR != nil {
-			minimalEntitySignal["heading"] = entityState.VFR.Heading
-		}
+		entitySignal := buildEntitySignal(entityID, entityState)
 
 		if err := sse.PatchSignals(map[string]interface{}{
-			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): minimalEntitySignal,
+			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entitySignal,
 		}); err != nil {
 			logger.Debugw("[Map] Failed to patch entity signals, connection may be closed", "entity_id", entityID, "error", err)
 			return
@@ -425,12 +409,13 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 		}
 	}
 
-	// Update total entities signal
-	if err := sse.PatchSignals(map[string]interface{}{
-		"totalEntities": totalEntities,
-		"_isConnected":  true,
-		"lastUpdate":    time.Now().Format("15:04:05"),
-	}); err != nil {
+	// Update total entities signal using typed struct
+	mapSig := signals.MapSignals{
+		TotalEntities: totalEntities,
+		IsConnected:   true,
+		LastUpdate:    time.Now().Format("15:04:05"),
+	}
+	if err := datastar.MarshalAndPatchSignals(sse, mapSig); err != nil {
 		logger.Debugw("[Map] Failed to patch stats signals", "error", err)
 	}
 
@@ -727,3 +712,4 @@ func mapMAVLinkVehicleType(mavType string) string {
 		return shared.EntityTypeAircraftMultirotor // Default fallback
 	}
 }
+

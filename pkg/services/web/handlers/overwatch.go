@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,6 +15,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	common_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	overwatch "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/signals"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
@@ -531,25 +531,12 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			}
 		}
 
-		// Patch Signal with minimal entity metadata (not the full state - that's too large!)
+		// Patch Signal with typed entity metadata (not the full state - that's too large!)
 		// The full entity data is already rendered server-side in the card HTML
-		minimalEntitySignal := map[string]interface{}{
-			"entityId":   entityID,
-			"orgId":      entityState.OrgID,
-			"name":       entityState.Name,
-			"entityType": entityState.EntityType,
-			"status":     entityState.Status,
-			"isLive":     entityState.IsLive,
-		}
-		// Add position if available (for map integration)
-		if entityState.Position != nil && entityState.Position.Global != nil {
-			minimalEntitySignal["lat"] = entityState.Position.Global.Latitude
-			minimalEntitySignal["lng"] = entityState.Position.Global.Longitude
-			minimalEntitySignal["alt"] = entityState.Position.Global.AltitudeMSL
-		}
+		entitySignal := buildEntitySignal(entityID, entityState)
 
 		if err := sse.PatchSignals(map[string]interface{}{
-			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): minimalEntitySignal,
+			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entitySignal,
 		}); err != nil {
 			logger.Debugw("Failed to patch entity signals, connection may be closed", "entity_id", entityID, "error", err)
 			return
@@ -594,15 +581,18 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		totalOrgs := len(orgs)
 
 		// Compute analytics from the current snapshot
-		analytics := h.computeAnalytics(snapshot)
+		analytics := h.computeAnalyticsTyped(snapshot)
 
-		if err := sse.PatchSignals(map[string]interface{}{
-			"lastUpdate":    time.Now().Format("15:04:05"),
-			"totalEntities": totalEntities,
-			"totalOrgs":     totalOrgs,
-			"_isConnected":  true,
-			"analytics":     analytics,
-		}); err != nil {
+		// Use typed dashboard signals
+		dashboardSig := signals.DashboardSignals{
+			LastUpdate:    time.Now().Format("15:04:05"),
+			TotalEntities: totalEntities,
+			TotalOrgs:     totalOrgs,
+			IsConnected:   true,
+			Analytics:     analytics,
+		}
+
+		if err := datastar.MarshalAndPatchSignals(sse, dashboardSig); err != nil {
 			logger.Debugw("Failed to patch final signals, connection may be closed", "error", err)
 			return
 		}
@@ -618,98 +608,6 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				flusher.Flush()
 			}
 		}()
-	}
-}
-
-// computeAnalytics computes aggregated analytics from entity states
-func (h *OverwatchHandler) computeAnalytics(entities []shared.EntityState) map[string]interface{} {
-	typeCounts := make(map[string]int)
-	statusCounts := map[string]int{
-		"active":      0,
-		"maintenance": 0,
-		"unknown":     0,
-	}
-	activeThreats := 0
-	criticalThreats := 0
-	highThreats := 0
-	trackedObjects := 0
-	activeDetections := 0
-
-	for _, entity := range entities {
-		// Count by entity type
-		if entity.EntityType != "" {
-			typeCounts[entity.EntityType]++
-		} else {
-			typeCounts["unknown"]++
-		}
-
-		// Count by status
-		switch entity.Status {
-		case "active", "online", "connected":
-			statusCounts["active"]++
-		case "maintenance", "offline", "disconnected":
-			statusCounts["maintenance"]++
-		default:
-			statusCounts["unknown"]++
-		}
-
-		// Aggregate threat data
-		if entity.Analytics != nil {
-			activeThreats += entity.Analytics.ActiveThreatCount
-
-			// Count by threat distribution
-			if entity.Analytics.ThreatDistribution != nil {
-				if count, ok := entity.Analytics.ThreatDistribution["critical"]; ok {
-					criticalThreats += count
-				}
-				if count, ok := entity.Analytics.ThreatDistribution["HIGH_THREAT"]; ok {
-					highThreats += count
-				}
-				if count, ok := entity.Analytics.ThreatDistribution["high"]; ok {
-					highThreats += count
-				}
-			}
-		}
-
-		if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
-			activeThreats += entity.ThreatIntel.ThreatSummary.TotalThreats
-		}
-
-		// Aggregate vision/detection data
-		if entity.Detections != nil {
-			for _, obj := range entity.Detections.TrackedObjects {
-				trackedObjects++
-				if obj.IsActive {
-					activeDetections++
-				}
-			}
-		}
-
-		if entity.Analytics != nil {
-			// Use analytics counts if no detections
-			if trackedObjects == 0 {
-				trackedObjects = entity.Analytics.TrackedObjectsCount
-			}
-			if activeDetections == 0 {
-				activeDetections = entity.Analytics.ActiveObjectsCount
-			}
-		}
-	}
-
-	return map[string]interface{}{
-		"typeCounts":   typeCounts,
-		"statusCounts": statusCounts,
-		"threats": map[string]interface{}{
-			"active": activeThreats,
-			"priority": map[string]int{
-				"critical": criticalThreats,
-				"high":     highThreats,
-			},
-		},
-		"vision": map[string]interface{}{
-			"tracked":    trackedObjects,
-			"detections": activeDetections,
-		},
 	}
 }
 
@@ -1270,285 +1168,120 @@ func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data m
 	}
 }
 
-// mergeMAVLinkHeartbeat merges heartbeat data into VehicleStatus
-func (h *OverwatchHandler) mergeMAVLinkHeartbeat(state *shared.EntityState, data map[string]interface{}) {
-	if state.VehicleStatus == nil {
-		state.VehicleStatus = &shared.VehicleStatusState{}
+// buildEntitySignal creates a typed EntitySignal from EntityState.
+// This extracts minimal metadata for frontend signals (position, status, etc.)
+// while the full entity data is rendered server-side in the card HTML.
+func buildEntitySignal(entityID string, state shared.EntityState) signals.EntitySignal {
+	sig := signals.EntitySignal{
+		EntityID:   entityID,
+		OrgID:      state.OrgID,
+		Name:       state.Name,
+		EntityType: state.EntityType,
+		Status:     state.Status,
+		IsLive:     state.IsLive,
 	}
 
-	if mode, ok := data["mode"].(string); ok {
-		state.VehicleStatus.Mode = mode
-	}
-	if armed, ok := data["armed"].(bool); ok {
-		state.VehicleStatus.Armed = armed
-	}
-	if autopilot, ok := data["autopilot"].(float64); ok {
-		state.VehicleStatus.Autopilot = uint8(autopilot)
-	}
-	if systemStatus, ok := data["system_status"].(float64); ok {
-		state.VehicleStatus.SystemStatus = uint8(systemStatus)
-	}
-	if customMode, ok := data["custom_mode"].(float64); ok {
-		state.VehicleStatus.CustomMode = uint32(customMode)
-	}
-	if vehicleType, ok := data["type"].(float64); ok {
-		state.VehicleStatus.VehicleType = uint8(vehicleType)
+	// Add position if available (for map integration)
+	if state.Position != nil && state.Position.Global != nil {
+		sig.Lat = state.Position.Global.Latitude
+		sig.Lng = state.Position.Global.Longitude
+		sig.Alt = state.Position.Global.AltitudeMSL
 	}
 
-	// Extract SystemID and ComponentID from mavlink2constellation data
-	if systemID, ok := data["system_id"].(float64); ok {
-		state.SystemID = uint8(systemID)
-	}
-	if componentID, ok := data["component_id"].(float64); ok {
-		state.ComponentID = uint8(componentID)
+	// Add heading if available (for map marker rotation)
+	if state.VFR != nil {
+		sig.Heading = state.VFR.Heading
 	}
 
-	if timestamp, ok := data["timestamp"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-			state.VehicleStatus.Timestamp = ts
-		}
-	}
-
-	logger.Debugw("[Overwatch] Merged MAVLink heartbeat", "entity_id", state.EntityID, "mode", state.VehicleStatus.Mode, "armed", state.VehicleStatus.Armed, "system_id", state.SystemID, "component_id", state.ComponentID)
+	return sig
 }
 
-// mergeMAVLinkPosition merges GPS position data
-func (h *OverwatchHandler) mergeMAVLinkPosition(state *shared.EntityState, data map[string]interface{}) {
-	if state.Position == nil {
-		state.Position = &shared.PositionState{}
+// computeAnalyticsTyped computes aggregated analytics from entity states using typed signals.
+func (h *OverwatchHandler) computeAnalyticsTyped(entities []shared.EntityState) signals.AnalyticsSignals {
+	typeCounts := make(map[string]int)
+	statusCounts := map[string]int{
+		"active":      0,
+		"maintenance": 0,
+		"unknown":     0,
 	}
-	if state.Position.Global == nil {
-		state.Position.Global = &shared.GlobalPosition{}
-	}
+	activeThreats := 0
+	criticalThreats := 0
+	highThreats := 0
+	trackedObjects := 0
+	activeDetections := 0
 
-	if lat, ok := data["latitude"].(float64); ok {
-		state.Position.Global.Latitude = lat
-	}
-	if lon, ok := data["longitude"].(float64); ok {
-		state.Position.Global.Longitude = lon
-	}
-	if alt, ok := data["altitude"].(float64); ok {
-		state.Position.Global.AltitudeMSL = alt
-	}
-	if sats, ok := data["satellites"].(float64); ok {
-		state.Position.Global.SatellitesVisible = int(sats)
-	}
-	if fixType, ok := data["fix_type"].(float64); ok {
-		state.Position.Global.FixType = int(fixType)
-	}
-
-	if timestamp, ok := data["timestamp"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-			state.Position.Global.Timestamp = ts
-		}
-	}
-
-	logger.Debugw("[Overwatch] Merged MAVLink position", "entity_id", state.EntityID, "lat", state.Position.Global.Latitude, "lon", state.Position.Global.Longitude)
-}
-
-// mergeMAVLinkPower merges battery/power data
-func (h *OverwatchHandler) mergeMAVLinkPower(state *shared.EntityState, data map[string]interface{}) {
-	if state.Power == nil {
-		state.Power = &shared.PowerState{}
-	}
-
-	if voltage, ok := data["voltage"].(float64); ok {
-		state.Power.Voltage = voltage
-	}
-	if current, ok := data["current"].(float64); ok {
-		state.Power.Current = current
-	}
-	if remaining, ok := data["battery_remaining"].(float64); ok {
-		state.Power.BatteryRemain = int8(remaining)
-	}
-
-	if timestamp, ok := data["timestamp"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-			state.Power.Timestamp = ts
-		}
-	}
-
-	logger.Debugw("[Overwatch] Merged MAVLink power", "entity_id", state.EntityID, "voltage", state.Power.Voltage, "battery", state.Power.BatteryRemain)
-}
-
-// mergeMAVLinkAttitude merges attitude (orientation) data - handles both Euler and Quaternion
-func (h *OverwatchHandler) mergeMAVLinkAttitude(state *shared.EntityState, data map[string]interface{}) {
-	if state.Attitude == nil {
-		state.Attitude = &shared.AttitudeState{}
-	}
-
-	// Handle Euler angles (roll, pitch, yaw)
-	if roll, hasRoll := data["roll"].(float64); hasRoll {
-		if state.Attitude.Euler == nil {
-			state.Attitude.Euler = &shared.EulerAttitude{}
-		}
-		state.Attitude.Euler.Roll = roll
-
-		if pitch, ok := data["pitch"].(float64); ok {
-			state.Attitude.Euler.Pitch = pitch
-		}
-		if yaw, ok := data["yaw"].(float64); ok {
-			state.Attitude.Euler.Yaw = yaw
-		}
-		if rollspeed, ok := data["rollspeed"].(float64); ok {
-			state.Attitude.Euler.RollSpeed = rollspeed
-		}
-		if pitchspeed, ok := data["pitchspeed"].(float64); ok {
-			state.Attitude.Euler.PitchSpeed = pitchspeed
-		}
-		if yawspeed, ok := data["yawspeed"].(float64); ok {
-			state.Attitude.Euler.YawSpeed = yawspeed
+	for _, entity := range entities {
+		// Count by entity type
+		if entity.EntityType != "" {
+			typeCounts[entity.EntityType]++
+		} else {
+			typeCounts["unknown"]++
 		}
 
-		if timestamp, ok := data["timestamp"].(string); ok {
-			if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-				state.Attitude.Euler.Timestamp = ts
+		// Count by status
+		switch entity.Status {
+		case "active", "online", "connected":
+			statusCounts["active"]++
+		case "maintenance", "offline", "disconnected":
+			statusCounts["maintenance"]++
+		default:
+			statusCounts["unknown"]++
+		}
+
+		// Aggregate threat data
+		if entity.Analytics != nil {
+			activeThreats += entity.Analytics.ActiveThreatCount
+
+			if entity.Analytics.ThreatDistribution != nil {
+				if count, ok := entity.Analytics.ThreatDistribution["critical"]; ok {
+					criticalThreats += count
+				}
+				if count, ok := entity.Analytics.ThreatDistribution["HIGH_THREAT"]; ok {
+					highThreats += count
+				}
+				if count, ok := entity.Analytics.ThreatDistribution["high"]; ok {
+					highThreats += count
+				}
 			}
 		}
 
-		logger.Debugw("[Overwatch] Merged MAVLink Euler attitude", "entity_id", state.EntityID, "roll", state.Attitude.Euler.Roll, "pitch", state.Attitude.Euler.Pitch, "yaw", state.Attitude.Euler.Yaw)
-	}
-
-	// Handle Quaternion data (q1, q2, q3, q4)
-	if q1, hasQ1 := data["q1"].(float64); hasQ1 {
-		if state.Attitude.Quaternion == nil {
-			state.Attitude.Quaternion = &shared.QuaternionAttitude{}
-		}
-		state.Attitude.Quaternion.Q1 = q1
-
-		if q2, ok := data["q2"].(float64); ok {
-			state.Attitude.Quaternion.Q2 = q2
-		}
-		if q3, ok := data["q3"].(float64); ok {
-			state.Attitude.Quaternion.Q3 = q3
-		}
-		if q4, ok := data["q4"].(float64); ok {
-			state.Attitude.Quaternion.Q4 = q4
-		}
-		if rollspeed, ok := data["rollspeed"].(float64); ok {
-			state.Attitude.Quaternion.RollSpeed = rollspeed
-		}
-		if pitchspeed, ok := data["pitchspeed"].(float64); ok {
-			state.Attitude.Quaternion.PitchSpeed = pitchspeed
-		}
-		if yawspeed, ok := data["yawspeed"].(float64); ok {
-			state.Attitude.Quaternion.YawSpeed = yawspeed
+		if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
+			activeThreats += entity.ThreatIntel.ThreatSummary.TotalThreats
 		}
 
-		if timestamp, ok := data["timestamp"].(string); ok {
-			if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-				state.Attitude.Quaternion.Timestamp = ts
+		// Aggregate vision/detection data
+		if entity.Detections != nil {
+			for _, obj := range entity.Detections.TrackedObjects {
+				trackedObjects++
+				if obj.IsActive {
+					activeDetections++
+				}
 			}
 		}
 
-		// Convert quaternion to Euler for display purposes
-		h.convertQuaternionToEuler(state)
-
-		logger.Debugw("[Overwatch] Merged MAVLink Quaternion attitude", "entity_id", state.EntityID, "q1", state.Attitude.Quaternion.Q1, "q2", state.Attitude.Quaternion.Q2, "q3", state.Attitude.Quaternion.Q3, "q4", state.Attitude.Quaternion.Q4)
-	}
-}
-
-// mergeMAVLinkStatus merges system status data
-func (h *OverwatchHandler) mergeMAVLinkStatus(state *shared.EntityState, data map[string]interface{}) {
-	if state.VehicleStatus == nil {
-		state.VehicleStatus = &shared.VehicleStatusState{}
-	}
-
-	if load, ok := data["load"].(float64); ok {
-		state.VehicleStatus.Load = uint16(load)
-	}
-	if sensorsEnabled, ok := data["sensors_enabled"].(float64); ok {
-		state.VehicleStatus.SensorsEnabled = uint32(sensorsEnabled)
-	}
-	if sensorsHealth, ok := data["sensors_health"].(float64); ok {
-		state.VehicleStatus.SensorsHealth = uint32(sensorsHealth)
-	}
-
-	if timestamp, ok := data["timestamp"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-			state.VehicleStatus.Timestamp = ts
+		if entity.Analytics != nil {
+			if trackedObjects == 0 {
+				trackedObjects = entity.Analytics.TrackedObjectsCount
+			}
+			if activeDetections == 0 {
+				activeDetections = entity.Analytics.ActiveObjectsCount
+			}
 		}
 	}
 
-	logger.Debugw("[Overwatch] Merged MAVLink status", "entity_id", state.EntityID, "load", state.VehicleStatus.Load)
-}
-
-// mergeMAVLinkFlight merges VFR_HUD flight data
-func (h *OverwatchHandler) mergeMAVLinkFlight(state *shared.EntityState, data map[string]interface{}) {
-	if state.VFR == nil {
-		state.VFR = &shared.VFRState{}
+	return signals.AnalyticsSignals{
+		TypeCounts:   typeCounts,
+		StatusCounts: statusCounts,
+		Threats: signals.ThreatSignals{
+			Active: activeThreats,
+			Priority: signals.ThreatPriorityData{
+				Critical: criticalThreats,
+				High:     highThreats,
+			},
+		},
+		Vision: signals.VisionSignals{
+			Tracked:    trackedObjects,
+			Detections: activeDetections,
+		},
 	}
-
-	if airspeed, ok := data["airspeed"].(float64); ok {
-		state.VFR.Airspeed = airspeed
-	}
-	if groundspeed, ok := data["groundspeed"].(float64); ok {
-		state.VFR.Groundspeed = groundspeed
-	}
-	if heading, ok := data["heading"].(float64); ok {
-		state.VFR.Heading = int16(heading)
-	}
-	if climb, ok := data["climb"].(float64); ok {
-		state.VFR.ClimbRate = climb
-	}
-	if throttle, ok := data["throttle"].(float64); ok {
-		state.VFR.Throttle = uint16(throttle)
-	}
-	if alt, ok := data["alt"].(float64); ok {
-		state.VFR.Altitude = alt
-	}
-
-	if timestamp, ok := data["timestamp"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, timestamp); err == nil {
-			state.VFR.Timestamp = ts
-		}
-	}
-
-	logger.Debugw("[Overwatch] Merged MAVLink flight", "entity_id", state.EntityID, "airspeed", state.VFR.Airspeed, "groundspeed", state.VFR.Groundspeed, "heading", state.VFR.Heading)
-}
-
-// convertQuaternionToEuler converts quaternion attitude to Euler angles for display
-func (h *OverwatchHandler) convertQuaternionToEuler(state *shared.EntityState) {
-	if state.Attitude == nil || state.Attitude.Quaternion == nil {
-		return
-	}
-
-	q := state.Attitude.Quaternion
-
-	// Ensure Euler structure exists
-	if state.Attitude.Euler == nil {
-		state.Attitude.Euler = &shared.EulerAttitude{}
-	}
-
-	// Convert quaternion to Euler angles (roll, pitch, yaw)
-	// Standard aerospace/MAVLink quaternion to Euler conversion
-	q1, q2, q3, q4 := q.Q1, q.Q2, q.Q3, q.Q4
-
-	// Roll (x-axis rotation)
-	sinr_cosp := 2 * (q4*q1 + q2*q3)
-	cosr_cosp := 1 - 2*(q1*q1+q2*q2)
-	roll := math.Atan2(sinr_cosp, cosr_cosp)
-
-	// Pitch (y-axis rotation)
-	sinp := 2 * (q4*q2 - q3*q1)
-	var pitch float64
-	if math.Abs(sinp) >= 1 {
-		pitch = math.Copysign(math.Pi/2, sinp) // use 90 degrees if out of range
-	} else {
-		pitch = math.Asin(sinp)
-	}
-
-	// Yaw (z-axis rotation)
-	siny_cosp := 2 * (q4*q3 + q1*q2)
-	cosy_cosp := 1 - 2*(q2*q2+q3*q3)
-	yaw := math.Atan2(siny_cosp, cosy_cosp)
-
-	state.Attitude.Euler.Roll = roll
-	state.Attitude.Euler.Pitch = pitch
-	state.Attitude.Euler.Yaw = yaw
-	state.Attitude.Euler.Timestamp = q.Timestamp
-
-	logger.Debugw("[Overwatch] Converted quaternion to Euler", "entity_id", state.EntityID,
-		"roll_rad", roll, "pitch_rad", pitch, "yaw_rad", yaw,
-		"roll_deg", roll*180/math.Pi, "pitch_deg", pitch*180/math.Pi, "yaw_deg", yaw*180/math.Pi)
 }

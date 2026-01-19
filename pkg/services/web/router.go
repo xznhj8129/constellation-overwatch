@@ -7,6 +7,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/dev"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/handlers"
 )
 
@@ -43,6 +44,12 @@ func NewRouter(
 
 	// Auth routes (no auth required)
 	mux.HandleFunc("/login", authHandler.HandleLogin)
+
+	// Development-only routes (hot reload)
+	if dev.IsDev() {
+		hotReload := dev.NewHotReload()
+		hotReload.SetupRoutes(mux)
+	}
 
 	// Helper to wrap handlers with session auth (defined early for pprof)
 	protect := func(h http.HandlerFunc) http.Handler {
