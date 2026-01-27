@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a title="Build Status" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/actions"><img src="https://img.shields.io/github/actions/workflow/status/Constellation-Overwatch/constellation-overwatch/go.yml?style=flat-square"></a>
+  <a title="Release" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/Constellation-Overwatch/constellation-overwatch/release.yml?style=flat-square&label=release"></a>
   <a title="Go Report Card" target="_blank" href="https://goreportcard.com/report/github.com/Constellation-Overwatch/constellation-overwatch"><img src="https://goreportcard.com/badge/github.com/Constellation-Overwatch/constellation-overwatch?style=flat-square"></a>
   <a title="Go Version" target="_blank" href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/Constellation-Overwatch/constellation-overwatch?style=flat-square"></a>
   <a title="License" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/blob/main/LICENSE"><img src="http://img.shields.io/badge/license-MIT-orange.svg?style=flat-square"></a>
