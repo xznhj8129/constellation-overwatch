@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  Open source Edge C4ISR Server Mesh for drone/robotic communication, telemetry streaming, and real-time command & control.
+  Open Source C4 for the Industrial Edge — Data Fabric & Toolbelt for Agentic Drones, Robots, Sensors, and Video Streams
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 
 ## About
 
-Constellation Overwatch is a distributed, event-driven C4ISR (Command, Control, Communications, and Intelligence) server mesh for managing fleets of autonomous systems including drones, robots, IoT sensors, and edge computing devices. Built on NATS JetStream for reliable, low-latency messaging with atomic operations and durable streams.
+Constellation Overwatch is a rapid response industrial data stack designed with ontological data primitives. Use `entity_id` to stream real-time signal trees for vendor agnostic swarm orchestration research and deployment. Built on NATS JetStream for reliable, low-latency messaging with atomic operations and durable streams.
 
 > **⚠️ Warning:** This software is under active development. While functional, it may contain bugs and undergo breaking changes. Use caution with production deployments and ensure you have proper backups.
 
