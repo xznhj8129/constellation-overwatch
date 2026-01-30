@@ -33,9 +33,11 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
 	// Send initial connection signal using typed struct
-	datastar.MarshalAndPatchSignals(sse, signals.ConnectionSignal{
+	if err := datastar.MarshalAndPatchSignals(sse, signals.ConnectionSignal{
 		IsConnected: true,
-	})
+	}); err != nil {
+		return
+	}
 
 	for {
 		select {
@@ -85,7 +87,9 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			datastar.MarshalAndPatchSignals(sse, sig)
+			if err := datastar.MarshalAndPatchSignals(sse, sig); err != nil {
+				return
+			}
 		}
 	}
 }

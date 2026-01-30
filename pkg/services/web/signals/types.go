@@ -44,12 +44,14 @@ type EntitySignal struct {
 	IsLive     bool   `json:"isLive"`
 
 	// Position (for map integration)
-	Lat float64 `json:"lat,omitempty"`
-	Lng float64 `json:"lng,omitempty"`
-	Alt float64 `json:"alt,omitempty"`
+	// Using pointers to distinguish between "not set" and "set to zero" (equator/prime meridian)
+	Lat *float64 `json:"lat,omitempty"`
+	Lng *float64 `json:"lng,omitempty"`
+	Alt *float64 `json:"alt,omitempty"`
 
 	// Heading (for map marker rotation)
-	Heading int16 `json:"heading,omitempty"`
+	// Using pointer to distinguish between "not set" and "heading 0 (north)"
+	Heading *int16 `json:"heading,omitempty"`
 }
 
 // AnalyticsSignals represents aggregated analytics data.

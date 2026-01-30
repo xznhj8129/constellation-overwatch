@@ -93,10 +93,10 @@ func (h *HotReload) SetupRoutes(mux *http.ServeMux) {
 }
 
 // IsDev returns true if the application is running in development mode.
-// Checks GO_ENV environment variable.
+// Checks GO_ENV environment variable. Requires explicit "development" or "dev" value.
 func IsDev() bool {
 	env := os.Getenv("GO_ENV")
-	return env == "" || env == "development"
+	return env == "development" || env == "dev"
 }
 
 // DevReloadScript returns the Datastar attribute for hot reload.

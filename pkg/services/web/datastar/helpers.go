@@ -2,6 +2,9 @@ package datastar
 
 import (
 	"fmt"
+	"net/url"
+	"sort"
+	"strings"
 
 	ds "github.com/starfederation/datastar-go/datastar"
 )
@@ -31,29 +34,38 @@ var (
 
 // GetSSEWithQuery generates a GET SSE call with query parameters.
 // Example: GetSSEWithQuery("/api/data", "filter", "active") -> "@get('/api/data?filter=active')"
-func GetSSEWithQuery(url string, key, value string) string {
-	return fmt.Sprintf("@get('%s?%s=%s')", url, key, value)
+// Parameters are URL-encoded to prevent injection.
+func GetSSEWithQuery(baseURL string, key, value string) string {
+	return fmt.Sprintf("@get('%s?%s=%s')", baseURL, url.QueryEscape(key), url.QueryEscape(value))
 }
 
 // GetSSEWithParams generates a GET SSE call with multiple query parameters.
 // Example: GetSSEWithParams("/api/data", map[string]string{"filter": "active", "limit": "10"})
-func GetSSEWithParams(url string, params map[string]string) string {
+// Parameters are URL-encoded and sorted by key for deterministic output.
+func GetSSEWithParams(baseURL string, params map[string]string) string {
 	if len(params) == 0 {
-		return ds.GetSSE(url)
+		return ds.GetSSE(baseURL)
 	}
 
-	query := ""
-	first := true
-	for k, v := range params {
-		if first {
-			query += "?"
-			first = false
-		} else {
-			query += "&"
-		}
-		query += k + "=" + v
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
 	}
-	return fmt.Sprintf("@get('%s%s')", url, query)
+	sort.Strings(keys)
+
+	// Build query string with URL encoding
+	var query strings.Builder
+	query.WriteString("?")
+	for i, k := range keys {
+		if i > 0 {
+			query.WriteString("&")
+		}
+		query.WriteString(url.QueryEscape(k))
+		query.WriteString("=")
+		query.WriteString(url.QueryEscape(params[k]))
+	}
+	return fmt.Sprintf("@get('%s%s')", baseURL, query.String())
 }
 
 // SSEWithIndicator wraps an SSE call with a loading indicator signal.
@@ -86,8 +98,12 @@ func PutSSEForm(url string) string {
 
 // DeleteSSEWithConfirm generates a DELETE SSE call with a confirmation dialog.
 // Example: DeleteSSEWithConfirm("/api/items/123", "Are you sure?")
-func DeleteSSEWithConfirm(url string, message string) string {
-	return fmt.Sprintf("if (confirm('%s')) @delete('%s')", message, url)
+// The message is escaped for safe use in JavaScript strings.
+func DeleteSSEWithConfirm(deleteURL string, message string) string {
+	// Escape single quotes and backslashes in the message for JS string safety
+	escapedMsg := strings.ReplaceAll(message, `\`, `\\`)
+	escapedMsg = strings.ReplaceAll(escapedMsg, `'`, `\'`)
+	return fmt.Sprintf("if (confirm('%s')) @delete('%s')", escapedMsg, deleteURL)
 }
 
 // GetSSEWithRetry generates a GET SSE call with retry options for reliable connections.

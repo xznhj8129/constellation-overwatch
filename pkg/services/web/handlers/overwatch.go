@@ -1182,15 +1182,21 @@ func buildEntitySignal(entityID string, state shared.EntityState) signals.Entity
 	}
 
 	// Add position if available (for map integration)
+	// Using pointers to correctly represent zero values (equator/prime meridian)
 	if state.Position != nil && state.Position.Global != nil {
-		sig.Lat = state.Position.Global.Latitude
-		sig.Lng = state.Position.Global.Longitude
-		sig.Alt = state.Position.Global.AltitudeMSL
+		lat := state.Position.Global.Latitude
+		lng := state.Position.Global.Longitude
+		alt := state.Position.Global.AltitudeMSL
+		sig.Lat = &lat
+		sig.Lng = &lng
+		sig.Alt = &alt
 	}
 
 	// Add heading if available (for map marker rotation)
+	// Using pointer to correctly represent heading 0 (north)
 	if state.VFR != nil {
-		sig.Heading = state.VFR.Heading
+		heading := state.VFR.Heading
+		sig.Heading = &heading
 	}
 
 	return sig
@@ -1249,23 +1255,19 @@ func (h *OverwatchHandler) computeAnalyticsTyped(entities []shared.EntityState) 
 			activeThreats += entity.ThreatIntel.ThreatSummary.TotalThreats
 		}
 
-		// Aggregate vision/detection data
-		if entity.Detections != nil {
+		// Aggregate vision/detection data per entity
+		// Use Detections if present, otherwise fall back to Analytics counts
+		if entity.Detections != nil && len(entity.Detections.TrackedObjects) > 0 {
 			for _, obj := range entity.Detections.TrackedObjects {
 				trackedObjects++
 				if obj.IsActive {
 					activeDetections++
 				}
 			}
-		}
-
-		if entity.Analytics != nil {
-			if trackedObjects == 0 {
-				trackedObjects = entity.Analytics.TrackedObjectsCount
-			}
-			if activeDetections == 0 {
-				activeDetections = entity.Analytics.ActiveObjectsCount
-			}
+		} else if entity.Analytics != nil {
+			// Only use Analytics counts if Detections not available for this entity
+			trackedObjects += entity.Analytics.TrackedObjectsCount
+			activeDetections += entity.Analytics.ActiveObjectsCount
 		}
 	}
 
