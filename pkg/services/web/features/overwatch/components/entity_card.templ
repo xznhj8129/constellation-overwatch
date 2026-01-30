@@ -21,10 +21,15 @@ func getEntityIcon(entityType string) string {
 	icons := map[string]string{
 		"aircraft_vtol":       "🚁",
 		"aircraft_multirotor": "🚁",
+		"aircraft_airship":    "🎈",
+		"aircraft_fixedwing":  "✈️",
 		"ground_vehicle":      "🚗",
+		"ground_robot":        "🤖",
 		"sensor_fixed":        "📡",
 		"control_station":     "🖥️",
 		"sensor":              "📡",
+		"vessel":              "🚢",
+		"submarine":           "🛟",
 	}
 	if icon, ok := icons[entityType]; ok {
 		return icon
