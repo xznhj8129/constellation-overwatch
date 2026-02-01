@@ -8,6 +8,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	metrics_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/metrics/pages"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/signals"
 )
 
 // MetricsHandler handles metrics-related HTTP requests
@@ -16,26 +17,6 @@ type MetricsHandler struct{}
 // NewMetricsHandler creates a new metrics handler
 func NewMetricsHandler() *MetricsHandler {
 	return &MetricsHandler{}
-}
-
-// MetricsSignals represents the signals sent to the frontend
-type MetricsSignals struct {
-	// Runtime metrics
-	MemTotal      uint64 `json:"memTotal"`
-	MemAlloc      uint64 `json:"memAlloc"`
-	MemHeapAlloc  uint64 `json:"memHeapAlloc"`
-	MemHeapSys    uint64 `json:"memHeapSys"`
-	MemStackInUse uint64 `json:"memStackInUse"`
-	NumGoroutines int    `json:"numGoroutines"`
-	NumCPU        int    `json:"numCPU"`
-	NumGC         uint32 `json:"numGC"`
-	GCPauseNs     uint64 `json:"gcPauseNs"`
-
-	// Custom metrics
-	HTTPRequestsTotal float64 `json:"httpRequestsTotal"`
-
-	// Metadata
-	Timestamp string `json:"timestamp"`
 }
 
 // HandleSSE streams metrics via Server-Sent Events using Datastar
@@ -51,10 +32,12 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 
 	sse := datastar.NewServerSentEventGenerator(w, r)
 
-	// Send initial connection signal
-	sse.PatchSignals(map[string]interface{}{
-		"_isConnected": true,
-	})
+	// Send initial connection signal using typed struct
+	if err := datastar.MarshalAndPatchSignals(sse, signals.ConnectionSignal{
+		IsConnected: true,
+	}); err != nil {
+		return
+	}
 
 	for {
 		select {
@@ -65,21 +48,20 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 			var m runtime.MemStats
 			runtime.ReadMemStats(&m)
 
-			// Build signals map
-			signals := map[string]interface{}{
-				// Runtime metrics
-				"memTotal":      m.Sys,
-				"memAlloc":      m.Alloc,
-				"memHeapAlloc":  m.HeapAlloc,
-				"memHeapSys":    m.HeapSys,
-				"memStackInUse": m.StackInuse,
-				"numGoroutines": runtime.NumGoroutine(),
-				"numCPU":        runtime.NumCPU(),
-				"numGC":         m.NumGC,
-				"gcPauseNs":            m.PauseNs[(m.NumGC+255)%256],
-				"httpRequestsTotal":    0,
-				"httpRequestsInFlight": 0,
-				"timestamp":            time.Now().Format("15:04:05"),
+			// Build typed signals struct
+			sig := signals.MetricsSignals{
+				MemTotal:             m.Sys,
+				MemAlloc:             m.Alloc,
+				MemHeapAlloc:         m.HeapAlloc,
+				MemHeapSys:           m.HeapSys,
+				MemStackInUse:        m.StackInuse,
+				NumGoroutines:        runtime.NumGoroutine(),
+				NumCPU:               runtime.NumCPU(),
+				NumGC:                m.NumGC,
+				GCPauseNs:            m.PauseNs[(m.NumGC+255)%256],
+				HTTPRequestsTotal:    0,
+				HTTPRequestsInFlight: 0,
+				Timestamp:            time.Now().Format("15:04:05"),
 			}
 
 			// Add custom metrics from Prometheus registry
@@ -95,17 +77,19 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 								total += metric.GetCounter().GetValue()
 							}
 						}
-						signals["httpRequestsTotal"] = total
+						sig.HTTPRequestsTotal = total
 					}
 					if name == "overwatch_http_requests_in_flight" {
 						if len(mf.GetMetric()) > 0 && mf.GetMetric()[0].GetGauge() != nil {
-							signals["httpRequestsInFlight"] = mf.GetMetric()[0].GetGauge().GetValue()
+							sig.HTTPRequestsInFlight = mf.GetMetric()[0].GetGauge().GetValue()
 						}
 					}
 				}
 			}
 
-			sse.PatchSignals(signals)
+			if err := datastar.MarshalAndPatchSignals(sse, sig); err != nil {
+				return
+			}
 		}
 	}
 }

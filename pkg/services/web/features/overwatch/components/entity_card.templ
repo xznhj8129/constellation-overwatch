@@ -1,344 +1,364 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
+// Helper to serialize entity to JSON for copy functionality
+// Note: templ automatically escapes attribute values, so we return raw JSON
+func entityToJSON(entity shared.EntityState) string {
+	data, err := json.Marshal(entity)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+// Helper to get entity type icon
+func getEntityIcon(entityType string) string {
+	icons := map[string]string{
+		"aircraft_vtol":       "🚁",
+		"aircraft_multirotor": "🚁",
+		"aircraft_airship":    "🎈",
+		"aircraft_fixedwing":  "✈️",
+		"ground_vehicle":      "🚗",
+		"ground_robot":        "🤖",
+		"sensor_fixed":        "📡",
+		"control_station":     "🖥️",
+		"sensor":              "📡",
+		"vessel":              "🚢",
+		"submarine":           "🛟",
+	}
+	if icon, ok := icons[entityType]; ok {
+		return icon
+	}
+	return "📍"
+}
+
 templ EntityCard(entity shared.EntityState) {
-	<div id={ "entity-" + entity.EntityID } class="entity-card" 
-		style={ "border-color: " + 
-			templ.SafeCSSProperty(func() string {
-				if entity.Analytics != nil && entity.Analytics.ActiveThreatCount > 0 {
-					return "#f00"
-				}
-				return "rgba(0, 212, 255, 0.3)"
-			}()) }>
+	<div id={ "entity-" + entity.EntityID } class={ "entity-card entity-card--wide", templ.KV("entity-card--threat", entity.Analytics != nil && entity.Analytics.ActiveThreatCount > 0) } data-entity-json={ entityToJSON(entity) }>
 		<div class="entity-card-inner">
-			<!-- Header -->
+			<!-- Header: Icon, Name, Badges, Key Metrics, Menu -->
 			<div id={ "entity-header-" + entity.EntityID } class="entity-header">
-				<div style="color: #0ff; font-size: 18px; font-weight: bold;">
-					if entity.Name != "" {
-						{ entity.Name }
-					} else {
-						Entity ID: { entity.EntityID }
-					}
-				</div>
-				<div style="color: #888; font-size: 12px;">
-					ID: <span style="color: #fff;">{ entity.EntityID }</span>
-				</div>
-				if entity.DeviceID != "" {
-					<div style="color: #888; font-size: 12px;">
-						Device: <span style="color: #fff;">{ entity.DeviceID }</span>
+				<div class="entity-header__left">
+					<span class="entity-header__icon">{ getEntityIcon(entity.EntityType) }</span>
+					<div class="entity-header__identity">
+						<div class="entity-header__name">
+							if entity.Name != "" {
+								{ entity.Name }
+							} else {
+								{ entity.EntityID[:8] }...
+							}
+						</div>
+						<div class="entity-header__type">{ entity.EntityType }</div>
 					</div>
-				}
-				<div style="color: #888; font-size: 12px;">
-					Status: <span style="color: #0f0;">{ entity.Status }</span>
 				</div>
-				<div style="color: #888; font-size: 12px;">
-					Type: <span style="color: #ff0;">{ entity.EntityType }</span>
-				</div>
-				<!-- MAVLink System Info -->
-				if entity.SystemID != 0 || entity.ComponentID != 0 {
-					<div style="color: #888; font-size: 12px;">
-						MAVLink: <span style="color: #0aa;">{ fmt.Sprintf("%d.%d", entity.SystemID, entity.ComponentID) }</span>
-					</div>
-				}
-			</div>
-			<!-- MAVLink Vehicle Status -->
-			if entity.VehicleStatus != nil {
-				<div id={ "vehicle-status-" + entity.EntityID } class="entity-section">
-					<h4>Vehicle Status</h4>
-					<div class="data-grid">
-						if entity.VehicleStatus.Mode != "" {
-							<div>
-								<span style="color: #888;">Mode:</span>
-								<span style={ "color: " + templ.SafeCSSProperty(func() string {
-									if entity.VehicleStatus.Armed { return "#ff0" }
-									return "#fff"
-								}()) + "; font-weight: bold;" } data-text={ entity.VehicleStatus.Mode }>{ entity.VehicleStatus.Mode }</span>
+				<div class="entity-header__right">
+					<!-- Key metrics strip -->
+					if entity.Power != nil && entity.Power.BatteryRemain > 0 {
+						<div class="metrics-strip">
+							<div class={ "metric-bar", templ.KV("metric-bar--good", entity.Power.BatteryRemain > 50), templ.KV("metric-bar--warn", entity.Power.BatteryRemain <= 50 && entity.Power.BatteryRemain > 20), templ.KV("metric-bar--crit", entity.Power.BatteryRemain <= 20) }>
+								<div class="metric-bar__fill" style={ fmt.Sprintf("width: %d%%", entity.Power.BatteryRemain) }></div>
+								<span class="metric-bar__text">{ fmt.Sprintf("%d%%", entity.Power.BatteryRemain) }</span>
 							</div>
-						}
-						<div>
-							<span style="color: #888;">Armed:</span>
-							<span style={ "color: " + templ.SafeCSSProperty(func() string {
-								if entity.VehicleStatus.Armed { return "#f00" }
-								return "#0f0"
-							}()) + "; font-weight: bold;" } data-text={ func() string {
-								if entity.VehicleStatus.Armed {
-									return "ARMED"
-								}
-								return "DISARMED"
-							}() }>
+							if entity.Power.Voltage > 0 {
+								<span class="metric-value">{ fmt.Sprintf("%.1fV", entity.Power.Voltage) }</span>
+							}
+						</div>
+					}
+					<div class="entity-header__badges">
+						<span class={ "badge", templ.KV("badge-active", entity.Status == "active"), templ.KV("badge-inactive", entity.Status != "active") }>
+							{ entity.Status }
+						</span>
+						if entity.VehicleStatus != nil {
+							<span class={ "badge", templ.KV("badge-armed", entity.VehicleStatus.Armed), templ.KV("badge-disarmed", !entity.VehicleStatus.Armed) }>
 								if entity.VehicleStatus.Armed {
 									ARMED
 								} else {
-									DISARMED
+									SAFE
 								}
 							</span>
+						}
+					</div>
+					<!-- Corner dropdown menu -->
+					<div class="entity-dropdown">
+						<button class="entity-dropdown__trigger" data-entity-id={ entity.EntityID } data-action="toggle-dropdown">
+							<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+								<circle cx="8" cy="3" r="1.5"></circle>
+								<circle cx="8" cy="8" r="1.5"></circle>
+								<circle cx="8" cy="13" r="1.5"></circle>
+							</svg>
+						</button>
+						<div id={ "dropdown-" + entity.EntityID } class="entity-dropdown__menu">
+							<button class="entity-dropdown__item" data-entity-id={ entity.EntityID } data-action="copy-id">
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+								</svg>
+								Copy Entity ID
+							</button>
+							<button class="entity-dropdown__item" data-entity-id={ entity.EntityID } data-org-id={ entity.OrgID } data-action="copy-json">
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+									<polyline points="14 2 14 8 20 8"></polyline>
+								</svg>
+								Copy as JSON
+							</button>
 						</div>
 					</div>
 				</div>
-			}
-			<!-- NEW: Flattened MAVLink Position Data (GlobalPositionInt) -->
-			if entity.Position != nil && entity.Position.Global != nil {
-				<div id={ "position-" + entity.EntityID } class="entity-section">
-					<h4>Position (GlobalPositionInt)</h4>
-					<div class="data-grid">
-						<div>
-							<span style="color: #888;">Latitude:</span>
-							<!-- NEW: Server-rendered with proper unit conversion from degE7 -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.7f°", entity.Position.Global.Latitude) }>{ fmt.Sprintf("%.7f°", entity.Position.Global.Latitude) }</span>
-						</div>
-						<div>
-							<span style="color: #888;">Longitude:</span>
-							<!-- NEW: Server-rendered with proper unit conversion from degE7 -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.7f°", entity.Position.Global.Longitude) }>{ fmt.Sprintf("%.7f°", entity.Position.Global.Longitude) }</span>
-						</div>
-						<div>
-							<span style="color: #888;">Altitude (AMSL):</span>
-							<!-- NEW: Server-rendered with proper unit conversion from mm -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.1fm", entity.Position.Global.AltitudeMSL) }>{ fmt.Sprintf("%.1fm", entity.Position.Global.AltitudeMSL) }</span>
-						</div>
-						if entity.Position.Global.AltitudeRelative != 0 {
-							<div>
-								<span style="color: #888;">Relative Alt:</span>
-								<!-- NEW: Server-rendered with proper unit conversion from mm -->
-								<span style="color: #fff; font-weight: bold;" 
-									data-text={ fmt.Sprintf("%.1fm", entity.Position.Global.AltitudeRelative) }>{ fmt.Sprintf("%.1fm", entity.Position.Global.AltitudeRelative) }</span>
-							</div>
-						}
-						if entity.VFR != nil && entity.VFR.Heading != 0 {
-							<div>
-								<span style="color: #888;">Heading:</span>
-								<!-- NEW: From GlobalPositionInt, server-rendered with proper unit conversion from cDeg -->
-								<span style="color: #fff; font-weight: bold;" 
-									data-text={ fmt.Sprintf("%d°", entity.VFR.Heading) }>{ fmt.Sprintf("%d°", entity.VFR.Heading) }</span>
-							</div>
-						}
-						if entity.Position.Local != nil && (entity.Position.Local.VX != 0 || entity.Position.Local.VY != 0 || entity.Position.Local.VZ != 0) {
-							<div>
-								<span style="color: #888;">Velocity X:</span>
-								<!-- NEW: Server-rendered with proper unit conversion from cm/s -->
-								<span style="color: #fff; font-weight: bold;" 
-									data-text={ fmt.Sprintf("%.2f m/s", entity.Position.Local.VX) }>{ fmt.Sprintf("%.2f m/s", entity.Position.Local.VX) }</span>
-							</div>
-							<div>
-								<span style="color: #888;">Velocity Y:</span>
-								<!-- NEW: Server-rendered with proper unit conversion from cm/s -->
-								<span style="color: #fff; font-weight: bold;" 
-									data-text={ fmt.Sprintf("%.2f m/s", entity.Position.Local.VY) }>{ fmt.Sprintf("%.2f m/s", entity.Position.Local.VY) }</span>
-							</div>
-						}
-					</div>
-				</div>
-			}
-			<!-- NEW: Flattened MAVLink Power & Battery Data -->
-			if entity.Power != nil {
-				<div id={ "power-" + entity.EntityID } class="entity-section">
-					<h4>Power & Battery</h4>
-					<div class="data-grid">
-						if entity.Power.BatteryRemain > 0 {
-							<div>
-								<span style="color: #888;">Battery:</span>
-								<!-- NEW: Direct value in % (already converted by server) -->
-								<span style={ "color: " + templ.SafeCSSProperty(func() string {
-									if entity.Power.BatteryRemain > 50 { return "#0f0" }
-									if entity.Power.BatteryRemain > 20 { return "#ff0" }
-									return "#f00"
-								}()) + "; font-weight: bold;" }
-									data-text={ fmt.Sprintf("%d%%", entity.Power.BatteryRemain) }>{ fmt.Sprintf("%d%%", entity.Power.BatteryRemain) }</span>
-							</div>
-						}
-						if entity.Power.Voltage > 0 {
-							<div>
-								<span style="color: #888;">Voltage:</span>
-								<!-- NEW: Server-rendered with proper unit conversion from mV -->
-								<span style={ "color: " + templ.SafeCSSProperty(func() string {
-									if entity.Power.Voltage > 12.0 { return "#0f0" }
-									if entity.Power.Voltage > 11.0 { return "#ff0" }
-									return "#f00"
-								}()) + "; font-weight: bold;" }
-									data-text={ fmt.Sprintf("%.1fV", entity.Power.Voltage) }>{ fmt.Sprintf("%.1fV", entity.Power.Voltage) }</span>
-							</div>
-						}
-						if entity.VehicleStatus != nil && entity.VehicleStatus.Load > 0 {
-							<div>
-								<span style="color: #888;">CPU Load:</span>
-								<!-- NEW: Server-rendered with proper unit conversion from d% -->
-								<span style={ "color: " + templ.SafeCSSProperty(func() string {
-									load := float64(entity.VehicleStatus.Load) / 10.0
-									if load < 50.0 { return "#0f0" }
-									if load < 80.0 { return "#ff0" }
-									return "#f00"
-								}()) + "; font-weight: bold;" }
-									data-text={ fmt.Sprintf("%.1f%%", float64(entity.VehicleStatus.Load)/10.0) }>{ fmt.Sprintf("%.1f%%", float64(entity.VehicleStatus.Load)/10.0) }</span>
-							</div>
-						}
-					</div>
-				</div>
-			}
-			<!-- NEW: Flattened MAVLink Flight Data (VFR_HUD) -->
-			if entity.VFR != nil {
-				<div id={ "flight-" + entity.EntityID } class="entity-section">
-					<h4>Flight Status (VFR_HUD)</h4>
-					<div class="data-grid">
-						<div>
-							<span style="color: #888;">Ground Speed:</span>
-							<!-- NEW: Direct value in m/s (already converted by server) -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.1f m/s", entity.VFR.Groundspeed) }>{ fmt.Sprintf("%.1f m/s", entity.VFR.Groundspeed) }</span>
-						</div>
-						<div>
-							<span style="color: #888;">Climb Rate:</span>
-							<!-- NEW: Direct value in m/s (already converted by server) -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.1f m/s", entity.VFR.ClimbRate) }>{ fmt.Sprintf("%.1f m/s", entity.VFR.ClimbRate) }</span>
-						</div>
-						if entity.VFR.Throttle > 0 {
-							<div>
-								<span style="color: #888;">Throttle:</span>
-								<!-- NEW: Direct value in % (already converted by server) -->
-								<span style="color: #fff; font-weight: bold;" 
-									data-text={ fmt.Sprintf("%d%%", entity.VFR.Throttle) }>{ fmt.Sprintf("%d%%", entity.VFR.Throttle) }</span>
-							</div>
-						}
-						if entity.VFR.Airspeed > 0 {
-							<div>
-								<span style="color: #888;">Airspeed:</span>
-								<!-- NEW: Direct value in m/s (already converted by server) -->
-								<span style="color: #fff; font-weight: bold;" 
-									data-text={ fmt.Sprintf("%.1f m/s", entity.VFR.Airspeed) }>{ fmt.Sprintf("%.1f m/s", entity.VFR.Airspeed) }</span>
-							</div>
-						}
-					</div>
-				</div>
-			}
-			<!-- NEW: Flattened MAVLink Attitude Data -->
-			if entity.Attitude != nil && entity.Attitude.Euler != nil {
-				<div id={ "attitude-" + entity.EntityID } class="entity-section">
-					<h4>Attitude</h4>
-					<div class="data-grid" style="grid-template-columns: repeat(3, 1fr);">
-						<div>
-							<span style="color: #888;">Pitch:</span>
-							<!-- NEW: Server-rendered with proper unit conversion from radians -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.2f°", entity.Attitude.Euler.Pitch * 180.0 / 3.14159) }>{ fmt.Sprintf("%.2f°", entity.Attitude.Euler.Pitch * 180.0 / 3.14159) }</span>
-						</div>
-						<div>
-							<span style="color: #888;">Roll:</span>
-							<!-- NEW: Server-rendered with proper unit conversion from radians -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.2f°", entity.Attitude.Euler.Roll * 180.0 / 3.14159) }>{ fmt.Sprintf("%.2f°", entity.Attitude.Euler.Roll * 180.0 / 3.14159) }</span>
-						</div>
-						<div>
-							<span style="color: #888;">Yaw:</span>
-							<!-- NEW: Server-rendered with proper unit conversion from radians -->
-							<span style="color: #fff; font-weight: bold;" 
-								data-text={ fmt.Sprintf("%.2f°", entity.Attitude.Euler.Yaw * 180.0 / 3.14159) }>{ fmt.Sprintf("%.2f°", entity.Attitude.Euler.Yaw * 180.0 / 3.14159) }</span>
-						</div>
-					</div>
-				</div>
-			}
-			<!-- Analytics -->
-			if entity.Analytics != nil {
-				<div id={ "analytics-" + entity.EntityID } class="entity-section">
-					<h4>Analytics</h4>
-					<div class="data-grid">
-						<div id={ "analytics-tracked-" + entity.EntityID }>
-							<span style="color: #888;">Tracked:</span>
-							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
-						</div>
-						<div id={ "analytics-active-" + entity.EntityID }>
-							<span style="color: #888;">Active:</span>
-							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.ActiveObjectsCount) }</span>
-						</div>
-						<div id={ "analytics-frames-" + entity.EntityID }>
-							<span style="color: #888;">Frames:</span>
-							<span style="color: #fff; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.TotalFramesProcessed) }</span>
-						</div>
-						<div id={ "analytics-threats-" + entity.EntityID }>
-							<span style="color: #888;">Threats:</span>
-							<span style="color: #f00; font-weight: bold;">{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }</span>
-						</div>
-					</div>
-				</div>
-			}
-			<!-- Tracked Objects -->
-			if entity.Detections != nil && entity.Detections.TrackedObjects != nil && len(entity.Detections.TrackedObjects) > 0 {
-				<div id={ "detections-" + entity.EntityID } class="entity-section">
-					<h4>Tracked Objects</h4>
-					<div class="tracked-objects">
-						for trackID, obj := range entity.Detections.TrackedObjects {
-							if obj.IsActive {
-								<div id={ "track-" + trackID } style="background: #1a1a1a; padding: 10px; margin: 5px 0; border-left: 3px solid #0f0; border-radius: 3px;">
-									<div id={ "track-header-" + trackID } style="display: flex; justify-content: space-between; align-items: center;">
-										<div style="display: flex; align-items: center; gap: 8px;">
-											<span id={ "track-status-" + trackID } style="color: #0f0; font-size: 10px; font-weight: bold; background: #0f03; padding: 2px 6px; border-radius: 3px;">ACTIVE</span>
-											<span id={ "track-label-" + trackID } style="color: #fff; font-weight: bold; font-size: 14px;">{ obj.Label }</span>
+			</div>
+			<!-- Meta row: ID, MAVLink, Mode -->
+			<div class="entity-meta">
+				<span class="entity-meta__item">
+					<span class="label">ID</span>
+					<span class="value value--mono">{ entity.EntityID }</span>
+				</span>
+				if entity.SystemID != 0 || entity.ComponentID != 0 {
+					<span class="entity-meta__item">
+						<span class="label">MAV</span>
+						<span class="value value--mono">{ fmt.Sprintf("%d.%d", entity.SystemID, entity.ComponentID) }</span>
+					</span>
+				}
+				if entity.VehicleStatus != nil && entity.VehicleStatus.Mode != "" {
+					<span class="entity-meta__item">
+						<span class="label">Mode</span>
+						<span class="value value--highlight">{ entity.VehicleStatus.Mode }</span>
+					</span>
+				}
+			</div>
+			<!-- Main content: 2-column wide layout -->
+			<div class="entity-content">
+				<!-- Left Column: Position + Systems -->
+				<div class="entity-col">
+					if entity.Position != nil && entity.Position.Global != nil {
+						<div id={ "position-" + entity.EntityID } class="entity-section entity-section--collapsible">
+							<h4 class="section-header" data-action="toggle-section">
+								<span>Position</span>
+								<svg class="section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polyline points="6 9 12 15 18 9"></polyline>
+								</svg>
+							</h4>
+							<div class="section-content">
+								<div class="data-grid data-grid--2col">
+									<div class="data-item">
+										<span class="label">Lat</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.6f°", entity.Position.Global.Latitude) }</span>
+									</div>
+									<div class="data-item">
+										<span class="label">Lon</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.6f°", entity.Position.Global.Longitude) }</span>
+									</div>
+									<div class="data-item">
+										<span class="label">Alt MSL</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.1fm", entity.Position.Global.AltitudeMSL) }</span>
+									</div>
+									<div class="data-item">
+										<span class="label">Alt AGL</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.1fm", entity.Position.Global.AltitudeRelative) }</span>
+									</div>
+									if entity.VFR != nil {
+										<div class="data-item">
+											<span class="label">Hdg</span>
+											<span class="value value--mono">{ fmt.Sprintf("%d°", entity.VFR.Heading) }</span>
 										</div>
-										<div>
-											<span id={ "track-confidence-" + trackID } style="color: #0f0; margin-left: 10px; font-size: 12px;">
-												{ fmt.Sprintf("%.1f%%", obj.AvgConfidence*100) }
+										<div class="data-item">
+											<span class="label">GndSpd</span>
+											<span class="value value--mono">{ fmt.Sprintf("%.1f m/s", entity.VFR.Groundspeed) }</span>
+										</div>
+									}
+								</div>
+							</div>
+						</div>
+					}
+					if entity.Power != nil || entity.VFR != nil || (entity.VehicleStatus != nil && entity.VehicleStatus.Load > 0) {
+						<div id={ "systems-" + entity.EntityID } class="entity-section entity-section--collapsible">
+							<h4 class="section-header" data-action="toggle-section">
+								<span>Systems</span>
+								<svg class="section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polyline points="6 9 12 15 18 9"></polyline>
+								</svg>
+							</h4>
+							<div class="section-content">
+								<!-- Progress bars for key metrics -->
+								if entity.Power != nil && entity.Power.BatteryRemain > 0 {
+									<div class="progress-item">
+										<div class="progress-header">
+											<span class="label">Battery</span>
+											<span class={ "value", templ.KV("value--good", entity.Power.BatteryRemain > 50), templ.KV("value--warn", entity.Power.BatteryRemain <= 50 && entity.Power.BatteryRemain > 20), templ.KV("value--crit", entity.Power.BatteryRemain <= 20) }>
+												{ fmt.Sprintf("%d%%", entity.Power.BatteryRemain) }
 											</span>
-											<span id={ "track-threat-" + trackID } style="color: #ff0; margin-left: 10px; font-size: 12px; font-weight: bold;">{ obj.ThreatLevel }</span>
+										</div>
+										<div class="progress-bar">
+											<div class={ "progress-bar__fill", templ.KV("progress-bar__fill--good", entity.Power.BatteryRemain > 50), templ.KV("progress-bar__fill--warn", entity.Power.BatteryRemain <= 50 && entity.Power.BatteryRemain > 20), templ.KV("progress-bar__fill--crit", entity.Power.BatteryRemain <= 20) } style={ fmt.Sprintf("width: %d%%", entity.Power.BatteryRemain) }></div>
 										</div>
 									</div>
-									<div id={ "track-meta-" + trackID } style="color: #888; font-size: 11px; margin-top: 5px;">
-										Frames: <span id={ "track-frames-" + trackID } style="color: #fff;">{ fmt.Sprintf("%d", obj.FrameCount) }</span> |
-										Track ID: <span style="color: #0ff;">{ trackID }</span>
+								}
+								if entity.VehicleStatus != nil && entity.VehicleStatus.Load > 0 {
+									<div class="progress-item">
+										<div class="progress-header">
+											<span class="label">CPU Load</span>
+											<span class={ "value", templ.KV("value--good", float64(entity.VehicleStatus.Load)/10.0 < 50), templ.KV("value--warn", float64(entity.VehicleStatus.Load)/10.0 >= 50 && float64(entity.VehicleStatus.Load)/10.0 < 80), templ.KV("value--crit", float64(entity.VehicleStatus.Load)/10.0 >= 80) }>
+												{ fmt.Sprintf("%.0f%%", float64(entity.VehicleStatus.Load)/10.0) }
+											</span>
+										</div>
+										<div class="progress-bar">
+											<div class={ "progress-bar__fill", templ.KV("progress-bar__fill--good", float64(entity.VehicleStatus.Load)/10.0 < 50), templ.KV("progress-bar__fill--warn", float64(entity.VehicleStatus.Load)/10.0 >= 50 && float64(entity.VehicleStatus.Load)/10.0 < 80), templ.KV("progress-bar__fill--crit", float64(entity.VehicleStatus.Load)/10.0 >= 80) } style={ fmt.Sprintf("width: %.0f%%", float64(entity.VehicleStatus.Load)/10.0) }></div>
+										</div>
+									</div>
+								}
+								<div class="data-grid data-grid--2col">
+									if entity.Power != nil && entity.Power.Voltage > 0 {
+										<div class="data-item">
+											<span class="label">Voltage</span>
+											<span class={ "value value--mono", templ.KV("value--good", entity.Power.Voltage > 12.0), templ.KV("value--warn", entity.Power.Voltage <= 12.0 && entity.Power.Voltage > 11.0), templ.KV("value--crit", entity.Power.Voltage <= 11.0) }>
+												{ fmt.Sprintf("%.1fV", entity.Power.Voltage) }
+											</span>
+										</div>
+									}
+									if entity.VFR != nil {
+										<div class="data-item">
+											<span class="label">Climb</span>
+											<span class="value value--mono">{ fmt.Sprintf("%.1f m/s", entity.VFR.ClimbRate) }</span>
+										</div>
+									}
+								</div>
+							</div>
+						</div>
+					}
+				</div>
+				<!-- Right Column: Attitude + Analytics -->
+				<div class="entity-col">
+					if entity.Attitude != nil && entity.Attitude.Euler != nil {
+						<div id={ "attitude-" + entity.EntityID } class="entity-section entity-section--collapsible">
+							<h4 class="section-header" data-action="toggle-section">
+								<span>Attitude</span>
+								<svg class="section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polyline points="6 9 12 15 18 9"></polyline>
+								</svg>
+							</h4>
+							<div class="section-content">
+								<div class="data-grid data-grid--3col">
+									<div class="data-item">
+										<span class="label">Pitch</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.1f°", entity.Attitude.Euler.Pitch * 180.0 / 3.14159) }</span>
+									</div>
+									<div class="data-item">
+										<span class="label">Roll</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.1f°", entity.Attitude.Euler.Roll * 180.0 / 3.14159) }</span>
+									</div>
+									<div class="data-item">
+										<span class="label">Yaw</span>
+										<span class="value value--mono">{ fmt.Sprintf("%.1f°", entity.Attitude.Euler.Yaw * 180.0 / 3.14159) }</span>
 									</div>
 								</div>
-							} else {
-								<div id={ "track-" + trackID } style="background: #0a0a0a; padding: 10px; margin: 5px 0; border-left: 3px solid #444; border-radius: 3px; opacity: 0.7;">
-									<div id={ "track-header-" + trackID } style="display: flex; justify-content: space-between; align-items: center;">
-										<div style="display: flex; align-items: center; gap: 8px;">
-											<span id={ "track-status-" + trackID } style="color: #666; font-size: 10px; font-weight: bold; background: #3333; padding: 2px 6px; border-radius: 3px;">INACTIVE</span>
-											<span id={ "track-label-" + trackID } style="color: #aaa; font-weight: bold; font-size: 14px;">{ obj.Label }</span>
-										</div>
-										<div>
-											<span id={ "track-confidence-" + trackID } style="color: #888; margin-left: 10px; font-size: 12px;">
-												{ fmt.Sprintf("%.1f%%", obj.AvgConfidence*100) }
-											</span>
-											if obj.ThreatLevel == "HIGH_THREAT" {
-												<span id={ "track-threat-" + trackID } style="color: #f88; margin-left: 10px; font-size: 12px; font-weight: bold;">{ obj.ThreatLevel }</span>
+							</div>
+						</div>
+					}
+					if entity.Analytics != nil {
+						<div id={ "analytics-" + entity.EntityID } class="entity-section entity-section--collapsible">
+							<h4 class="section-header" data-action="toggle-section">
+								<span>Analytics</span>
+								if entity.Analytics.ActiveThreatCount > 0 {
+									<span class="section-badge section-badge--threat">{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }</span>
+								}
+								<svg class="section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polyline points="6 9 12 15 18 9"></polyline>
+								</svg>
+							</h4>
+							<div class="section-content">
+								<div class="data-grid data-grid--2col">
+									<div class="data-item" id={ "analytics-tracked-" + entity.EntityID }>
+										<span class="label">Tracked</span>
+										<span class="value value--mono">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
+									</div>
+									<div class="data-item" id={ "analytics-active-" + entity.EntityID }>
+										<span class="label">Active</span>
+										<span class="value value--mono">{ fmt.Sprintf("%d", entity.Analytics.ActiveObjectsCount) }</span>
+									</div>
+									<div class="data-item" id={ "analytics-frames-" + entity.EntityID }>
+										<span class="label">Frames</span>
+										<span class="value value--mono">{ fmt.Sprintf("%d", entity.Analytics.TotalFramesProcessed) }</span>
+									</div>
+									<div class="data-item" id={ "analytics-threats-" + entity.EntityID }>
+										<span class="label">Threats</span>
+										<span class={ "value value--mono", templ.KV("value--crit", entity.Analytics.ActiveThreatCount > 0) }>
+											{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+			<!-- Tracked Objects: Compact collapsible list -->
+			if entity.Detections != nil && entity.Detections.TrackedObjects != nil && len(entity.Detections.TrackedObjects) > 0 {
+				<div id={ "detections-" + entity.EntityID } class="entity-section entity-section--collapsible">
+					<h4 class="section-header" data-action="toggle-section">
+						<span>Detections</span>
+						<span class="section-badge">{ fmt.Sprintf("%d", len(entity.Detections.TrackedObjects)) }</span>
+						<svg class="section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="6 9 12 15 18 9"></polyline>
+						</svg>
+					</h4>
+					<div class="section-content">
+						<div class="track-list">
+							for trackID, obj := range entity.Detections.TrackedObjects {
+								<div id={ "track-" + trackID } class={ "track-item", templ.KV("track-item--active", obj.IsActive), templ.KV("track-item--inactive", !obj.IsActive) }>
+									<div class="track-item__main">
+										<span class={ "track-status", templ.KV("track-status--active", obj.IsActive) }>
+											if obj.IsActive {
+												LIVE
 											} else {
-												<span id={ "track-threat-" + trackID } style="color: #888; margin-left: 10px; font-size: 12px; font-weight: bold;">{ obj.ThreatLevel }</span>
+												-
 											}
-										</div>
+										</span>
+										<span class="track-label">{ obj.Label }</span>
+										<span class="track-conf">{ fmt.Sprintf("%.0f%%", obj.AvgConfidence*100) }</span>
 									</div>
-									<div id={ "track-meta-" + trackID } style="color: #666; font-size: 11px; margin-top: 5px;">
-										Frames: <span id={ "track-frames-" + trackID } style="color: #888;">{ fmt.Sprintf("%d", obj.FrameCount) }</span> |
-										Track ID: <span style="color: #0aa;">{ trackID }</span>
-									</div>
+									<span class={ "track-threat", templ.KV("track-threat--high", obj.ThreatLevel == "HIGH_THREAT"), templ.KV("track-threat--med", obj.ThreatLevel == "MEDIUM_THREAT") }>
+										{ obj.ThreatLevel }
+									</span>
 								</div>
 							}
-						}
-					</div>
-				</div>
-			}
-			<!-- Threat Intelligence -->
-			if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil {
-				<div id={ "threat-intel-" + entity.EntityID } class="entity-section">
-					<h4>Threat Intelligence</h4>
-					<div style="background: #1a1a1a; padding: 15px; border-radius: 3px;">
-						<div style="margin-bottom: 10px;">
-							<span style="color: #888;">Alert Level:</span>
-							<span style="color: #ff0; font-weight: bold; font-size: 16px; margin-left: 10px;">{ entity.ThreatIntel.ThreatSummary.AlertLevel }</span>
-						</div>
-						<div>
-							<span style="color: #888;">Total Threats:</span>
-							<span style="color: #f00; font-weight: bold; font-size: 16px; margin-left: 10px;">{ fmt.Sprintf("%d", entity.ThreatIntel.ThreatSummary.TotalThreats) }</span>
 						</div>
 					</div>
 				</div>
 			}
-			<!-- Footer -->
+			<!-- Threat Intelligence: Alert banner -->
+			if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil && entity.ThreatIntel.ThreatSummary.TotalThreats > 0 {
+				<div id={ "threat-intel-" + entity.EntityID } class="entity-section entity-section--threat">
+					<div class="threat-banner">
+						<span class="threat-banner__level">{ entity.ThreatIntel.ThreatSummary.AlertLevel }</span>
+						<span class="threat-banner__count">{ fmt.Sprintf("%d threats", entity.ThreatIntel.ThreatSummary.TotalThreats) }</span>
+					</div>
+				</div>
+			}
+			<!-- Footer: Quick Actions + Timestamp -->
 			<div id={ "entity-footer-" + entity.EntityID } class="entity-footer">
-				<span>Updated: { entity.UpdatedAt.Format("15:04:05") }</span>
+				<div class="quick-actions">
+					<button class="quick-action" title="Center on Map">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="10" r="3"></circle>
+							<path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"></path>
+						</svg>
+					</button>
+					<button class="quick-action" title="View Stream">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polygon points="5 3 19 12 5 21 5 3"></polygon>
+						</svg>
+					</button>
+					<button class="quick-action" title="Send Command">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="22" y1="2" x2="11" y2="13"></line>
+							<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+						</svg>
+					</button>
+				</div>
+				<span class="entity-footer__time">{ entity.UpdatedAt.Format("15:04:05") }</span>
 			</div>
 		</div>
 	</div>

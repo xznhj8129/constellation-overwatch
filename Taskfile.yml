@@ -72,6 +72,15 @@ tasks:
       - echo "Generating templ files..."
       - $(go env GOPATH)/bin/templ generate
 
+  templ-clean:
+    desc: Clean templ cache and regenerate
+    cmds:
+      - echo "Cleaning templ cache..."
+      - rm -rf /var/folders/fw/*/T/templ_* 2>/dev/null || true
+      - rm -rf /tmp/templ_* 2>/dev/null || true
+      - echo "Regenerating templ files..."
+      - $(go env GOPATH)/bin/templ generate
+
   templ-watch:
     desc: Start templ file watcher
     cmds:

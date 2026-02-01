@@ -4,11 +4,11 @@
 </p>
 
 <p align="center">
-  Open source Edge C4ISR Server Mesh for drone/robotic communication, telemetry streaming, and real-time command & control.
+  Open Source C4 for the Industrial Edge — Data Fabric & Toolbelt for Agentic Drones, Robots, Sensors, and Video Streams
 </p>
 
 <p align="center">
-  <a title="Build Status" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/actions"><img src="https://img.shields.io/github/actions/workflow/status/Constellation-Overwatch/constellation-overwatch/go.yml?style=flat-square"></a>
+  <a title="Release" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/Constellation-Overwatch/constellation-overwatch/release.yml?style=flat-square&label=release"></a>
   <a title="Go Report Card" target="_blank" href="https://goreportcard.com/report/github.com/Constellation-Overwatch/constellation-overwatch"><img src="https://goreportcard.com/badge/github.com/Constellation-Overwatch/constellation-overwatch?style=flat-square"></a>
   <a title="Go Version" target="_blank" href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/Constellation-Overwatch/constellation-overwatch?style=flat-square"></a>
   <a title="License" target="_blank" href="https://github.com/Constellation-Overwatch/constellation-overwatch/blob/main/LICENSE"><img src="http://img.shields.io/badge/license-MIT-orange.svg?style=flat-square"></a>
@@ -22,7 +22,7 @@
 
 ## About
 
-Constellation Overwatch is a distributed, event-driven C4ISR (Command, Control, Communications, and Intelligence) server mesh for managing fleets of autonomous systems including drones, robots, IoT sensors, and edge computing devices. Built on NATS JetStream for reliable, low-latency messaging with atomic operations and durable streams.
+Constellation Overwatch is a rapid response industrial data stack designed with ontological data primitives. Use `entity_id` to stream real-time signal trees for vendor agnostic swarm orchestration research and deployment. Built on NATS JetStream for reliable, low-latency messaging with atomic operations and durable streams.
 
 > **⚠️ Warning:** This software is under active development. While functional, it may contain bugs and undergo breaking changes. Use caution with production deployments and ensure you have proper backups.
 
@@ -36,21 +36,22 @@ Constellation Overwatch is a distributed, event-driven C4ISR (Command, Control, 
 * **High-Frequency Telemetry** streaming with efficient handling of sensor data
 * **Real-time Web Dashboard** powered by Server-Sent Events (SSE) and Datastar framework
 * **Type-Safe Templates** using Templ for reactive Go-based web components
-* **libSQL Database** with auto-initialization and schema management
+* **SQLite Database** with auto-initialization and schema management
 * **Event-Driven Architecture** with workers for entities, commands, telemetry, and events
 * **Interactive Maps** using MapLibre web components with global KV watcher
+* **Prometheus Metrics** with NATS and worker collectors for observability
+* **Terminal UI (TUI)** BubbleTea-based dashboard with real-time entity, log, and system panels
+* **Video Streaming & WebRTC** with H.264 codec support, keyframe buffering, and signaling
+* **Self-Update** binary auto-update from GitHub releases via `--update` flag
 
 The following features are on our current roadmap:
 
 * **Embedded AI Assistant** Context aware private / local AI assistant
 * **Background Mavlink Bidirectional Routing** for QGroundControl + TAK Support
-* **Video Stream Proxy** for 1:n video streaming to web UI
 * **TLS 1.3 Encryption** for enhanced NATS security
-* **Logging Stream UI** for centralized log viewing
 * **Kubernetes Deployment** manifests and Helm charts and maximum availability + durability
-* **Prometheus Metrics** integration for observability
 * **Edge Client SDKs** for Go, Python, and Rust
-* **Various Autonomoy and Service Support** for drones, robots, and other autonomous systems i.e VSLOAM, Flight Loader, Mission Recap, etc - Needs further input
+* **Various Autonomy and Service Support** for drones, robots, and other autonomous systems i.e VSLAM, Flight Loader, Mission Recap, etc - Needs further input
 
 ## Architecture
 
@@ -76,7 +77,7 @@ graph LR
     end
     
     subgraph "Data Layer"
-        DB[(libSQL/Turso DB)]
+        DB[(SQLite DB)]
         NATS[(NATS JetStream<br/>CONSTELLATION_GLOBAL_STATE KV:entity_id)]
     end
     
@@ -109,7 +110,7 @@ sequenceDiagram
     participant KV as KV Store<br/>(CONSTELLATION_GLOBAL_STATE)
     participant W as Workers<br/>(Entity/Telemetry/Event)
     participant A as API Service
-    participant DB as libSQL DB
+    participant DB as SQLite DB
     participant UI as Web UI<br/>(SSE)
 
     Note over D,UI: Entity Registration Flow
@@ -229,12 +230,19 @@ Access the real-time web interface at `http://localhost:8080`
 * Monitor NATS streams and key-value stores
 * Create and manage fleet entities
 * Watch live telemetry data
+* Interactive map with MapLibre
+* Fleet table management
+* Video streaming with WebRTC
+* Prometheus metrics dashboard
+* API documentation via Redoc
 
 **Technology Stack:**
 
 * **Templ** - Type-safe Go HTML templates
 * **Datastar** - Hypermedia framework for reactive UI
 * **Server-Sent Events (SSE)** - Real-time data streaming
+* **MapLibre** - Interactive maps
+* **Pion WebRTC** - Real-time video streaming
 
 **Development Mode:**
 
@@ -275,7 +283,7 @@ Configuration options:
 
 * `OVERWATCH_TOKEN` - Unified token for API and NATS authentication (default: `reindustrialize-dev-token`)
 * `PORT` - HTTP server port (default: `8080`)
-* `DB_PATH` - libSQL database path (default: `./db/constellation.db`)
+* `DB_PATH` - SQLite database path (default: `./data/db/constellation.db`)
 * `NATS_PORT` - NATS server port (default: `4222`)
 * `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
 * `WEB_UI_PASSWORD` - Password for Web UI access (leave empty to disable)
@@ -285,7 +293,7 @@ Example `.env` file:
 ```bash
 OVERWATCH_TOKEN=reindustrialize-dev-token
 PORT=8080
-DB_PATH=./db/constellation.db
+DB_PATH=./data/db/constellation.db
 NATS_PORT=4222
 NATS_DATA_DIR=./data/overwatch
 WEB_UI_PASSWORD=your-secure-password
@@ -449,9 +457,16 @@ curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$
 * `PUT /api/v1/entities?org_id=xxx&entity_id=yyy` - Update entity
 * `DELETE /api/v1/entities?org_id=xxx&entity_id=yyy` - Delete entity
 
-### Health Check
+### Video & WebRTC
+
+* `GET /api/v1/video/list` - List available video streams
+* `GET /api/v1/video/stream/*` - Stream video feed
+* `POST /api/v1/webrtc/signal` - WebRTC signaling endpoint
+
+### Monitoring
 
 * `GET /health` - Service health status
+* `GET /api/v1/sys/monitor/sse` - System monitor SSE stream
 
 ## NATS Subjects
 
@@ -480,39 +495,57 @@ constellation-overwatch/
 ├── cmd/
 │   └── microlith/              # Main application entry point
 ├── api/
-│   ├── handlers/               # API-specific handlers (health, orgs, entities)
-│   ├── middleware/             # HTTP middleware (auth, CORS, logging)
+│   ├── handlers/               # API handlers (health, orgs, entities, video, webrtc, monitor)
+│   ├── middleware/             # HTTP middleware (auth, CORS)
+│   ├── responses/             # JSON response helpers
 │   ├── services/               # Business logic services (entities, organizations)
 │   └── router.go               # API router definition
 ├── db/
 │   ├── service.go              # Database service with auto-initialization
-│   ├── schema.sql              # libSQL database schema
-│   └── constellation.db        # libSQL database (auto-created)
+│   └── schema.sql              # SQLite database schema
 ├── pkg/
+│   ├── metrics/                # Prometheus metrics (collectors, registry, pprof)
 │   ├── ontology/               # Core domain models and entity types
 │   ├── shared/                 # Shared types, constants, and NATS subjects
+│   ├── tui/                    # Terminal UI dashboard (BubbleTea)
+│   │   ├── datasource/        # Data sources (entities, logs, metrics, NATS, workers)
+│   │   ├── panels/            # Dashboard panels (entities, logs, system, workers)
+│   │   └── styles/            # Terminal styling
+│   ├── updater/                # Binary self-update from GitHub releases
 │   └── services/
 │       ├── embedded-nats/      # Embedded NATS JetStream server
-│       ├── logger/             # Centralized logging service
-│       ├── workers/            # Background event processors (entity, command, telemetry, event)
+│       ├── logger/             # Centralized logging service (Zap)
+│       ├── transcoder/         # Media transcoding
+│       ├── workers/            # Background event processors (entity, command, telemetry, event, video)
 │       └── web/                # Web UI and SSE services
-│           ├── handlers/       # Web-specific handlers (pages, datastar, overwatch)
+│           ├── components/     # Reusable Templ UI components (badge, button, card, etc.)
 │           ├── datastar/       # Datastar framework integration
-│           ├── templates/      # Templ templates (*.templ files)
+│           ├── features/       # Feature-based pages
+│           │   ├── auth/      # Login page
+│           │   ├── common/    # Shared layouts, navigation, entity card
+│           │   ├── docs/      # API documentation (Redoc)
+│           │   ├── fleet/     # Fleet management table
+│           │   ├── map/       # Interactive MapLibre map
+│           │   ├── metrics/   # Metrics dashboard
+│           │   ├── organizations/ # Org and entity management
+│           │   ├── overwatch/ # Main dashboard with analytics
+│           │   ├── streams/   # NATS streams viewer
+│           │   └── video/     # Video streaming page
+│           ├── handlers/       # Web page handlers (overwatch, map, video, docs, metrics)
+│           ├── signals/        # Web component signal types
 │           ├── static/         # Static assets (CSS, JS, images)
 │           ├── router.go       # Web router and API mounting
 │           ├── server.go       # HTTP server lifecycle
 │           └── sse_handler.go  # Server-Sent Events handler
 ├── prd/
 │   └── design/                 # Product requirements and design docs
-│       ├── API.md              # API specification
-│       ├── CLIENT_DESIGN.md    # Client design documentation
-│       ├── CONSTELLATION_TAK_ONTOLOGY.md  # Entity ontology definitions
-│       └── VENDOR_CAMERA.md    # Camera vendor specifications
+│       ├── IMPLEMENTATION_PLAN_DETAILED.md  # Protobuf/gRPC implementation plan
+│       ├── IMPLEMENTATION_PLAN_PART2-4.md   # Client SDK implementation phases
+│       └── UNIFIED_CLIENT_ARCHITECTURE.md   # Unified client SDK architecture
 ├── tests/
-│   └── publish-simulations/    # NATS publish simulation tests
+│   └── publish-simulations/    # NATS publish simulation scripts
 ├── bin/                        # Compiled binaries (auto-generated)
-├── data/                       # NATS JetStream data directory (auto-generated)
+├── data/                       # NATS JetStream data + SQLite DB (auto-generated)
 ├── logs/                       # Application logs (auto-generated)
 └── nats.conf                   # NATS server configuration
 ```

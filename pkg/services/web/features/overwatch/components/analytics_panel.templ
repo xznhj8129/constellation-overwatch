@@ -54,21 +54,24 @@ templ AnalyticsPanel() {
 				<!-- Entity Type Distribution -->
 				<div class="analytics-card">
 					<h4>Entity Types</h4>
-					<div class="chart-container type-chart">
-						<div class="bar-chart">
-							<template data-for="(count, type) in $analytics.typeCounts">
+					<div class="chart-container type-chart" id="entity-types-chart">
+						<div class="bar-chart" data-show="Object.keys($analytics.typeCounts || {}).length > 0">
+							<template data-for="entry in Object.entries($analytics.typeCounts || {})">
 								<div class="chart-row">
-									<span class="label" data-text="type"></span>
+									<span class="label" data-text="entry[0]"></span>
 									<div class="bar-track">
 										<div class="bar-fill"
 											data-bind-style="{
-												width: (count / Math.max(1, Object.values($analytics.typeCounts).reduce((a, b) => a + b, 0)) * 100) + '%',
-												backgroundColor: getTypeColor(type)
+												width: (entry[1] / Math.max(1, Object.values($analytics.typeCounts || {}).reduce((a, b) => a + b, 0)) * 100) + '%',
+												backgroundColor: getTypeColor(entry[0])
 											}"></div>
 									</div>
-									<span class="value" data-text="count"></span>
+									<span class="value" data-text="entry[1]"></span>
 								</div>
 							</template>
+						</div>
+						<div class="empty-chart" data-show="Object.keys($analytics.typeCounts || {}).length === 0" style="color: #666; font-size: 11px; text-align: center; padding: 20px;">
+							No entities yet
 						</div>
 					</div>
 				</div>

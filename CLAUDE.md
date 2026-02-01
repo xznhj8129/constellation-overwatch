@@ -69,7 +69,7 @@ Default ports:
 ## Architecture
 
 ### Overview
-Constellation Overwatch is a C4ISR (Command, Control, Communications, and Intelligence) server mesh for drone/robotic communication. It's built as a monolithic "microlith" with embedded NATS JetStream for messaging.
+Constellation Overwatch is an industrial data fabric and C4 toolbelt for agentic drones, robots, sensors, and video streams. It's built as a monolithic "microlith" with embedded NATS JetStream for messaging.
 
 ### Core Components
 
