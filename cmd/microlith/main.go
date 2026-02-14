@@ -339,7 +339,7 @@ TUI CONTROLS:
 
 ENVIRONMENT:
     All options can also be set via environment variables or .env file:
-    PORT, HOST, NATS_PORT, OVERWATCH_TOKEN, NATS_DATA_DIR, DB_PATH
+    PORT, HOST, NATS_PORT, OVERWATCH_TOKEN, OVERWATCH_DATA_DIR
 
     Priority: CLI flags > environment variables > .env file > defaults
 
@@ -368,7 +368,6 @@ func applyFlagOverrides(port, host, natsPort, token, dataDir string) {
 		os.Setenv("OVERWATCH_TOKEN", token)
 	}
 	if dataDir != "" {
-		os.Setenv("NATS_DATA_DIR", dataDir+"/overwatch")
-		os.Setenv("DB_PATH", dataDir+"/db/constellation.db")
+		os.Setenv("OVERWATCH_DATA_DIR", dataDir)
 	}
 }

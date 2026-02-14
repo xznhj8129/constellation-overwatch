@@ -283,9 +283,8 @@ Configuration options:
 
 * `OVERWATCH_TOKEN` - Unified token for API and NATS authentication (default: `reindustrialize-dev-token`)
 * `PORT` - HTTP server port (default: `8080`)
-* `DB_PATH` - SQLite database path (default: `./data/db/constellation.db`)
+* `OVERWATCH_DATA_DIR` - Root data directory; DB at `<dir>/db/constellation.db`, NATS at `<dir>/overwatch/` (default: `./data`)
 * `NATS_PORT` - NATS server port (default: `4222`)
-* `NATS_DATA_DIR` - NATS data directory (default: `./data/overwatch`)
 * `WEB_UI_PASSWORD` - Password for Web UI access (leave empty to disable)
 
 Example `.env` file:
@@ -293,9 +292,8 @@ Example `.env` file:
 ```bash
 OVERWATCH_TOKEN=reindustrialize-dev-token
 PORT=8080
-DB_PATH=./data/db/constellation.db
+OVERWATCH_DATA_DIR=./data
 NATS_PORT=4222
-NATS_DATA_DIR=./data/overwatch
 WEB_UI_PASSWORD=your-secure-password
 ```
 
