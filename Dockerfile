@@ -28,9 +28,8 @@ RUN apk add --no-cache ca-certificates tzdata && \
 # Copy binary from builder
 COPY --from=builder /app/bin/overwatch /app/overwatch
 
-# Set default environment for embedded DB
-ENV DB_PATH=/data/constellation.db
-ENV NATS_DATA_DIR=/data/nats
+# Set default data directory (DB at /data/db/, NATS at /data/overwatch/)
+ENV OVERWATCH_DATA_DIR=/data
 
 # Expose ports
 EXPOSE 4222 8222 8080

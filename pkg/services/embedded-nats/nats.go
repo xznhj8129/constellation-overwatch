@@ -104,7 +104,7 @@ func DefaultConfig() *Config {
 		Port:             getEnvInt("NATS_PORT", 4222),
 		WSPort:           getEnvInt("NATS_WS_PORT", 8222),
 		WSAllowedOrigins: getEnvStringSlice("ALLOWED_ORIGINS"),
-		DataDir:          getEnv("NATS_DATA_DIR", "./data/overwatch"),
+		DataDir:          getEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
 		MaxMemory:        getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB (increased for video streams)
 		MaxFileStore:     getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
 		JetStreamDomain:  getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),

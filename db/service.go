@@ -42,7 +42,7 @@ func getEnv(key, fallback string) string {
 // DefaultConfig returns default database configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DBPath:         getEnv("DB_PATH", "./db/data/constellation.db"),
+		DBPath:         getEnv("OVERWATCH_DATA_DIR", "./data") + "/db/constellation.db",
 		MaxOpenConns:   1, // SQLite doesn't handle concurrent writes well
 		MaxIdleConns:   1,
 		AutoInitialize: true,
