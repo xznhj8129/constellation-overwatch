@@ -135,7 +135,7 @@
 
 /* Metrics-specific variables */
 :root {
-    --metrics-card-bg: #0a1a10;
-    --metrics-card-bg-darker: #040d06;
-    --metrics-accent-color: #4ade80;
+    --metrics-card-bg: #131316;
+    --metrics-card-bg-darker: #0a0a0b;
+    --metrics-accent-color: #339970;
 }
