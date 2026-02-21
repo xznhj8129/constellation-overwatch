@@ -59,7 +59,7 @@
 }
 
 .metrics-section {
-    background: var(--metrics-card-bg, #1a1a1a);
+    background: var(--metrics-card-bg, #0a1a10);
     border: 1px solid var(--border-color, #333);
     border-radius: 8px;
     padding: 16px;
@@ -81,7 +81,7 @@
 }
 
 .metric-card {
-    background: var(--metrics-card-bg-darker, #0a0a0a);
+    background: var(--metrics-card-bg-darker, #040d06);
     border: 1px solid var(--border-color, #333);
     border-radius: 6px;
     padding: 16px;
@@ -135,7 +135,7 @@
 
 /* Metrics-specific variables */
 :root {
-    --metrics-card-bg: #1a1a1a;
-    --metrics-card-bg-darker: #0a0a0a;
+    --metrics-card-bg: #0a1a10;
+    --metrics-card-bg-darker: #040d06;
     --metrics-accent-color: #4ade80;
 }

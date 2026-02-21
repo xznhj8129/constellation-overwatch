@@ -47,6 +47,12 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 		metadataJSON = string(bytes)
 	}
 
+	videoConfigJSON := "{}"
+	if req.VideoConfig != nil {
+		bytes, _ := json.Marshal(req.VideoConfig)
+		videoConfigJSON = string(bytes)
+	}
+
 	var latitude, longitude, altitude interface{}
 	if req.Position != nil {
 		latitude = req.Position.Latitude
@@ -57,9 +63,9 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	}
 
 	_, err := s.db.Exec(
-		`INSERT INTO entities (entity_id, org_id, name, entity_type, status, priority, latitude, longitude, altitude, metadata, created_at, updated_at) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entityID, orgID, req.Name, req.EntityType, status, priority, latitude, longitude, altitude, metadataJSON,
+		`INSERT INTO entities (entity_id, org_id, name, entity_type, status, priority, latitude, longitude, altitude, metadata, video_config, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entityID, orgID, req.Name, req.EntityType, status, priority, latitude, longitude, altitude, metadataJSON, videoConfigJSON,
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
@@ -99,7 +105,7 @@ func (s *EntityService) ListEntities(orgID string) ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
 		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
 		        latitude, longitude, altitude, heading, velocity,
-		        components, tags, metadata, created_at, updated_at
+		        components, tags, metadata, video_config, created_at, updated_at
 		 FROM entities WHERE org_id = ?`, orgID,
 	)
 	if err != nil {
@@ -123,7 +129,7 @@ func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
 		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
 		        latitude, longitude, altitude, heading, velocity,
-		        components, tags, metadata, created_at, updated_at
+		        components, tags, metadata, video_config, created_at, updated_at
 		 FROM entities ORDER BY updated_at DESC`,
 	)
 	if err != nil {
@@ -189,7 +195,7 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 		case "latitude", "longitude", "altitude", "heading", "velocity":
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, value)
-		case "metadata", "components", "tags":
+		case "metadata", "components", "tags", "video_config":
 			bytes, _ := json.Marshal(value)
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, string(bytes))
@@ -320,7 +326,7 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 	err := scanner.Scan(
 		&entity.EntityID, &entity.OrgID, &name, &entity.EntityType, &entity.Status, &entity.Priority,
 		&isLive, &lat, &lon, &alt, &heading, &velocity,
-		&entity.Components, &entity.Tags, &entity.Metadata, &createdAt, &updatedAt,
+		&entity.Components, &entity.Tags, &entity.Metadata, &entity.VideoConfig, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan entity: %w", err)
@@ -386,6 +392,14 @@ func (s *EntityService) syncToKV(entity *ontology.Entity) {
 	state.Priority = entity.Priority
 	state.IsLive = entity.IsLive
 	state.UpdatedAt = time.Now()
+
+	// Parse and set video config
+	if entity.VideoConfig != "" && entity.VideoConfig != "{}" {
+		var vc map[string]interface{}
+		if json.Unmarshal([]byte(entity.VideoConfig), &vc) == nil {
+			state.VideoConfig = vc
+		}
+	}
 
 	// If we have an org name available (we might need to fetch it if not in entity struct), set it
 	// For now, we'll rely on the fact that if it was already there, we kept it.

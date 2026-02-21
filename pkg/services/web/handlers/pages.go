@@ -8,6 +8,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	admin_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/admin/pages"
 	fleet_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/pages"
 	map_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/pages"
 	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
@@ -216,13 +217,13 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		entityIDs = append(entityIDs, entity.EntityID)
 	}
 
-	// Get auth token for WebSocket connection
-	natsAuthToken := os.Getenv("OVERWATCH_TOKEN")
+	// Get MediaMTX WebRTC base URL for WHEP playback
+	webrtcBaseURL := os.Getenv("MEDIAMTX_WEBRTC_URL")
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := video_pages.VideoPage(entityIDs, natsAuthToken)
+		component := video_pages.VideoPage(entityIDs, webrtcBaseURL)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -232,7 +233,7 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := video_pages.VideoPage(entityIDs, natsAuthToken)
+	component := video_pages.VideoPage(entityIDs, webrtcBaseURL)
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render video page: %v", err)
 	}
@@ -255,5 +256,12 @@ func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
 	component := map_pages.MapPage()
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render map page: %v", err)
+	}
+}
+
+func (h *PageHandler) HandleAdminPage(w http.ResponseWriter, r *http.Request) {
+	component := admin_pages.AdminPage()
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render admin page: %v", err)
 	}
 }

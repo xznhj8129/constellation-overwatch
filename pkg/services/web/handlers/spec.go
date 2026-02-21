@@ -457,32 +457,18 @@ func (h *SpecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							},
 						},
 					},
-					"/video/stream/{entity_id}": {
+					"/video/status": {
 						PathItemProps: spec.PathItemProps{
 							Get: &spec.Operation{
 								OperationProps: spec.OperationProps{
-									Summary:     "Video Stream",
-									Description: "MJPEG video stream for a specific entity",
-									Parameters: []spec.Parameter{
-										{
-											ParamProps: spec.ParamProps{
-												Name:     "entity_id",
-												In:       "path",
-												Required: true,
-												Schema: &spec.Schema{
-													SchemaProps: spec.SchemaProps{
-														Type: []string{"string"},
-													},
-												},
-											},
-										},
-									},
+									Summary:     "Video Status",
+									Description: "Returns JSON status of all active MediaMTX video streams",
 									Responses: &spec.Responses{
 										ResponsesProps: spec.ResponsesProps{
 											StatusCodeResponses: map[int]spec.Response{
 												200: {
 													ResponseProps: spec.ResponseProps{
-														Description: "MJPEG Stream",
+														Description: "Stream status list",
 													},
 												},
 											},

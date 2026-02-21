@@ -14,7 +14,7 @@
 // @BasePath /api/v1
 // @schemes http https
 
-// @securityDefinitions.apikey BearerAuth
+// @securityDefinitions.apikey APIKeyAuth
 // @in header
 // @name Authorization
 // @description Enter the token with the `Bearer: ` prefix, e.g. "Bearer abcde12345"
@@ -32,10 +32,10 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/transcoder"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/tui"
@@ -203,20 +203,14 @@ func main() {
 		logger.Fatalw("Failed to start workers", "error", err)
 	}
 
-	// 3b. Initialize Video Transcoder (converts MPEG-TS to JPEG)
-	logger.Info("Initializing video transcoder...")
-	videoTranscoder := transcoder.New(nc)
-	go func() {
-		if err := videoTranscoder.Start(ctx); err != nil {
-			logger.Errorw("Video transcoder error", "error", err)
-		}
-	}()
+	// 4. Bootstrap admin user if none exist
+	bootstrapAdmin(dbService)
 
-	// 4. Initialize API Router
+	// 5. Initialize API Router
 	logger.Info("Initializing API router...")
 	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
 
-	// 5. Initialize Web Server
+	// 6. Initialize Web Server
 	logger.Info("Initializing web server...")
 	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
 	if err != nil {
@@ -347,11 +341,82 @@ ENDPOINTS:
     Web UI:     http://localhost:8080
     REST API:   http://localhost:8080/api/v1/
     NATS TCP:   nats://localhost:4222 (edge devices connect here with token auth)
-    NATS WS:    ws://localhost:8222 (browser WebSocket connections)
     Health:     http://localhost:8080/health
 
 DOCUMENTATION:
     https://github.com/Constellation-Overwatch/constellation-overwatch`)
+}
+
+// bootstrapAdmin ensures at least one admin user exists for first-time setup.
+// If no users exist, it creates the default org, a bootstrap admin, and a
+// one-time invite token. The invite URL is printed to the console; there is no
+// zero-credential login path.
+func bootstrapAdmin(dbService *db.Service) {
+	database := dbService.GetDB()
+
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		logger.Warnw("Failed to check user count for bootstrap", "error", err)
+		return
+	}
+	if count > 0 {
+		return
+	}
+
+	logger.Info("No users found, bootstrapping default organization and admin user...")
+
+	// Ensure the default organization exists
+	_, err := database.Exec(
+		`INSERT OR IGNORE INTO organizations (org_id, name, org_type, description) VALUES (?, ?, ?, ?)`,
+		"default", "Default Organization", "commercial", "Auto-created default organization",
+	)
+	if err != nil {
+		logger.Errorw("Failed to create default organization", "error", err)
+		return
+	}
+
+	// Read admin email from env var, fallback to admin@localhost
+	adminEmail := os.Getenv("OVERWATCH_ADMIN_EMAIL")
+	if adminEmail == "" {
+		adminEmail = "admin@localhost"
+	}
+
+	userSvc := services.NewUserService(database)
+	admin := &services.User{
+		OrgID:             "default",
+		Username:          adminEmail, // email IS the identity
+		Email:             adminEmail,
+		Role:              "admin",
+		NeedsPasskeySetup: true,
+	}
+
+	if err := userSvc.CreateUser(admin); err != nil {
+		logger.Errorw("Failed to create bootstrap admin", "error", err)
+		return
+	}
+
+	// Generate a one-time invite so the admin can set up their passkey.
+	inviteSvc := services.NewInviteService(database)
+	_, plainToken, err := inviteSvc.CreateInvite("default", adminEmail, "admin", admin.UserID)
+	if err != nil {
+		logger.Errorw("Failed to create bootstrap invite", "error", err)
+		return
+	}
+
+	// Print setup instructions to console
+	host := os.Getenv("HOST")
+	if host == "" || host == "0.0.0.0" {
+		host = "localhost"
+	}
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	logger.Infow("Bootstrap admin created",
+		"email", admin.Email, "user_id", admin.UserID)
+	fmt.Printf("\n  ✦ Admin account created for: %s\n", admin.Email)
+	fmt.Printf("  ✦ Complete setup at: http://%s:%s/invite/%s\n\n", host, port, plainToken)
 }
 
 func applyFlagOverrides(port, host, natsPort, token, dataDir string) {

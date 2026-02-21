@@ -70,7 +70,6 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 			NewEntityWorker(nc, js),
 			NewEventWorker(nc, js, db, registry),
 			NewCommandWorker(nc, js),
-			NewVideoWorker(nc, js, registry),
 		},
 	}, nil
 }

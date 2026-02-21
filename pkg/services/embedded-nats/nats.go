@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -17,28 +17,35 @@ import (
 )
 
 type Config struct {
-	Host             string
-	Port             int
-	WSPort           int
-	WSAllowedOrigins []string // Empty = allow all
-	DataDir          string
-	MaxMemory        int64
-	MaxFileStore     int64
-	JetStreamDomain  string
-	EnableTLS        bool
-	TLSCert          string
-	TLSKey           string
-	EnableAuth       bool
-	AuthToken        string
+	Host            string
+	Port            int
+	DataDir         string
+	MaxMemory       int64
+	MaxFileStore    int64
+	JetStreamDomain string
+	EnableTLS       bool
+	TLSCert         string
+	TLSKey          string
+	EnableAuth      bool
+	AuthToken       string
 }
 
 type EmbeddedNATS struct {
-	server  *server.Server
-	nc      *nats.Conn
-	js      nats.JetStreamContext
-	kv      nats.KeyValue
-	config  *Config
-	streams map[string]*StreamConfig
+	server     *server.Server
+	nc         *nats.Conn
+	js         nats.JetStreamContext
+	kv         nats.KeyValue
+	config     *Config
+	streams    map[string]*StreamConfig
+	mu         sync.Mutex      // protects serverOpts for NKey management
+	serverOpts *server.Options // tracks current opts for ReloadOptions
+}
+
+// NKeyRecord is the minimal data needed to restore a NATS credential on startup.
+type NKeyRecord struct {
+	NATSPubKey string
+	OrgID      string
+	Scopes     []string
 }
 
 type StreamConfig struct {
@@ -82,35 +89,17 @@ func getEnvInt64(key string, fallback int64) int64 {
 	return fallback
 }
 
-// getEnvStringSlice parses a comma-separated env var into a string slice
-// Returns empty slice if value is "*" or empty (meaning "allow all")
-func getEnvStringSlice(key string) []string {
-	value := os.Getenv(key)
-	if value == "" || value == "*" {
-		return []string{} // Empty = allow all
-	}
-	var result []string
-	for _, s := range strings.Split(value, ",") {
-		if trimmed := strings.TrimSpace(s); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
 func DefaultConfig() *Config {
 	return &Config{
-		Host:             getEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
-		Port:             getEnvInt("NATS_PORT", 4222),
-		WSPort:           getEnvInt("NATS_WS_PORT", 8222),
-		WSAllowedOrigins: getEnvStringSlice("ALLOWED_ORIGINS"),
-		DataDir:          getEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
-		MaxMemory:        getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB (increased for video streams)
-		MaxFileStore:     getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
-		JetStreamDomain:  getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
-		EnableTLS:        getEnv("NATS_ENABLE_TLS", "false") == "true",
-		EnableAuth:       getEnv("OVERWATCH_TOKEN", "") != "", // Enable auth if OVERWATCH_TOKEN is set
-		AuthToken:        getEnv("OVERWATCH_TOKEN", ""),
+		Host:            getEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
+		Port:            getEnvInt("NATS_PORT", 4222),
+		DataDir:         getEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
+		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB
+		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
+		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
+		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
+		EnableAuth:      getEnv("OVERWATCH_TOKEN", "") != "", // Enable auth if OVERWATCH_TOKEN is set
+		AuthToken:       getEnv("OVERWATCH_TOKEN", ""),
 	}
 }
 
@@ -176,21 +165,18 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		NoSigs:  true, // Disable built-in signal handlers
 	}
 
-	// Enable WebSocket for browser-based video streaming
-	// NoTLS allows development without certificates
-	// Empty AllowedOrigins = allow all (when ALLOWED_ORIGINS=* or unset)
-	opts.Websocket = server.WebsocketOpts{
-		Host:             en.config.Host,
-		Port:             en.config.WSPort,
-		NoTLS:            !en.config.EnableTLS,
-		SameOrigin:       false,
-		AllowedOrigins:   en.config.WSAllowedOrigins,
-		HandshakeTimeout: 10 * time.Second,
-	}
-
-	// Configure Authentication
+	// Configure Authentication - internal admin user only; edge devices use NKey/API key auth
 	if en.config.EnableAuth {
-		opts.Authorization = en.config.AuthToken
+		opts.Users = []*server.User{
+			{
+				Username: "overwatch-internal",
+				Password: en.config.AuthToken,
+				Permissions: &server.Permissions{
+					Publish:   &server.SubjectPermission{Allow: []string{">"}},
+					Subscribe: &server.SubjectPermission{Allow: []string{">"}},
+				},
+			},
+		}
 	}
 
 	// Configure JetStream limits
@@ -220,6 +206,7 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 	}
 
 	en.server = ns
+	en.serverOpts = opts
 
 	if err := en.connect(); err != nil {
 		return fmt.Errorf("failed to connect to embedded NATS: %w", err)
@@ -232,8 +219,7 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 
 	logger.Info("Embedded NATS server started",
 		zap.String("host", en.config.Host),
-		zap.Int("port", en.config.Port),
-		zap.Int("ws_port", en.config.WSPort))
+		zap.Int("port", en.config.Port))
 	return nil
 }
 
@@ -259,7 +245,6 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
 		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
 		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
-		{shared.StreamVideoFrames, shared.ConsumerVideoProcessor, shared.SubjectVideoAll},
 	}
 
 	for _, c := range consumers {
@@ -294,7 +279,7 @@ func (en *EmbeddedNATS) connect() error {
 	}
 
 	if en.config.EnableAuth {
-		connectOpts = append(connectOpts, nats.Token(en.config.AuthToken))
+		connectOpts = append(connectOpts, nats.UserInfo("overwatch-internal", en.config.AuthToken))
 	}
 
 	nc, err := nats.Connect(url, connectOpts...)
@@ -415,21 +400,6 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			AllowRollup:     false,
 			AllowDirect:     false,           // Commands must go through stream
 			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
-		},
-		{
-			Name:            "CONSTELLATION_VIDEO_FRAMES",
-			Subjects:        []string{"constellation.video.>"},
-			Storage:         nats.MemoryStorage, // Memory-based for fast access, no persistence
-			Retention:       nats.LimitsPolicy,
-			MaxMsgs:         0,                  // Unlimited messages (bounded by MaxBytes)
-			MaxBytes:        1024 * 1024 * 1024, // 1GB memory for larger swarms
-			MaxAge:          10 * time.Second,   // Reduced - video is ephemeral, prevents stale frame buildup
-			MaxMsgSize:      256 * 1024,         // 256KB per chunk (2-3 GOP packets, not full frames)
-			Replicas:        1,
-			DuplicateWindow: 500 * time.Millisecond, // Frame-level dedup (prevents duplicate MPEG-TS packets)
-			AllowRollup:     true,                   // Support KV-style latest frame access
-			AllowDirect:     true,                   // Enable direct get for latest frame
-			DiscardPolicy:   nats.DiscardOld,        // Drop oldest frames when full
 		},
 	}
 
@@ -673,4 +643,140 @@ func (en *EmbeddedNATS) GetKVEntry(key string) (nats.KeyValueEntry, error) {
 	}
 
 	return entry, nil
+}
+
+// AddNKeyUser registers a new NKey user with scoped permissions on the running server.
+func (en *EmbeddedNATS) AddNKeyUser(publicKey string, perms *server.Permissions) error {
+	en.mu.Lock()
+	defer en.mu.Unlock()
+
+	if en.serverOpts == nil {
+		return fmt.Errorf("server options not initialized")
+	}
+
+	newOpts := en.serverOpts.Clone()
+
+	// Check for duplicate
+	for _, nk := range newOpts.Nkeys {
+		if nk.Nkey == publicKey {
+			return nil
+		}
+	}
+
+	newOpts.Nkeys = append(newOpts.Nkeys, &server.NkeyUser{
+		Nkey:        publicKey,
+		Permissions: perms,
+	})
+
+	if err := en.server.ReloadOptions(newOpts); err != nil {
+		return fmt.Errorf("failed to reload NATS options: %w", err)
+	}
+
+	en.serverOpts = newOpts
+	logger.Infow("Added NATS NKey user", "public_key", publicKey[:12]+"...")
+	return nil
+}
+
+// RemoveNKeyUser removes an NKey user and reloads server options.
+func (en *EmbeddedNATS) RemoveNKeyUser(publicKey string) error {
+	en.mu.Lock()
+	defer en.mu.Unlock()
+
+	if en.serverOpts == nil {
+		return fmt.Errorf("server options not initialized")
+	}
+
+	newOpts := en.serverOpts.Clone()
+	filtered := make([]*server.NkeyUser, 0, len(newOpts.Nkeys))
+	found := false
+	for _, nk := range newOpts.Nkeys {
+		if nk.Nkey == publicKey {
+			found = true
+			continue
+		}
+		filtered = append(filtered, nk)
+	}
+	if !found {
+		return nil
+	}
+	newOpts.Nkeys = filtered
+
+	if err := en.server.ReloadOptions(newOpts); err != nil {
+		return fmt.Errorf("failed to reload NATS options: %w", err)
+	}
+
+	en.serverOpts = newOpts
+	logger.Infow("Removed NATS NKey user", "public_key", publicKey[:12]+"...")
+	return nil
+}
+
+// RestoreNKeyUsers re-registers NKey users from stored records on startup.
+func (en *EmbeddedNATS) RestoreNKeyUsers(keys []NKeyRecord) error {
+	en.mu.Lock()
+	defer en.mu.Unlock()
+
+	if en.serverOpts == nil {
+		return fmt.Errorf("server options not initialized")
+	}
+
+	newOpts := en.serverOpts.Clone()
+	for _, key := range keys {
+		if key.NATSPubKey == "" {
+			continue
+		}
+		perms := BuildNATSPermissions(key.Scopes, key.OrgID)
+		if perms == nil {
+			continue
+		}
+		newOpts.Nkeys = append(newOpts.Nkeys, &server.NkeyUser{
+			Nkey:        key.NATSPubKey,
+			Permissions: perms,
+		})
+	}
+
+	if err := en.server.ReloadOptions(newOpts); err != nil {
+		return fmt.Errorf("failed to restore NATS NKey users: %w", err)
+	}
+
+	en.serverOpts = newOpts
+	logger.Infow("Restored NATS NKey users", "count", len(keys))
+	return nil
+}
+
+// BuildNATSPermissions converts scope strings to NATS subject permissions.
+func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
+	var pubAllow, subAllow []string
+
+	baseAllow := []string{"$JS.API.>", "_INBOX.>"}
+
+	for _, scope := range scopes {
+		switch scope {
+		case "nats:all":
+			return &server.Permissions{
+				Publish:   &server.SubjectPermission{Allow: []string{">"}},
+				Subscribe: &server.SubjectPermission{Allow: []string{">"}},
+			}
+		case "nats:telemetry":
+			pubAllow = append(pubAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
+			subAllow = append(subAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
+		case "nats:commands":
+			subAllow = append(subAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
+		case "nats:commands:write":
+			pubAllow = append(pubAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
+		case "nats:entities":
+			pubAllow = append(pubAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
+			subAllow = append(subAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
+		case "nats:events":
+			subAllow = append(subAllow, "constellation.events.>")
+		}
+	}
+
+	if len(pubAllow) == 0 && len(subAllow) == 0 {
+		return nil
+	}
+
+	return &server.Permissions{
+		Publish:   &server.SubjectPermission{Allow: append(baseAllow, pubAllow...)},
+		Subscribe: &server.SubjectPermission{Allow: append(baseAllow, subAllow...)},
+	}
 }

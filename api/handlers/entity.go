@@ -31,7 +31,7 @@ func NewEntityHandler(service *services.EntityService) *EntityHandler {
 // @Failure 400 {object} map[string]interface{}
 // @Failure 401 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /entities [post]
 func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
@@ -69,7 +69,7 @@ func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /entities [get]
 func (h *EntityHandler) ListOrGet(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
@@ -118,7 +118,7 @@ func (h *EntityHandler) ListOrGet(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /entities [put]
 func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")
@@ -161,7 +161,7 @@ func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /entities [delete]
 func (h *EntityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")

@@ -53,7 +53,6 @@ func (c *NATSCollector) Collect(ch chan<- prometheus.Metric) {
 		"CONSTELLATION_EVENTS",
 		"CONSTELLATION_TELEMETRY",
 		"CONSTELLATION_COMMANDS",
-		"CONSTELLATION_VIDEO_FRAMES",
 	}
 
 	for _, name := range streams {

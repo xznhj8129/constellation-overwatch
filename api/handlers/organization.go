@@ -30,7 +30,7 @@ func NewOrganizationHandler(service *services.OrganizationService) *Organization
 // @Failure 400 {object} map[string]interface{}
 // @Failure 401 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /organizations [post]
 func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req ontology.CreateOrganizationRequest
@@ -57,7 +57,7 @@ func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} ontology.Organization
 // @Failure 401 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /organizations [get]
 func (h *OrganizationHandler) List(w http.ResponseWriter, r *http.Request) {
 	orgs, err := h.service.ListOrganizations()
@@ -101,7 +101,7 @@ func (h *OrganizationHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
+// @Security APIKeyAuth
 // @Router /organizations [delete]
 func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	orgID := r.URL.Query().Get("org_id")

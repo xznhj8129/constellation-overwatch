@@ -712,4 +712,3 @@ func mapMAVLinkVehicleType(mavType string) string {
 		return shared.EntityTypeAircraftMultirotor // Default fallback
 	}
 }
-

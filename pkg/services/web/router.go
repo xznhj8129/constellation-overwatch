@@ -7,6 +7,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/dev"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/handlers"
 )
@@ -16,8 +17,13 @@ func NewRouter(
 	entitySvc *services.EntityService,
 	natsEmbedded *embeddednats.EmbeddedNATS,
 	sseHandler *SSEHandler,
+	mtxClient *mediamtx.Client,
 	apiHandler http.Handler,
 	sessionAuth *middleware.SessionAuth,
+	authSvc *services.AuthService,
+	userSvc *services.UserService,
+	inviteSvc *services.InviteService,
+	apiKeySvc *services.APIKeyService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -25,8 +31,10 @@ func NewRouter(
 	pageHandler := handlers.NewPageHandler(orgSvc, entitySvc)
 	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc)
 	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc)
-	videoHandler := handlers.NewVideoHandler(natsEmbedded)
-	authHandler := handlers.NewAuthHandler(sessionAuth)
+	videoHandler := handlers.NewVideoHandler(mtxClient, entitySvc)
+	authHandler := handlers.NewAuthHandler(sessionAuth, authSvc, userSvc)
+	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
+	adminHandler := handlers.NewAdminHandler(userSvc, apiKeySvc, inviteSvc, natsEmbedded)
 	specHandler := handlers.NewSpecHandler()
 
 	// Serve static files (no auth required) - uses embedded filesystem
@@ -41,8 +49,14 @@ func NewRouter(
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Auth routes (no auth required)
+	// Auth routes (no session required)
 	mux.HandleFunc("/login", authHandler.HandleLogin)
+	mux.HandleFunc("/auth/passkey/login/begin", authHandler.HandlePasskeyLoginBegin)
+	mux.HandleFunc("/auth/passkey/login/finish", authHandler.HandlePasskeyLoginFinish)
+
+	// Invite routes (no session required - invite link is the auth)
+	mux.HandleFunc("/invite/{token}", inviteHandler.HandleAcceptInvite)
+	mux.HandleFunc("/invite/{token}/accept", inviteHandler.HandleFinalizeInvite)
 
 	// Development-only routes (hot reload)
 	if dev.IsDev() {
@@ -50,7 +64,7 @@ func NewRouter(
 		hotReload.SetupRoutes(mux)
 	}
 
-	// Helper to wrap handlers with session auth (defined early for pprof)
+	// Helper to wrap handlers with session auth
 	protect := func(h http.HandlerFunc) http.Handler {
 		return sessionAuth.RequireSession(http.HandlerFunc(h))
 	}
@@ -64,6 +78,29 @@ func NewRouter(
 	mux.Handle("/api/metrics/sse", protect(metricsHandler.HandleSSE))
 
 	mux.HandleFunc("/logout", authHandler.HandleLogout)
+
+	// Passkey setup page (protected — user must have a session, even with needsPasskeySetup)
+	mux.Handle("/setup-passkey", protect(authHandler.HandleSetupPasskey))
+
+	// Protected passkey registration (requires active session)
+	mux.Handle("/auth/passkey/register/begin", protect(authHandler.HandlePasskeyRegisterBegin))
+	mux.Handle("/auth/passkey/register/finish", protect(authHandler.HandlePasskeyRegisterFinish))
+
+	// Protected admin API endpoints
+	mux.Handle("/api/admin/users", protect(adminHandler.HandleListUsers))
+	mux.Handle("/api/admin/invites", protect(adminHandler.HandleCreateInvite))
+	mux.Handle("/api/admin/invites/{id}", protect(adminHandler.HandleRevokeInvite))
+	mux.Handle("/api/admin/apikeys", protect(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			adminHandler.HandleListAPIKeys(w, r)
+		case http.MethodPost:
+			adminHandler.HandleCreateAPIKey(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))
+	mux.Handle("/api/admin/apikeys/{id}", protect(adminHandler.HandleRevokeAPIKey))
 
 	// Protected Pages
 	mux.Handle("/", protect(func(w http.ResponseWriter, r *http.Request) {
@@ -86,6 +123,7 @@ func NewRouter(
 	mux.Handle("/fleet/cancel/", protect(datastarHandler.HandleFleetCancel))
 	mux.Handle("/map", protect(pageHandler.HandleMapPage))
 	mux.Handle("/video", protect(pageHandler.HandleVideoPage))
+	mux.Handle("/admin", protect(pageHandler.HandleAdminPage))
 
 	// Protected Web API endpoints (for Datastar/SSE)
 	mux.Handle("/api/organizations", protect(datastarHandler.HandleAPIOrganizations))
@@ -104,8 +142,9 @@ func NewRouter(
 	mux.Handle("/api/overwatch/kv/debug", protect(overwatchHandler.HandleAPIOverwatchKVDebug))
 
 	mux.Handle("/api/video/list", protect(videoHandler.HandleAPIVideoList))
+	mux.Handle("/api/video/status", protect(videoHandler.HandleAPIVideoStatus))
 
-	// Mount REST API (has its own Bearer token auth)
+	// Mount REST API (has its own API key auth)
 	if apiHandler != nil {
 		mux.Handle("/api/", http.StripPrefix("/api", apiHandler))
 	}

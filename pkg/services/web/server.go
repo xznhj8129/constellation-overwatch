@@ -13,6 +13,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
@@ -25,6 +26,7 @@ type Server struct {
 	orgSvc       *services.OrganizationService
 	entitySvc    *services.EntityService
 	sseHandler   *SSEHandler
+	mtxClient    *mediamtx.Client
 	apiHandler   http.Handler
 	mux          *http.ServeMux
 	server       *http.Server
@@ -33,6 +35,9 @@ type Server struct {
 
 // NewServer creates a new web server instance
 func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler) (*Server, error) {
+	// Create MediaMTX client (nil if MEDIAMTX_API_URL is not set)
+	mtxClient := mediamtx.New(mediamtx.DefaultConfig())
+
 	s := &Server{
 		db:           dbService,
 		nc:           nc,
@@ -41,13 +46,47 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		orgSvc:       services.NewOrganizationService(dbService.GetDB(), natsEmbedded),
 		entitySvc:    services.NewEntityService(dbService.GetDB(), natsEmbedded),
 		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
+		mtxClient:    mtxClient,
 	}
+
+	database := dbService.GetDB()
 
 	// Initialize session auth
 	sessionAuth := middleware.NewSessionAuth()
 
+	// Initialize WebAuthn relying party
+	wa, err := services.NewWebAuthn()
+	if err != nil {
+		logger.Warnw("WebAuthn initialization failed, passkey auth disabled", "error", err)
+	}
+
+	// Initialize services
+	authSvc := services.NewAuthService(database, wa)
+	userSvc := services.NewUserService(database)
+	inviteSvc := services.NewInviteService(database)
+	apiKeySvc := services.NewAPIKeyService(database)
+
+	// Restore NATS NKey users from API keys on startup.
+	if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {
+		records := make([]embeddednats.NKeyRecord, len(nkeyData))
+		for i, d := range nkeyData {
+			records[i] = embeddednats.NKeyRecord{
+				NATSPubKey: d.NATSPubKey,
+				Scopes:     d.Scopes,
+				OrgID:      d.OrgID,
+			}
+		}
+		if err := natsEmbedded.RestoreNKeyUsers(records); err != nil {
+			logger.Warnw("Failed to restore NATS NKey users", "error", err)
+		}
+	}
+
 	// Initialize the router
-	s.mux = NewRouter(s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler, s.apiHandler, sessionAuth)
+	s.mux = NewRouter(
+		s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler,
+		s.mtxClient, s.apiHandler, sessionAuth,
+		authSvc, userSvc, inviteSvc, apiKeySvc,
+	)
 
 	return s, nil
 }
@@ -67,9 +106,12 @@ func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddedn
 	return server, nil
 }
 
-// Start starts the web server
+// Start starts the web server and MediaMTX client
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof("Starting web server on %s", s.bindAddr)
+
+	// Start MediaMTX polling client (nil-safe, no-op if disabled)
+	s.mtxClient.Start(ctx)
 
 	// Bind to the port first to ensure it's available before returning
 	listener, err := net.Listen("tcp", s.bindAddr)
@@ -91,8 +133,11 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the web server
+// Stop stops the web server and MediaMTX client
 func (s *Server) Stop(ctx context.Context) error {
+	// Stop MediaMTX polling client (nil-safe)
+	s.mtxClient.Stop()
+
 	if s.server != nil {
 		logger.Info("Stopping web server...")
 		return s.server.Shutdown(ctx)
@@ -115,7 +160,6 @@ func (s *Server) HealthCheck() error {
 }
 
 // HandleHealthCheck handles the health check endpoint
-// Note: This is now handled by the API router, but kept here if needed for internal checks
 func (s *Server) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	health := shared.HealthStatus{
 		Status:    "healthy",
@@ -147,7 +191,6 @@ func (s *Server) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	// Simple JSON response
 	fmt.Fprintf(w, `{"status":"%s"}`, health.Status)
 }
 

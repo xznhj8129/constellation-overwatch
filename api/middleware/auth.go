@@ -1,16 +1,14 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 )
 
 const (
@@ -19,13 +17,16 @@ const (
 )
 
 type session struct {
-	token     string
-	expiresAt time.Time
+	token             string
+	userID            string
+	role              string
+	orgID             string
+	needsPasskeySetup bool
+	expiresAt         time.Time
 }
 
 // SessionAuth handles session-based authentication for the web UI
 type SessionAuth struct {
-	password string
 	sessions map[string]*session
 	mu       sync.RWMutex
 }
@@ -33,23 +34,14 @@ type SessionAuth struct {
 // NewSessionAuth creates a new session auth handler
 func NewSessionAuth() *SessionAuth {
 	return &SessionAuth{
-		password: os.Getenv("WEB_UI_PASSWORD"),
 		sessions: make(map[string]*session),
 	}
 }
 
-// IsEnabled returns true if password auth is configured
-func (s *SessionAuth) IsEnabled() bool {
-	return s.password != ""
-}
-
-// ValidatePassword checks if the provided password is correct
-func (s *SessionAuth) ValidatePassword(password string) bool {
-	return subtle.ConstantTimeCompare([]byte(s.password), []byte(password)) == 1
-}
-
-// CreateSession creates a new session and returns the session token
-func (s *SessionAuth) CreateSession() (string, error) {
+// CreateSessionForUser creates a new session with user identity and returns the session token.
+// Set needsPasskey to true for users that still need to register a passkey (bootstrap admin, invite flow).
+// orgID is stored in the session for use by admin handlers to scope operations.
+func (s *SessionAuth) CreateSessionForUser(userID, role string, needsPasskey bool, orgID string) (string, error) {
 	token := make([]byte, 32)
 	if _, err := rand.Read(token); err != nil {
 		return "", err
@@ -60,14 +52,39 @@ func (s *SessionAuth) CreateSession() (string, error) {
 	defer s.mu.Unlock()
 
 	s.sessions[tokenStr] = &session{
-		token:     tokenStr,
-		expiresAt: time.Now().Add(sessionDuration),
+		token:             tokenStr,
+		userID:            userID,
+		role:              role,
+		orgID:             orgID,
+		needsPasskeySetup: needsPasskey,
+		expiresAt:         time.Now().Add(sessionDuration),
 	}
 
 	// Cleanup expired sessions
 	s.cleanupExpiredSessions()
 
 	return tokenStr, nil
+}
+
+// ClearPasskeySetup removes the needsPasskeySetup flag from an existing session.
+func (s *SessionAuth) ClearPasskeySetup(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if sess, ok := s.sessions[token]; ok {
+		sess.needsPasskeySetup = false
+	}
+}
+
+// IsPasskeySetup returns true if the session has the needsPasskeySetup flag set.
+func (s *SessionAuth) IsPasskeySetup(token string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if sess, ok := s.sessions[token]; ok {
+		return sess.needsPasskeySetup
+	}
+	return false
 }
 
 // ValidateSession checks if the session token is valid
@@ -99,24 +116,76 @@ func (s *SessionAuth) cleanupExpiredSessions() {
 	}
 }
 
+// getSession returns the session for a token, or nil if invalid/expired
+func (s *SessionAuth) getSession(token string) *session {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sess, ok := s.sessions[token]
+	if !ok {
+		return nil
+	}
+	if time.Now().After(sess.expiresAt) {
+		return nil
+	}
+	return sess
+}
+
 // RequireSession is middleware that checks for a valid session cookie
+// and injects user identity into the request context.
+// If the session has needsPasskeySetup=true, non-passkey paths redirect to /setup-passkey.
 func (s *SessionAuth) RequireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// If auth is not enabled, pass through
-		if !s.IsEnabled() {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// Check for session cookie
 		cookie, err := r.Cookie(SessionCookieName)
-		if err != nil || !s.ValidateSession(cookie.Value) {
+		if err != nil {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		sess := s.getSession(cookie.Value)
+		if sess == nil {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
+		// Enforce passkey setup redirect for users who haven't registered a passkey yet
+		if sess.needsPasskeySetup {
+			path := r.URL.Path
+			allowed := path == "/setup-passkey" ||
+				path == "/logout" ||
+				strings.HasPrefix(path, "/auth/passkey/") ||
+				strings.HasPrefix(path, "/static/")
+			if !allowed {
+				http.Redirect(w, r, "/setup-passkey", http.StatusFound)
+				return
+			}
+		}
+
+		// Inject user identity into request context
+		ctx := r.Context()
+		if sess.userID != "" {
+			ctx = context.WithValue(ctx, ContextKeyUserID, sess.userID)
+			ctx = context.WithValue(ctx, ContextKeyUserRole, sess.role)
+		}
+		if sess.orgID != "" {
+			ctx = context.WithValue(ctx, ContextKeyOrgID, sess.orgID)
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// secureCookies returns true when cookies should be marked Secure. This is
+// determined by checking OVERWATCH_INSECURE (explicit override) and falling
+// back to whether the configured base URL starts with "https://".
+func secureCookies() bool {
+	if v := os.Getenv("OVERWATCH_INSECURE"); v == "true" {
+		return false
+	}
+	baseURL := os.Getenv("OVERWATCH_BASE_URL")
+	if strings.HasPrefix(baseURL, "https://") {
+		return true
+	}
+	return false
 }
 
 // SetSessionCookie sets the session cookie on the response
@@ -127,6 +196,7 @@ func SetSessionCookie(w http.ResponseWriter, token string) {
 		Path:     "/",
 		MaxAge:   int(sessionDuration.Seconds()),
 		HttpOnly: true,
+		Secure:   secureCookies(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -139,16 +209,16 @@ func ClearSessionCookie(w http.ResponseWriter) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   secureCookies(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
 // GetAllowedOrigins returns the list of allowed origins from environment
-// Returns empty slice if ALLOWED_ORIGINS is "*" or empty (allow all)
 func GetAllowedOrigins() []string {
 	origins := os.Getenv("ALLOWED_ORIGINS")
 	if origins == "" || origins == "*" {
-		return []string{} // Empty = allow all in NATS WebSocket
+		return []string{}
 	}
 	var result []string
 	for _, o := range strings.Split(origins, ",") {
@@ -171,34 +241,4 @@ func IsOriginAllowed(origin string) bool {
 		}
 	}
 	return false
-}
-
-// BearerAuth validates the Bearer token in the Authorization header
-func BearerAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing Authorization header")
-			return
-		}
-
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid Authorization header format")
-			return
-		}
-
-		token := parts[1]
-		expectedToken := os.Getenv("OVERWATCH_TOKEN")
-		if expectedToken == "" {
-			expectedToken = "reindustrialize-dev-token" // Default for dev
-		}
-
-		if token != expectedToken {
-			responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token")
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }

@@ -24,15 +24,9 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 	orgHandler := handlers.NewOrganizationHandler(orgService)
 	entityHandler := handlers.NewEntityHandler(entityService)
 	monitorHandler := handlers.NewMonitorHandler()
-	videoHandler := handlers.NewVideoHandler(nats)
-	webrtcHandler := handlers.NewWebRTCHandler(nats)
-	go func() {
-		if err := webrtcHandler.Start(); err != nil {
-			// Log error (using fmt for now as we don't have a logger passed in)
-			// In a real app, we should pass a logger
-			println("WebRTC Handler Start Error:", err.Error())
-		}
-	}()
+
+	// API key authentication middleware
+	apiKeyAuth := middleware.NewAPIKeyMiddleware(db)
 
 	// Global Middleware
 	r.Use(middleware.CORS)
@@ -47,7 +41,7 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 		// Organizations
 		r.Route("/organizations", func(r chi.Router) {
-			r.Use(middleware.BearerAuth)
+			r.Use(apiKeyAuth.Authenticate)
 			r.Get("/", orgHandler.List)
 			r.Post("/", orgHandler.Create)
 			r.Delete("/", orgHandler.Delete)
@@ -55,21 +49,13 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 		// Entities
 		r.Route("/entities", func(r chi.Router) {
-			r.Use(middleware.BearerAuth)
+			r.Use(apiKeyAuth.Authenticate)
 			r.Get("/", entityHandler.ListOrGet)
 			r.Post("/", entityHandler.Create)
 			r.Put("/", entityHandler.Update)
 			r.Delete("/", entityHandler.Delete)
 		})
 
-		// Video streams (no auth - streaming endpoints)
-		r.Route("/video", func(r chi.Router) {
-			r.Get("/list", videoHandler.List)
-			r.Get("/stream/*", videoHandler.Stream)
-		})
-
-		// WebRTC Signaling
-		r.Post("/webrtc/signal", webrtcHandler.Signal)
 	})
 
 	return r

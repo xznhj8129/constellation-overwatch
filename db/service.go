@@ -124,6 +124,12 @@ func (s *Service) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
+
+	// Apply incremental migrations for existing databases
+	if err := s.MigrateSchema(); err != nil {
+		logger.Warnw("Schema migration encountered issues", "error", err)
+	}
+
 	return nil
 }
 
@@ -249,6 +255,10 @@ func (s *Service) VerifySchema() error {
 		"users",
 		"telemetry",
 		"audit_log",
+		"webauthn_credentials",
+		"webauthn_sessions",
+		"api_keys",
+		"invites",
 	}
 
 	for _, table := range requiredTables {
@@ -326,12 +336,49 @@ func fileExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
-// MigrateSchema applies any pending schema migrations
-// This is a placeholder for future migration support
+// MigrateSchema applies any pending schema migrations.
 func (s *Service) MigrateSchema() error {
-	// TODO: Implement migration system
-	logger.Info("Schema migration not yet implemented")
+	// Ensure users.email has a unique index (added after initial schema).
+	_, err := s.DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)`)
+	if err != nil {
+		logger.Warnw("Failed to create unique email index (may already exist)", "error", err)
+	}
+
+	// Add user_ref column to webauthn_sessions if it doesn't exist (needed for
+	// random session keys that store the user reference alongside the session).
+	if !s.columnExists("webauthn_sessions", "user_ref") {
+		if _, err := s.DB.Exec(`ALTER TABLE webauthn_sessions ADD COLUMN user_ref TEXT DEFAULT ''`); err != nil {
+			logger.Warnw("Failed to add user_ref column to webauthn_sessions", "error", err)
+		} else {
+			logger.Info("Added user_ref column to webauthn_sessions")
+		}
+	}
+
 	return nil
+}
+
+// columnExists checks whether a column exists on a table.
+func (s *Service) columnExists(table, column string) bool {
+	rows, err := s.DB.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull int
+		var dflt sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			continue
+		}
+		if name == column {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSchemaVersion returns the current schema version

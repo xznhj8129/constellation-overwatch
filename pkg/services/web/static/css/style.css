@@ -1,16 +1,16 @@
-/* Star Wars themed CSS for Constellation Overwatch */
+/* Constellation Overwatch — Imperial Cybernetics Design System */
 
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
 :root {
-    --primary-color: #00d4ff;
-    --secondary-color: #ff6b00;
-    --bg-dark: #000814;
-    --bg-medium: #001d3d;
-    --bg-light: #003566;
-    --text-primary: #00d4ff;
+    --primary-color: #00ff88;
+    --secondary-color: #00cc6a;
+    --bg-dark: #020a06;
+    --bg-medium: #061a10;
+    --bg-light: #0d3320;
+    --text-primary: #00ff88;
     --text-secondary: #ffd60a;
-    --border-color: #00d4ff;
+    --border-color: #00ff88;
     --success: #4caf50;
     --warning: #ff9800;
     --error: #f44336;
@@ -99,7 +99,7 @@ body {
     width: 220px;
     min-width: 220px;
     background: linear-gradient(180deg, var(--bg-medium) 0%, var(--bg-dark) 100%);
-    border-right: 1px solid rgba(0, 212, 255, 0.3);
+    border-right: 1px solid rgba(0, 255, 136, 0.3);
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -113,7 +113,7 @@ body {
 /* C5 Brand Header */
 .nav-brand {
     padding: 16px 20px;
-    border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 255, 136, 0.2);
     text-align: center;
     background: rgba(0, 0, 0, 0.3);
 }
@@ -151,7 +151,7 @@ body {
 
 .brand-title {
     font-size: 0.6rem;
-    color: rgba(0, 212, 255, 0.9);
+    color: rgba(0, 255, 136, 0.9);
     text-transform: uppercase;
     letter-spacing: 0.18em;
     display: block;
@@ -160,7 +160,7 @@ body {
 
 .brand-subtitle {
     font-size: 0.6rem;
-    color: rgba(0, 212, 255, 0.9);
+    color: rgba(0, 255, 136, 0.9);
     text-transform: uppercase;
     letter-spacing: 0.18em;
     display: block;
@@ -177,7 +177,7 @@ body {
 .nav-button {
     background: transparent;
     border: none;
-    color: rgba(0, 212, 255, 0.8);
+    color: rgba(0, 255, 136, 0.8);
     padding: 14px 20px;
     text-align: left;
     cursor: pointer;
@@ -210,12 +210,12 @@ body {
 }
 
 .nav-button:hover {
-    background: rgba(0, 212, 255, 0.08);
+    background: rgba(0, 255, 136, 0.08);
     color: var(--text-primary);
 }
 
 .nav-button.active {
-    background: rgba(0, 212, 255, 0.15);
+    background: rgba(0, 255, 136, 0.15);
     color: var(--text-secondary);
 }
 
@@ -248,7 +248,7 @@ body {
 
 .nav-footer-divider {
     height: 1px;
-    background: rgba(0, 212, 255, 0.2);
+    background: rgba(0, 255, 136, 0.2);
     margin: 0 8px 12px;
 }
 
@@ -257,7 +257,7 @@ body {
     align-items: center;
     gap: 12px;
     padding: 12px;
-    color: rgba(0, 212, 255, 0.7);
+    color: rgba(0, 255, 136, 0.7);
     text-decoration: none;
     font-family: 'Orbitron', monospace;
     font-size: 0.8rem;
@@ -269,7 +269,7 @@ body {
 
 .nav-docs-link:hover {
     color: var(--text-primary);
-    background: rgba(0, 212, 255, 0.08);
+    background: rgba(0, 255, 136, 0.08);
 }
 
 .nav-docs-link .nav-icon {
@@ -360,7 +360,7 @@ body {
 
 /* Panels */
 .panel {
-    background: rgba(0, 29, 61, 0.5);
+    background: rgba(6, 26, 16, 0.5);
     border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
@@ -421,11 +421,11 @@ body {
 .data-table td {
     padding: 12px;
     text-align: left;
-    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+    border-bottom: 1px solid rgba(0, 255, 136, 0.3);
 }
 
 .data-table th {
-    background: rgba(0, 212, 255, 0.1);
+    background: rgba(0, 255, 136, 0.1);
     color: var(--text-secondary);
     text-transform: uppercase;
     font-weight: 700;
@@ -433,7 +433,7 @@ body {
 }
 
 .data-table tr:hover {
-    background: rgba(0, 212, 255, 0.05);
+    background: rgba(0, 255, 136, 0.05);
 }
 
 /* Status Badges */
@@ -503,8 +503,8 @@ body {
 }
 
 .stream-message {
-    background: rgba(0, 212, 255, 0.05);
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    background: rgba(0, 255, 136, 0.05);
+    border: 1px solid rgba(0, 255, 136, 0.3);
     border-radius: 5px;
     padding: 10px;
     animation: slideIn 0.3s ease;
@@ -688,7 +688,7 @@ body {
 }
 
 .close-btn:hover {
-    background: rgba(0, 212, 255, 0.2);
+    background: rgba(0, 255, 136, 0.2);
     transform: rotate(90deg);
 }
 
@@ -729,7 +729,7 @@ body {
 .form-group textarea:focus {
     outline: none;
     border-color: var(--text-secondary);
-    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
 
 .form-group input[type="checkbox"] {
@@ -795,14 +795,14 @@ legend {
 
 /* Table row selection */
 tr.selected {
-    background: rgba(0, 212, 255, 0.1);
+    background: rgba(0, 255, 136, 0.1);
 }
 
 /* Datastar indicators - Let Datastar handle visibility */
 
 /* Inline Form Row */
 .form-row-inline {
-    background: rgba(0, 212, 255, 0.05);
+    background: rgba(0, 255, 136, 0.05);
     border-bottom: 2px solid var(--border-color);
 }
 
@@ -830,11 +830,11 @@ tr.selected {
 .inline-form-input:focus {
     outline: none;
     border-color: var(--text-secondary);
-    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
 
 .inline-form-input::placeholder {
-    color: rgba(0, 212, 255, 0.5);
+    color: rgba(0, 255, 136, 0.5);
     opacity: 1;
 }
 
@@ -849,15 +849,15 @@ tr.selected {
     align-items: center;
     gap: 10px;
     padding: 12px 16px;
-    background: rgba(0, 29, 61, 0.3);
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    background: rgba(6, 26, 16, 0.3);
+    border: 1px solid rgba(0, 255, 136, 0.3);
     border-radius: 6px;
     transition: all 0.3s ease;
 }
 
 .info-box:hover {
-    background: rgba(0, 29, 61, 0.5);
-    border-color: rgba(0, 212, 255, 0.5);
+    background: rgba(6, 26, 16, 0.5);
+    border-color: rgba(0, 255, 136, 0.5);
 }
 
 .info-icon {
@@ -898,7 +898,7 @@ tr.selected {
     border-radius: 3px;
     font-family: 'Courier New', monospace;
     font-size: 0.9em;
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    border: 1px solid rgba(0, 255, 136, 0.3);
     font-weight: 600;
 }
 
@@ -974,7 +974,7 @@ tr.selected {
     height: 100%;
     z-index: 0;
     overflow: hidden;
-    background: radial-gradient(ellipse at center, #0a1628 0%, #030810 40%, #000000 100%);
+    background: radial-gradient(ellipse at center, #040d08 0%, #020806 40%, #000000 100%);
 }
 
 /* Central light source - the vanishing point */
@@ -990,9 +990,9 @@ tr.selected {
     border-radius: 50%;
     box-shadow:
         0 0 20px 10px rgba(255, 255, 255, 0.8),
-        0 0 60px 30px rgba(0, 212, 255, 0.6),
-        0 0 100px 50px rgba(0, 212, 255, 0.3),
-        0 0 200px 100px rgba(0, 150, 255, 0.15);
+        0 0 60px 30px rgba(0, 255, 136, 0.6),
+        0 0 100px 50px rgba(0, 255, 136, 0.3),
+        0 0 200px 100px rgba(0, 200, 100, 0.15);
     animation: corePulse 2s ease-in-out infinite;
 }
 
@@ -1009,7 +1009,7 @@ tr.selected {
         repeating-conic-gradient(
             from 0deg,
             transparent 0deg,
-            rgba(0, 212, 255, 0.03) 0.5deg,
+            rgba(0, 255, 136, 0.03) 0.5deg,
             transparent 1deg,
             transparent 3deg
         );
@@ -1020,16 +1020,16 @@ tr.selected {
     0%, 100% {
         box-shadow:
             0 0 20px 10px rgba(255, 255, 255, 0.8),
-            0 0 60px 30px rgba(0, 212, 255, 0.6),
-            0 0 100px 50px rgba(0, 212, 255, 0.3),
-            0 0 200px 100px rgba(0, 150, 255, 0.15);
+            0 0 60px 30px rgba(0, 255, 136, 0.6),
+            0 0 100px 50px rgba(0, 255, 136, 0.3),
+            0 0 200px 100px rgba(0, 200, 100, 0.15);
     }
     50% {
         box-shadow:
             0 0 30px 15px rgba(255, 255, 255, 0.9),
-            0 0 80px 40px rgba(0, 212, 255, 0.7),
-            0 0 140px 70px rgba(0, 212, 255, 0.4),
-            0 0 250px 125px rgba(0, 150, 255, 0.2);
+            0 0 80px 40px rgba(0, 255, 136, 0.7),
+            0 0 140px 70px rgba(0, 255, 136, 0.4),
+            0 0 250px 125px rgba(0, 200, 100, 0.2);
     }
 }
 
@@ -1066,7 +1066,7 @@ tr.selected {
     height: 3px;
     background: white;
     border-radius: 50%;
-    box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.8), 0 0 12px 4px rgba(0, 212, 255, 0.5);
+    box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.8), 0 0 12px 4px rgba(0, 255, 136, 0.5);
 }
 
 /* The streak trail */
@@ -1077,8 +1077,8 @@ tr.selected {
     height: 200px;
     background: linear-gradient(to top,
         rgba(255, 255, 255, 0.9) 0%,
-        rgba(0, 212, 255, 0.6) 20%,
-        rgba(0, 150, 255, 0.3) 50%,
+        rgba(0, 255, 136, 0.6) 20%,
+        rgba(0, 200, 100, 0.3) 50%,
         transparent 100%);
     transform-origin: bottom center;
     border-radius: 2px;
@@ -1138,7 +1138,7 @@ tr.selected {
 .star:nth-child(n+11)::before {
     width: 2px;
     height: 2px;
-    box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.6), 0 0 8px 2px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.6), 0 0 8px 2px rgba(0, 255, 136, 0.3);
 }
 
 .star:nth-child(n+11)::after {
@@ -1150,135 +1150,121 @@ tr.selected {
 .login-box {
     position: relative;
     z-index: 10;
-    background: rgba(0, 29, 61, 0.85);
+    background: rgba(6, 26, 16, 0.85);
     border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 40px;
     width: 100%;
     max-width: 420px;
     box-shadow:
-        0 0 40px rgba(0, 212, 255, 0.3),
-        0 0 80px rgba(0, 212, 255, 0.1),
-        inset 0 0 20px rgba(0, 212, 255, 0.05);
+        0 0 40px rgba(0, 255, 136, 0.3),
+        0 0 80px rgba(0, 255, 136, 0.1),
+        inset 0 0 20px rgba(0, 255, 136, 0.05);
     backdrop-filter: blur(10px);
     animation: boxGlow 3s ease-in-out infinite;
 }
 
 @keyframes boxGlow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 40px rgba(0, 212, 255, 0.3), 0 0 80px rgba(0, 212, 255, 0.1), inset 0 0 20px rgba(0, 212, 255, 0.05);
+    0%, 100% {
+        box-shadow: 0 0 40px rgba(0, 255, 136, 0.3), 0 0 80px rgba(0, 255, 136, 0.1), inset 0 0 20px rgba(0, 255, 136, 0.05);
     }
-
     50% {
-        box-shadow: 0 0 60px rgba(0, 212, 255, 0.4), 0 0 100px rgba(0, 212, 255, 0.2), inset 0 0 30px rgba(0, 212, 255, 0.1);
+        box-shadow: 0 0 60px rgba(0, 255, 136, 0.4), 0 0 100px rgba(0, 255, 136, 0.2), inset 0 0 30px rgba(0, 255, 136, 0.1);
     }
 }
 
-.login-header {
+/* Login Avatar */
+.login-avatar {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 30px;
+    justify-content: center;
+    margin-bottom: 28px;
 }
 
-.login-header img {
+.login-avatar img {
     width: 80px;
     height: 80px;
-    margin-bottom: 20px;
-    filter: drop-shadow(0 0 20px rgba(0, 212, 255, 0.5));
-    animation: logoFloat 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 16px rgba(0, 255, 136, 0.5));
 }
 
-@keyframes logoFloat {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-.login-brand {
-    font-size: 4rem;
-    font-weight: 900;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+/* Invite Heading */
+.invite-heading {
+    text-align: center;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 8px;
-    animation: logoFloat 3s ease-in-out infinite;
-}
-
-.login-header h1 {
-    font-size: 1.3rem;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin: 0;
-    text-align: center;
-    text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
-}
-
-.login-header .subtitle {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin-top: 8px;
-    letter-spacing: 0.1em;
 }
 
 /* Login Form */
 .login-form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 18px;
 }
 
-.login-form .form-group {
-    margin-bottom: 0;
+/* Input Group (icon + input) */
+.input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
 }
 
-.login-form label {
-    display: block;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 8px;
+.input-group .input-icon {
+    position: absolute;
+    left: 14px;
+    width: 20px;
+    height: 20px;
+    color: rgba(0, 255, 136, 0.5);
+    pointer-events: none;
 }
 
-.login-form input[type="password"] {
+.input-group input {
     width: 100%;
-    padding: 14px 16px;
-    background: rgba(0, 8, 20, 0.8);
+    padding: 14px 16px 14px 46px;
+    background: rgba(2, 10, 6, 0.8);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 6px;
     color: var(--text-primary);
     font-family: 'Orbitron', monospace;
-    font-size: 1rem;
+    font-size: 0.9rem;
     transition: all 0.3s ease;
 }
 
-.login-form input[type="password"]:focus {
+.input-group input:focus {
     outline: none;
     border-color: var(--text-secondary);
-    box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
 }
 
-.login-form input[type="password"]::placeholder {
-    color: rgba(0, 212, 255, 0.4);
+.input-group input::placeholder {
+    color: rgba(0, 255, 136, 0.4);
 }
 
+/* Remember Me */
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+}
+
+.remember-me input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--text-primary);
+    cursor: pointer;
+}
+
+/* Login Button */
 .login-btn {
     padding: 14px 24px;
     background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     color: var(--bg-dark);
     font-family: 'Orbitron', monospace;
     font-size: 1rem;
@@ -1304,7 +1290,7 @@ tr.selected {
 
 .login-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 0 30px rgba(0, 212, 255, 0.6);
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
 }
 
 .login-btn:hover::before {
@@ -1313,6 +1299,37 @@ tr.selected {
 
 .login-btn:active {
     transform: translateY(0);
+}
+
+.login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Login Status */
+.login-status {
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 10px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.login-status.hidden {
+    display: none;
+}
+
+.login-status.error {
+    color: var(--error);
+    background: rgba(244, 67, 54, 0.15);
+    border: 1px solid var(--error);
+}
+
+.login-status.success {
+    color: var(--success);
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid var(--success);
 }
 
 /* Login Error */
@@ -1328,21 +1345,9 @@ tr.selected {
 }
 
 @keyframes shake {
-
-    0%,
-    100% {
-        transform: translateX(0);
-    }
-
-    20%,
-    60% {
-        transform: translateX(-5px);
-    }
-
-    40%,
-    80% {
-        transform: translateX(5px);
-    }
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px); }
+    40%, 80% { transform: translateX(5px); }
 }
 
 /* Logout Button in Nav */
@@ -1364,4 +1369,339 @@ tr.selected {
     background: var(--error);
     color: white;
     border-color: var(--error);
+}
+
+/* ============================
+   Admin Page
+   ============================ */
+
+.admin-page {
+    padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+}
+
+.admin-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-primary);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    padding: 10px 20px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.admin-tab:hover {
+    opacity: 1;
+}
+
+.admin-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--text-primary);
+    color: var(--text-secondary);
+}
+
+.admin-panel {
+    flex: 1;
+    overflow: auto;
+}
+
+.admin-panel.hidden {
+    display: none;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.panel-header h2 {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0;
+}
+
+/* Admin Form */
+.admin-form {
+    margin-bottom: 16px;
+}
+
+.admin-form .form-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.admin-form input,
+.admin-form select {
+    padding: 10px 14px;
+    background: rgba(2, 10, 6, 0.8);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    flex: 1;
+    min-width: 150px;
+}
+
+.admin-form input:focus,
+.admin-form select:focus {
+    outline: none;
+    border-color: var(--text-secondary);
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.admin-form input::placeholder {
+    color: rgba(0, 255, 136, 0.4);
+}
+
+.admin-form select option {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+}
+
+.btn-primary {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    border: none;
+    border-radius: 4px;
+    color: var(--bg-dark);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-primary:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--error);
+    border-radius: 4px;
+    color: var(--error);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+    background: var(--error);
+    color: white;
+}
+
+.btn-sm {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+}
+
+.btn-copy {
+    padding: 4px 12px;
+    background: rgba(0, 255, 136, 0.2);
+    border: 1px solid var(--text-primary);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: all 0.2s ease;
+}
+
+.btn-copy:hover {
+    background: rgba(0, 255, 136, 0.4);
+}
+
+/* Invite / API Key Result */
+.invite-result,
+.apikey-result {
+    padding: 12px 16px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+    word-break: break-all;
+}
+
+.invite-result.hidden,
+.apikey-result.hidden {
+    display: none;
+}
+
+.invite-result.success,
+.apikey-result.success {
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid var(--success);
+    color: var(--success);
+}
+
+.invite-result.error,
+.apikey-result.error {
+    background: rgba(244, 67, 54, 0.15);
+    border: 1px solid var(--error);
+    color: var(--error);
+}
+
+.invite-link,
+.apikey-value {
+    display: inline-block;
+    background: rgba(2, 10, 6, 0.8);
+    padding: 6px 10px;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    margin: 6px 0;
+    color: var(--text-secondary);
+}
+
+/* Data Tables */
+.table-container {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.data-table th {
+    text-align: left;
+    padding: 10px 14px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+    color: var(--text-primary);
+}
+
+.data-table tr:hover td {
+    background: rgba(0, 255, 136, 0.05);
+}
+
+.data-table code {
+    background: rgba(2, 10, 6, 0.6);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+}
+
+.loading-cell,
+.empty-cell,
+.error-cell {
+    text-align: center;
+    color: rgba(0, 255, 136, 0.5);
+    padding: 30px 14px;
+    font-style: italic;
+}
+
+.error-cell {
+    color: var(--error);
+}
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge-role {
+    background: rgba(0, 255, 136, 0.2);
+    color: var(--text-primary);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.badge-ok {
+    background: rgba(76, 175, 80, 0.2);
+    color: var(--success);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.badge-warning {
+    background: rgba(255, 152, 0, 0.2);
+    color: var(--warning);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+/* Scope Selector */
+.scope-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.scope-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.scope-toggle {
+    cursor: pointer;
+    display: inline-flex;
+}
+
+.scope-toggle input[type="checkbox"] {
+    display: none;
+}
+
+.scope-chip {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-family: 'Orbitron', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(2, 10, 6, 0.6);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    color: rgba(0, 255, 136, 0.4);
+    transition: all 0.2s ease;
+}
+
+.scope-toggle input[type="checkbox"]:checked + .scope-chip {
+    background: rgba(0, 255, 136, 0.2);
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
 }

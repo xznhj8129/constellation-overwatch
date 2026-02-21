@@ -35,20 +35,14 @@ const (
 	SubjectSystemHealth  = "constellation.system.health"
 	SubjectSystemMetrics = "constellation.system.metrics"
 	SubjectSystemAlerts  = "constellation.system.alerts"
-
-	// Video frame subjects
-	SubjectVideo       = "constellation.video"
-	SubjectVideoAll    = "constellation.video.>"
-	SubjectVideoEntity = "constellation.video.%s" // entity_id
 )
 
 // Stream names
 const (
-	StreamEntities    = "CONSTELLATION_ENTITIES"
-	StreamEvents      = "CONSTELLATION_EVENTS"
-	StreamTelemetry   = "CONSTELLATION_TELEMETRY"
-	StreamCommands    = "CONSTELLATION_COMMANDS"
-	StreamVideoFrames = "CONSTELLATION_VIDEO_FRAMES"
+	StreamEntities  = "CONSTELLATION_ENTITIES"
+	StreamEvents    = "CONSTELLATION_EVENTS"
+	StreamTelemetry = "CONSTELLATION_TELEMETRY"
+	StreamCommands  = "CONSTELLATION_COMMANDS"
 )
 
 // Consumer names
@@ -57,7 +51,6 @@ const (
 	ConsumerEventProcessor     = "event-processor"
 	ConsumerCommandProcessor   = "command-processor"
 	ConsumerTelemetryProcessor = "telemetry-processor"
-	ConsumerVideoProcessor     = "video-processor"
 )
 
 // KV Bucket names
@@ -135,9 +128,4 @@ func SwarmFleetKey(swarmID string) string {
 
 func OrgEntitiesKey(orgID string) string {
 	return fmt.Sprintf(KVKeyOrgEntities, orgID)
-}
-
-// VideoFrameSubject returns the subject for video frames from a specific entity
-func VideoFrameSubject(entityID string) string {
-	return fmt.Sprintf(SubjectVideoEntity, entityID)
 }
