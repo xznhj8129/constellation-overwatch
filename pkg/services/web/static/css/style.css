@@ -60,7 +60,7 @@ body {
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.2em;
-    background: linear-gradient(45deg, var(--text-primary), var(--text-secondary));
+    background: linear-gradient(45deg, var(--text-primary), var(--secondary-color));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -133,7 +133,7 @@ body {
 .brand-text {
     font-size: 1.4rem;
     font-weight: 900;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    background: linear-gradient(135deg, var(--text-primary), var(--secondary-color));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -201,7 +201,7 @@ body {
     transform: translateY(-50%);
     height: 60%;
     width: 3px;
-    background: var(--text-secondary);
+    background: var(--secondary-color);
     border-radius: 0 2px 2px 0;
     opacity: 0;
     transition: opacity 0.2s ease;
@@ -214,7 +214,7 @@ body {
 
 .nav-button.active {
     background: rgba(255, 255, 255, 0.05);
-    color: var(--text-secondary);
+    color: var(--secondary-color);
 }
 
 .nav-button.active::before {
@@ -447,9 +447,9 @@ body {
 
 .action-btn:hover,
 .refresh-btn:hover {
-    background: var(--border-color);
-    color: var(--bg-dark);
-    box-shadow: 0 0 10px var(--border-color);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
 .refresh-btn {
@@ -739,13 +739,15 @@ legend {
 }
 
 .action-btn.primary {
-    background: var(--border-color);
-    color: var(--bg-dark);
+    background: var(--secondary-color);
+    color: #fff;
+    border-color: var(--secondary-color);
 }
 
 .action-btn.primary:hover {
-    background: var(--text-secondary);
-    box-shadow: 0 0 15px var(--text-secondary);
+    background: var(--primary-muted);
+    border-color: var(--primary-muted);
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
 }
 
 .action-btn.small {
@@ -1141,7 +1143,7 @@ tr.selected {
 .login-avatar img {
     width: 80px;
     height: 80px;
-    filter: drop-shadow(0 0 16px rgba(200, 210, 205, 0.4));
+    filter: drop-shadow(0 0 16px rgba(0, 255, 136, 0.3));
 }
 
 /* Invite Heading */
@@ -1191,8 +1193,8 @@ tr.selected {
 
 .input-group input:focus {
     outline: none;
-    border-color: var(--text-secondary);
-    box-shadow: 0 0 20px rgba(200, 210, 205, 0.3);
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.08);
 }
 
 .input-group input::placeholder {
@@ -1213,17 +1215,17 @@ tr.selected {
 .remember-me input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: var(--text-primary);
+    accent-color: var(--secondary-color);
     cursor: pointer;
 }
 
 /* Login Button */
 .login-btn {
     padding: 14px 24px;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    background: linear-gradient(135deg, var(--secondary-color), var(--primary-muted));
     border: none;
     border-radius: 6px;
-    color: var(--bg-dark);
+    color: #fff;
     font-family: 'Orbitron', monospace;
     font-size: 1rem;
     font-weight: 700;
@@ -1248,7 +1250,7 @@ tr.selected {
 
 .login-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.03);
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.15);
 }
 
 .login-btn:hover::before {
@@ -1369,8 +1371,8 @@ tr.selected {
 
 .admin-tab.active {
     opacity: 1;
-    border-bottom-color: var(--text-primary);
-    color: var(--text-secondary);
+    border-bottom-color: var(--secondary-color);
+    color: var(--secondary-color);
 }
 
 .admin-panel {
@@ -1440,10 +1442,10 @@ tr.selected {
 
 .btn-primary {
     padding: 10px 20px;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    background: var(--secondary-color);
     border: none;
     border-radius: 4px;
-    color: var(--bg-dark);
+    color: #fff;
     font-family: 'Orbitron', monospace;
     font-size: 0.8rem;
     font-weight: 700;
@@ -1455,7 +1457,8 @@ tr.selected {
 }
 
 .btn-primary:hover {
-    box-shadow: 0 0 20px rgba(200, 210, 205, 0.4);
+    background: var(--primary-muted);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
     transform: translateY(-1px);
 }
 
