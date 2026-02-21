@@ -8,7 +8,6 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	docs_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/docs/pages"
 	fleet_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/pages"
 	map_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/pages"
 	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
@@ -236,13 +235,6 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 	component := video_pages.VideoPage(entityIDs, natsAuthToken)
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render video page: %v", err)
-	}
-}
-
-func (h *PageHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
-	component := docs_pages.DocsPage()
-	if err := component.Render(r.Context(), w); err != nil {
-		logger.Errorf("Failed to render docs page: %v", err)
 	}
 }
 

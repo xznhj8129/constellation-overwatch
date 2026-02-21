@@ -241,7 +241,7 @@ func Navigation(activeTab string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</span> <span>Metrics</span></a><div class=\"nav-footer\"><div class=\"nav-footer-divider\"></div><a href=\"/docs\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"nav-docs-link\"><span class=\"nav-icon\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</span> <span>Metrics</span></a><div class=\"nav-footer\"><div class=\"nav-footer-divider\"></div><a href=\"https://constellation-overwatch.dev\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"nav-docs-link\"><span class=\"nav-icon\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
