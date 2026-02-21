@@ -124,7 +124,7 @@
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(0, 255, 136, 0.25);
     border-radius: 4px;
-    color: rgba(0, 255, 136, 0.7);
+    color: rgba(200, 210, 205, 0.55);
     padding: 6px 8px;
     cursor: pointer;
     display: flex;
@@ -135,7 +135,7 @@
 
 .entity-dropdown__trigger:hover {
     background: rgba(0, 255, 136, 0.15);
-    border-color: rgba(0, 255, 136, 0.5);
+    border-color: rgba(200, 210, 205, 0.4);
     color: #00ff88;
 }
 
@@ -231,7 +231,7 @@
 .entity-meta__item .value--highlight {
     color: var(--text-primary);
     font-weight: 700;
-    text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+    text-shadow: 0 0 8px rgba(200, 210, 205, 0.3);
 }
 
 .entity-id {
@@ -321,8 +321,8 @@
 
 .badge-priority-low {
     background: rgba(0, 255, 136, 0.05);
-    border-color: rgba(0, 255, 136, 0.4);
-    color: rgba(0, 255, 136, 0.7);
+    border-color: rgba(200, 210, 205, 0.3);
+    color: rgba(200, 210, 205, 0.55);
 }
 
 .badge-live {
@@ -345,7 +345,7 @@
     background: rgba(3, 15, 8, 0.5);
     border-radius: 4px;
     border: 1px solid rgba(0, 255, 136, 0.15);
-    border-left: 2px solid rgba(0, 255, 136, 0.4);
+    border-left: 2px solid rgba(200, 210, 205, 0.3);
 }
 
 .entity-section--threat {
@@ -617,7 +617,7 @@
 
 .entity-section--collapsible .section-header:hover {
     color: #66ffaa;
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    text-shadow: 0 0 10px rgba(200, 210, 205, 0.4);
 }
 
 .section-chevron {
@@ -713,14 +713,14 @@
     background: rgba(0, 255, 136, 0.08);
     border: 1px solid rgba(0, 255, 136, 0.25);
     border-radius: 4px;
-    color: rgba(0, 255, 136, 0.7);
+    color: rgba(200, 210, 205, 0.55);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .quick-action:hover {
     background: rgba(0, 255, 136, 0.2);
-    border-color: rgba(0, 255, 136, 0.5);
+    border-color: rgba(200, 210, 205, 0.4);
     color: #00ff88;
     box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
     transform: translateY(-1px);
@@ -741,13 +741,13 @@
     color: #00ff88;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-weight: 600;
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+    text-shadow: 0 0 10px rgba(200, 210, 205, 0.3);
     letter-spacing: 0.03em;
 }
 
 .entity-footer .timestamp {
     font-size: 0.9rem;
-    color: rgba(0, 255, 136, 0.8);
+    color: rgba(200, 210, 205, 0.7);
     font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
 
@@ -782,7 +782,7 @@
 
 .last-update {
     font-size: 0.85rem;
-    color: rgba(0, 255, 136, 0.8);
+    color: rgba(200, 210, 205, 0.7);
     padding: 6px 12px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 20px;
@@ -813,7 +813,7 @@
 }
 
 .kv-revision {
-    color: rgba(0, 255, 136, 0.6);
+    color: rgba(0, 255, 136, 0.08);
     font-size: 0.9rem;
 }
 
