@@ -26,8 +26,6 @@ type Config struct {
 	EnableTLS       bool
 	TLSCert         string
 	TLSKey          string
-	EnableAuth      bool
-	AuthToken       string
 }
 
 type EmbeddedNATS struct {
@@ -98,8 +96,6 @@ func DefaultConfig() *Config {
 		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
 		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
 		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
-		EnableAuth:      getEnv("OVERWATCH_TOKEN", "") != "", // Enable auth if OVERWATCH_TOKEN is set
-		AuthToken:       getEnv("OVERWATCH_TOKEN", ""),
 	}
 }
 
@@ -163,20 +159,6 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		Trace:   false,
 		Logtime: true,
 		NoSigs:  true, // Disable built-in signal handlers
-	}
-
-	// Configure Authentication - internal admin user only; edge devices use NKey/API key auth
-	if en.config.EnableAuth {
-		opts.Users = []*server.User{
-			{
-				Username: "overwatch-internal",
-				Password: en.config.AuthToken,
-				Permissions: &server.Permissions{
-					Publish:   &server.SubjectPermission{Allow: []string{">"}},
-					Subscribe: &server.SubjectPermission{Allow: []string{">"}},
-				},
-			},
-		}
 	}
 
 	// Configure JetStream limits
@@ -276,10 +258,6 @@ func (en *EmbeddedNATS) connect() error {
 		nats.ReconnectHandler(func(_ *nats.Conn) {
 			logger.Info("NATS reconnected")
 		}),
-	}
-
-	if en.config.EnableAuth {
-		connectOpts = append(connectOpts, nats.UserInfo("overwatch-internal", en.config.AuthToken))
 	}
 
 	nc, err := nats.Connect(url, connectOpts...)

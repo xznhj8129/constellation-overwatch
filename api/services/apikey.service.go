@@ -45,7 +45,7 @@ type StoredKey struct {
 	NATSPubKey string   `json:"nats_pub_key,omitempty"`
 }
 
-// CreateKey generates a new API key with the cow_live_ prefix, hashes it with
+// CreateKey generates a new API key with the c4_live_ prefix, hashes it with
 // SHA-256 for storage, and inserts a record in the api_keys table. When NATS
 // scopes are present, an NKey pair is generated and the public key is stored.
 // The plaintext API key and NATS seed are returned exactly once.
@@ -58,8 +58,8 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 		return nil, fmt.Errorf("failed to generate random key material: %w", err)
 	}
 
-	plaintext := "cow_live_" + hex.EncodeToString(raw)
-	prefix := plaintext[:16] // "cow_live_" plus first 7 hex chars
+	plaintext := "c4_live_" + hex.EncodeToString(raw)
+	prefix := plaintext[:16] // "c4_live_" plus first 8 hex chars
 
 	h := sha256.Sum256([]byte(plaintext))
 	keyHash := hex.EncodeToString(h[:])

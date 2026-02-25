@@ -3,11 +3,9 @@ package middleware
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -26,8 +24,7 @@ func NewAPIKeyMiddleware(db *sql.DB) *APIKeyMiddleware {
 }
 
 // Authenticate is HTTP middleware that validates API keys from the X-API-Key header
-// or from Bearer tokens with the cow_ prefix. Keys that do not carry the cow_live_
-// or cow_test_ prefix fall through to legacy OVERWATCH_TOKEN validation.
+// or from Bearer tokens. Keys must carry the c4_live_ or c4_test_ prefix.
 func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := extractAPIKey(r)
@@ -36,14 +33,14 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		// If the key carries the Constellation Overwatch prefix, validate against the database.
-		if strings.HasPrefix(raw, "cow_live_") || strings.HasPrefix(raw, "cow_test_") {
+		// If the key carries the c4_ prefix, validate against the database.
+		if strings.HasPrefix(raw, "c4_live_") || strings.HasPrefix(raw, "c4_test_") {
 			m.authenticateDBKey(w, r, next, raw)
 			return
 		}
 
-		// Legacy fallback: constant-time comparison against OVERWATCH_TOKEN.
-		m.authenticateLegacyToken(w, r, next, raw)
+		// No recognized prefix — reject.
+		responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid API key")
 	})
 }
 
@@ -105,21 +102,6 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// authenticateLegacyToken performs a constant-time comparison against the
-// OVERWATCH_TOKEN environment variable for backwards compatibility.
-func (m *APIKeyMiddleware) authenticateLegacyToken(w http.ResponseWriter, r *http.Request, next http.Handler, token string) {
-	expectedToken := os.Getenv("OVERWATCH_TOKEN")
-	if expectedToken == "" {
-		expectedToken = "reindustrialize-dev-token"
-	}
-
-	if subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
-		responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token")
-		return
-	}
-
-	next.ServeHTTP(w, r)
-}
 
 // RequireScope returns middleware that ensures the authenticated API key
 // possesses the given scope (or the "admin" scope, which implies all scopes).

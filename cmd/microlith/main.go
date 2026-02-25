@@ -98,7 +98,6 @@ func main() {
 		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
 		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
 		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
-		token       = flag.String("token", "", "Overwatch auth token (for API and NATS)")
 		dataDir     = flag.String("data-dir", "", "Data directory (default: ./data)")
 		envFile     = flag.String("env", ".env", "Path to .env file")
 	)
@@ -134,7 +133,7 @@ func main() {
 	}
 
 	// Apply CLI flag overrides to environment (flags take precedence)
-	applyFlagOverrides(*port, *host, *natsPort, *token, *dataDir)
+	applyFlagOverrides(*port, *host, *natsPort, *dataDir)
 
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
@@ -300,7 +299,6 @@ OPTIONS:
     --port <PORT>          HTTP server port for Web UI and REST API (default: 8080)
     --host <HOST>          Network bind address (default: 0.0.0.0)
     --nats-port <PORT>     NATS TCP port for edge device connections (default: 4222)
-    --token <TOKEN>        Auth token for API and NATS (default: reindustrialize-dev-token)
     --data-dir <PATH>      Data directory for database and NATS storage (default: ./data)
     --env <PATH>           Path to .env configuration file (default: .env)
     --update               Download and install the latest version
@@ -317,9 +315,6 @@ QUICK START:
     # Run on a different port
     overwatch --port 9090
 
-    # Run with custom token
-    overwatch --token mysecuretoken
-
     # Update to the latest version
     overwatch --update
 
@@ -333,7 +328,7 @@ TUI CONTROLS:
 
 ENVIRONMENT:
     All options can also be set via environment variables or .env file:
-    PORT, HOST, NATS_PORT, OVERWATCH_TOKEN, OVERWATCH_DATA_DIR
+    PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
 
     Priority: CLI flags > environment variables > .env file > defaults
 
@@ -419,7 +414,7 @@ func bootstrapAdmin(dbService *db.Service) {
 	fmt.Printf("  ✦ Complete setup at: http://%s:%s/invite/%s\n\n", host, port, plainToken)
 }
 
-func applyFlagOverrides(port, host, natsPort, token, dataDir string) {
+func applyFlagOverrides(port, host, natsPort, dataDir string) {
 	if port != "" {
 		os.Setenv("PORT", port)
 	}
@@ -428,9 +423,6 @@ func applyFlagOverrides(port, host, natsPort, token, dataDir string) {
 	}
 	if natsPort != "" {
 		os.Setenv("NATS_PORT", natsPort)
-	}
-	if token != "" {
-		os.Setenv("OVERWATCH_TOKEN", token)
 	}
 	if dataDir != "" {
 		os.Setenv("OVERWATCH_DATA_DIR", dataDir)
