@@ -162,9 +162,9 @@ func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 
 func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, error) {
 	row := s.db.QueryRow(
-		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live, 
-		        latitude, longitude, altitude, heading, velocity, 
-		        components, tags, metadata, created_at, updated_at 
+		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
+		        latitude, longitude, altitude, heading, velocity,
+		        components, tags, metadata, video_config, created_at, updated_at
 		 FROM entities WHERE org_id = ? AND entity_id = ?`,
 		orgID, entityID,
 	)
