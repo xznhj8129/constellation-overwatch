@@ -5,10 +5,11 @@ import (
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
-	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // AdminHandler exposes administrative endpoints for managing users, invites,
@@ -35,7 +36,7 @@ func NewAdminHandler(userSvc *services.UserService, apiKeySvc *services.APIKeySe
 // It writes a 403 JSON error and returns false when the check fails.
 func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 	if middleware.UserRoleFromContext(r.Context()) != "admin" {
-		responses.SendError(w, http.StatusForbidden, "FORBIDDEN", "Admin role required")
+		sendError(w, http.StatusForbidden, "FORBIDDEN", "Admin role required")
 		return false
 	}
 	return true
@@ -56,11 +57,11 @@ func (h *AdminHandler) HandleListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.userSvc.ListByOrg(orgID)
 	if err != nil {
 		logger.Errorf("Failed to list users for org %s: %v", orgID, err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list users")
+		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list users")
 		return
 	}
 
-	responses.SendSuccess(w, http.StatusOK, users)
+	sendSuccess(w, http.StatusOK, users)
 }
 
 // createInviteRequest is the expected JSON body for HandleCreateInvite.
@@ -78,12 +79,12 @@ func (h *AdminHandler) HandleCreateInvite(w http.ResponseWriter, r *http.Request
 
 	var req createInviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		responses.SendError(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON body")
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON body")
 		return
 	}
 
 	if req.Email == "" || req.Role == "" {
-		responses.SendError(w, http.StatusBadRequest, "BAD_REQUEST", "email and role are required")
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "email and role are required")
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *AdminHandler) HandleCreateInvite(w http.ResponseWriter, r *http.Request
 	invite, plainToken, err := h.inviteSvc.CreateInvite(orgID, req.Email, req.Role, invitedBy)
 	if err != nil {
 		logger.Errorf("Failed to create invite for %s: %v", req.Email, err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create invite")
+		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create invite")
 		return
 	}
 
@@ -106,7 +107,7 @@ func (h *AdminHandler) HandleCreateInvite(w http.ResponseWriter, r *http.Request
 		Token string `json:"token"`
 	}
 
-	responses.SendSuccess(w, http.StatusCreated, inviteResponse{
+	sendSuccess(w, http.StatusCreated, inviteResponse{
 		Invite: invite,
 		Token:  plainToken,
 	})
@@ -119,19 +120,19 @@ func (h *AdminHandler) HandleRevokeInvite(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	inviteID := r.PathValue("id")
+	inviteID := chi.URLParam(r, "id")
 	if inviteID == "" {
-		responses.SendError(w, http.StatusBadRequest, "BAD_REQUEST", "Missing invite id")
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "Missing invite id")
 		return
 	}
 
 	if err := h.inviteSvc.RevokeInvite(inviteID); err != nil {
 		logger.Errorf("Failed to revoke invite %s: %v", inviteID, err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke invite")
+		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke invite")
 		return
 	}
 
-	responses.SendSuccess(w, http.StatusOK, map[string]string{"status": "revoked"})
+	sendSuccess(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
 // createAPIKeyRequest is the expected JSON body for HandleCreateAPIKey.
@@ -151,12 +152,12 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 
 	var req createAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		responses.SendError(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON body")
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON body")
 		return
 	}
 
 	if req.Name == "" {
-		responses.SendError(w, http.StatusBadRequest, "BAD_REQUEST", "name is required")
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "name is required")
 		return
 	}
 
@@ -170,7 +171,7 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 	created, err := h.apiKeySvc.CreateKey(userID, orgID, req.Name, req.Scopes, nil)
 	if err != nil {
 		logger.Errorf("Failed to create API key %q: %v", req.Name, err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create API key")
+		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create API key")
 		return
 	}
 
@@ -185,7 +186,7 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	responses.SendSuccess(w, http.StatusCreated, created)
+	sendSuccess(w, http.StatusCreated, created)
 }
 
 // HandleRevokeAPIKey marks an API key as revoked so it can no longer
@@ -195,9 +196,9 @@ func (h *AdminHandler) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	keyID := r.PathValue("id")
+	keyID := chi.URLParam(r, "id")
 	if keyID == "" {
-		responses.SendError(w, http.StatusBadRequest, "BAD_REQUEST", "Missing key id")
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "Missing key id")
 		return
 	}
 
@@ -206,7 +207,7 @@ func (h *AdminHandler) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request
 
 	if err := h.apiKeySvc.RevokeKey(keyID); err != nil {
 		logger.Errorf("Failed to revoke API key %s: %v", keyID, err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke API key")
+		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke API key")
 		return
 	}
 
@@ -217,7 +218,7 @@ func (h *AdminHandler) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	responses.SendSuccess(w, http.StatusOK, map[string]string{"status": "revoked"})
+	sendSuccess(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
 // HandleListAPIKeys returns a JSON list of non-revoked API keys for the
@@ -235,9 +236,9 @@ func (h *AdminHandler) HandleListAPIKeys(w http.ResponseWriter, r *http.Request)
 	keys, err := h.apiKeySvc.ListKeys(orgID)
 	if err != nil {
 		logger.Errorf("Failed to list API keys for org %s: %v", orgID, err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list API keys")
+		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list API keys")
 		return
 	}
 
-	responses.SendSuccess(w, http.StatusOK, keys)
+	sendSuccess(w, http.StatusOK, keys)
 }

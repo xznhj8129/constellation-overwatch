@@ -2,15 +2,18 @@ package middleware
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 )
 
@@ -30,7 +33,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := extractAPIKey(r)
 		if raw == "" {
-			responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing API key or Authorization header")
+			writeJSONError(w, http.StatusUnauthorized,"Missing API key or Authorization header")
 			return
 		}
 
@@ -41,7 +44,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// No recognized prefix — reject.
-		responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
 	})
 }
 
@@ -59,25 +62,42 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 		 FROM api_keys WHERE key_hash = ?`, hash,
 	).Scan(&keyID, &userID, &orgID, &role, &scopesJSON, &revoked, &expiresAt)
 
+	// If HMAC lookup failed and HMAC is enabled, try legacy SHA-256 fallback.
+	if errors.Is(err, sql.ErrNoRows) && os.Getenv("OVERWATCH_KEY_HASH_SECRET") != "" {
+		legacyHash := sha256Hex(raw)
+		err = m.db.QueryRow(
+			`SELECT key_id, user_id, org_id, role, scopes, revoked, expires_at
+			 FROM api_keys WHERE key_hash = ?`, legacyHash,
+		).Scan(&keyID, &userID, &orgID, &role, &scopesJSON, &revoked, &expiresAt)
+		if err == nil {
+			// Transparently upgrade to HMAC hash.
+			go func() {
+				if _, dbErr := m.db.Exec(`UPDATE api_keys SET key_hash = ? WHERE key_hash = ?`, hash, legacyHash); dbErr != nil {
+					logger.Warnw("Failed to upgrade API key hash", "error", dbErr, "key_id", keyID)
+				}
+			}()
+		}
+	}
+
 	if errors.Is(err, sql.ErrNoRows) {
-		responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
 		return
 	}
 	if err != nil {
 		logger.Errorw("Failed to query API key", "error", err)
-		responses.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Authentication failed")
+		writeJSONError(w, http.StatusInternalServerError, "Authentication failed")
 		return
 	}
 
 	if revoked == 1 {
-		responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "API key has been revoked")
+		writeJSONError(w, http.StatusUnauthorized,"API key has been revoked")
 		return
 	}
 
 	if expiresAt.Valid {
 		exp, parseErr := time.Parse(time.RFC3339, expiresAt.String)
 		if parseErr == nil && time.Now().After(exp) {
-			responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "API key has expired")
+			writeJSONError(w, http.StatusUnauthorized,"API key has expired")
 			return
 		}
 	}
@@ -109,8 +129,8 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			scopes := ScopesFromContext(r.Context())
-			if !hasScope(scopes, scope) {
-				responses.SendError(w, http.StatusForbidden, "FORBIDDEN", "Insufficient scope: "+scope)
+			if !HasScope(scopes, scope) {
+				writeJSONError(w, http.StatusForbidden, "Insufficient scope: "+scope)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -138,8 +158,26 @@ func extractAPIKey(r *http.Request) string {
 	return strings.TrimSpace(parts[1])
 }
 
-// hashKey computes the SHA-256 hex digest of a raw API key.
+var hmacWarnOnce sync.Once
+
+// hashKey computes the HMAC-SHA256 hex digest of a raw API key when
+// OVERWATCH_KEY_HASH_SECRET is set, falling back to plain SHA-256 for
+// development.
 func hashKey(raw string) string {
+	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+	if secret == "" {
+		hmacWarnOnce.Do(func() {
+			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash")
+		})
+		return sha256Hex(raw)
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(raw))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// sha256Hex computes a plain SHA-256 hex digest (legacy, for migration).
+func sha256Hex(raw string) string {
 	h := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(h[:])
 }
@@ -158,12 +196,23 @@ func parseScopes(s string) []string {
 	return scopes
 }
 
-// hasScope checks whether the given scope (or "admin") is present in the list.
-func hasScope(scopes []string, required string) bool {
+// HasScope checks whether the given scope (or "admin") is present in the list.
+func HasScope(scopes []string, required string) bool {
 	for _, s := range scopes {
 		if s == required || s == "admin" {
 			return true
 		}
 	}
 	return false
+}
+
+// writeJSONError writes an RFC 9457 Problem Details error response.
+func writeJSONError(w http.ResponseWriter, status int, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": status,
+		"title":  http.StatusText(status),
+		"detail": detail,
+	})
 }

@@ -171,8 +171,45 @@ async function createInvite() {
 }
 
 // ---------------------------------------------------------------------------
-// API Keys
+// API Keys — scope mutual exclusion
 // ---------------------------------------------------------------------------
+
+function initScopeToggles() {
+  var apiSelector = document.getElementById("scope-selector");
+  var natsSelector = document.getElementById("nats-scope-selector");
+  if (!apiSelector || !natsSelector) return;
+
+  var adminCb = apiSelector.querySelector('input[value="admin"]');
+  var natsAllCb = natsSelector.querySelector('input[value="nats:all"]');
+
+  function setGroupDisabled(container, allCheckbox, disabled) {
+    container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      if (cb === allCheckbox) return;
+      cb.disabled = disabled;
+      if (disabled) cb.checked = false;
+      var chip = cb.parentElement.querySelector(".scope-chip");
+      if (chip) {
+        if (disabled) chip.classList.add("scope-chip-disabled");
+        else chip.classList.remove("scope-chip-disabled");
+      }
+    });
+  }
+
+  if (adminCb) {
+    adminCb.addEventListener("change", function () {
+      setGroupDisabled(apiSelector, adminCb, adminCb.checked);
+    });
+    // apply initial state
+    if (adminCb.checked) setGroupDisabled(apiSelector, adminCb, true);
+  }
+
+  if (natsAllCb) {
+    natsAllCb.addEventListener("change", function () {
+      setGroupDisabled(natsSelector, natsAllCb, natsAllCb.checked);
+    });
+    if (natsAllCb.checked) setGroupDisabled(natsSelector, natsAllCb, true);
+  }
+}
 
 function getSelectedScopes() {
   var checkboxes = document.querySelectorAll(
@@ -348,3 +385,4 @@ async function revokeAPIKey(id) {
 // ---------------------------------------------------------------------------
 loadUsers();
 loadAPIKeys();
+initScopeToggles();

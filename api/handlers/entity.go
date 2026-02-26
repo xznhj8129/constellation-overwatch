@@ -1,14 +1,16 @@
 package handlers
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"net/http"
 
-	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
 type EntityHandler struct {
@@ -16,173 +18,182 @@ type EntityHandler struct {
 }
 
 func NewEntityHandler(service *services.EntityService) *EntityHandler {
-	return &EntityHandler{
-		service: service,
+	return &EntityHandler{service: service}
+}
+
+// ── Input / Output types ────────────────────────────────────────────
+
+type OrgPathParam struct {
+	OrgID string `path:"org_id" doc:"Organization ID"`
+}
+
+type EntityPathParam struct {
+	OrgID    string `path:"org_id" doc:"Organization ID"`
+	EntityID string `path:"entity_id" doc:"Entity ID"`
+}
+
+type CreateEntityInput struct {
+	OrgPathParam
+	Body ontology.CreateEntityRequest
+}
+
+type UpdateEntityInput struct {
+	EntityPathParam
+	Body ontology.UpdateEntityRequest
+}
+
+type EntityOutput struct {
+	Body ontology.Entity
+}
+
+type EntityListOutput struct {
+	Body []ontology.Entity
+}
+
+type DeletedOutput struct {
+	Body struct {
+		Message string `json:"message" doc:"Confirmation message"`
 	}
 }
 
-// Create godoc
-// @Summary Create entity
-// @Description Create a new entity within an organization
-// @Tags Entities
-// @Accept json
-// @Produce json
-// @Param org_id query string true "Organization ID"
-// @Param entity body ontology.CreateEntityRequest true "Entity data"
-// @Success 201 {object} ontology.Entity
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security APIKeyAuth
-// @Router /entities [post]
-func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-	if orgID == "" {
-		responses.SendError(w, http.StatusBadRequest, "MISSING_ORG_ID", "org_id is required")
-		return
-	}
+// ── Registration ────────────────────────────────────────────────────
 
-	var req ontology.CreateEntityRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		responses.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
-		return
-	}
+func (h *EntityHandler) Register(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "create-entity",
+		Method:      http.MethodPost,
+		Path:        "/v1/organizations/{org_id}/entities",
+		Summary:     "Create entity",
+		Description: "Create a new entity within an organization",
+		Tags:        []string{"Entities"},
+		DefaultStatus: http.StatusCreated,
+		Security: []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+	}, func(ctx context.Context, input *CreateEntityInput) (*EntityOutput, error) {
+		entity, err := h.service.CreateEntity(input.OrgID, &input.Body)
+		if err != nil {
+			if errors.Is(err, shared.ErrInvalidInput) {
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			logger.Errorw("Failed to create entity", "error", err, "org_id", input.OrgID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
+		}
+		return &EntityOutput{Body: *entity}, nil
+	})
 
-	entity, err := h.service.CreateEntity(orgID, &req)
-	if err != nil {
-		responses.SendError(w, http.StatusInternalServerError, "CREATE_FAILED", err.Error())
-		return
-	}
+	huma.Register(api, huma.Operation{
+		OperationID: "list-entities",
+		Method:      http.MethodGet,
+		Path:        "/v1/organizations/{org_id}/entities",
+		Summary:     "List entities",
+		Description: "Get all entities for an organization",
+		Tags:        []string{"Entities"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"entities:read"}}},
+	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*EntityListOutput, error) {
+		entities, err := h.service.ListEntities(input.OrgID)
+		if err != nil {
+			logger.Errorw("Failed to list entities", "error", err, "org_id", input.OrgID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
+		}
+		if entities == nil {
+			entities = []ontology.Entity{}
+		}
+		return &EntityListOutput{Body: entities}, nil
+	})
 
-	responses.SendSuccess(w, http.StatusCreated, entity)
-}
-
-// ListOrGet godoc
-// @Summary List or get entities
-// @Description Get a list of entities for an organization, or a single entity if entity_id is provided
-// @Tags Entities
-// @Accept json
-// @Produce json
-// @Param org_id query string true "Organization ID"
-// @Param entity_id query string false "Entity ID (optional - if provided, returns single entity)"
-// @Success 200 {object} ontology.Entity "Single entity (when entity_id provided)"
-// @Success 200 {array} ontology.Entity "List of entities (when entity_id not provided)"
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security APIKeyAuth
-// @Router /entities [get]
-func (h *EntityHandler) ListOrGet(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-	if orgID == "" {
-		responses.SendError(w, http.StatusBadRequest, "MISSING_ORG_ID", "org_id is required")
-		return
-	}
-
-	// If entity_id provided, get single entity
-	entityID := r.URL.Query().Get("entity_id")
-	if entityID != "" {
-		entity, err := h.service.GetEntity(orgID, entityID)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-entity",
+		Method:      http.MethodGet,
+		Path:        "/v1/organizations/{org_id}/entities/{entity_id}",
+		Summary:     "Get entity",
+		Description: "Get a single entity by ID",
+		Tags:        []string{"Entities"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"entities:read"}}},
+	}, func(ctx context.Context, input *struct{ EntityPathParam }) (*EntityOutput, error) {
+		entity, err := h.service.GetEntity(input.OrgID, input.EntityID)
 		if err != nil {
 			if errors.Is(err, shared.ErrNotFound) {
-				responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
-			} else {
-				responses.SendError(w, http.StatusInternalServerError, "GET_FAILED", err.Error())
+				return nil, huma.Error404NotFound("Entity not found")
 			}
-			return
+			logger.Errorw("Failed to get entity", "error", err, "org_id", input.OrgID, "entity_id", input.EntityID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
 		}
-		responses.SendSuccess(w, http.StatusOK, entity)
-		return
-	}
+		return &EntityOutput{Body: *entity}, nil
+	})
 
-	// Otherwise, list all entities
-	entities, err := h.service.ListEntities(orgID)
-	if err != nil {
-		responses.SendError(w, http.StatusInternalServerError, "LIST_FAILED", err.Error())
-		return
-	}
+	huma.Register(api, huma.Operation{
+		OperationID: "update-entity",
+		Method:      http.MethodPut,
+		Path:        "/v1/organizations/{org_id}/entities/{entity_id}",
+		Summary:     "Update entity",
+		Description: "Update an existing entity",
+		Tags:        []string{"Entities"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+	}, func(ctx context.Context, input *UpdateEntityInput) (*EntityOutput, error) {
+		updates := buildEntityUpdates(&input.Body)
+		entity, err := h.service.UpdateEntity(input.OrgID, input.EntityID, updates)
+		if err != nil {
+			if errors.Is(err, shared.ErrNotFound) {
+				return nil, huma.Error404NotFound("Entity not found")
+			}
+			if errors.Is(err, shared.ErrNoUpdates) {
+				return nil, huma.Error400BadRequest("No updates provided")
+			}
+			logger.Errorw("Failed to update entity", "error", err, "org_id", input.OrgID, "entity_id", input.EntityID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
+		}
+		return &EntityOutput{Body: *entity}, nil
+	})
 
-	responses.SendSuccess(w, http.StatusOK, entities)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-entity",
+		Method:      http.MethodDelete,
+		Path:        "/v1/organizations/{org_id}/entities/{entity_id}",
+		Summary:     "Delete entity",
+		Description: "Delete an entity by ID",
+		Tags:        []string{"Entities"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+	}, func(ctx context.Context, input *struct{ EntityPathParam }) (*DeletedOutput, error) {
+		err := h.service.DeleteEntity(input.OrgID, input.EntityID)
+		if err != nil {
+			if errors.Is(err, shared.ErrNotFound) {
+				return nil, huma.Error404NotFound("Entity not found")
+			}
+			logger.Errorw("Failed to delete entity", "error", err, "org_id", input.OrgID, "entity_id", input.EntityID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
+		}
+		out := &DeletedOutput{}
+		out.Body.Message = "Entity deleted successfully"
+		return out, nil
+	})
 }
 
-// Update godoc
-// @Summary Update entity
-// @Description Update an existing entity
-// @Tags Entities
-// @Accept json
-// @Produce json
-// @Param org_id query string true "Organization ID"
-// @Param entity_id query string true "Entity ID"
-// @Param updates body object true "Fields to update"
-// @Success 200 {object} ontology.Entity
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security APIKeyAuth
-// @Router /entities [put]
-func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-	entityID := r.URL.Query().Get("entity_id")
-
-	if orgID == "" || entityID == "" {
-		responses.SendError(w, http.StatusBadRequest, "MISSING_PARAMS", "org_id and entity_id are required")
-		return
+// buildEntityUpdates converts a typed UpdateEntityRequest into the map the service expects.
+func buildEntityUpdates(req *ontology.UpdateEntityRequest) map[string]interface{} {
+	updates := make(map[string]interface{})
+	if req.Name != "" {
+		updates["name"] = req.Name
 	}
-
-	var updates map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
-		responses.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
-		return
+	if req.Status != "" {
+		updates["status"] = req.Status
 	}
-
-	entity, err := h.service.UpdateEntity(orgID, entityID, updates)
-	if err != nil {
-		if errors.Is(err, shared.ErrNotFound) {
-			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
-		} else {
-			responses.SendError(w, http.StatusInternalServerError, "UPDATE_FAILED", err.Error())
+	if req.Priority != "" {
+		updates["priority"] = req.Priority
+	}
+	if req.IsLive != nil {
+		updates["is_live"] = *req.IsLive
+	}
+	if req.Position != nil {
+		updates["latitude"] = req.Position.Latitude
+		updates["longitude"] = req.Position.Longitude
+		if req.Position.Altitude != 0 {
+			updates["altitude"] = req.Position.Altitude
 		}
-		return
 	}
-
-	responses.SendSuccess(w, http.StatusOK, entity)
-}
-
-// Delete godoc
-// @Summary Delete entity
-// @Description Delete an entity by ID
-// @Tags Entities
-// @Accept json
-// @Produce json
-// @Param org_id query string true "Organization ID"
-// @Param entity_id query string true "Entity ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security APIKeyAuth
-// @Router /entities [delete]
-func (h *EntityHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-	entityID := r.URL.Query().Get("entity_id")
-
-	if orgID == "" || entityID == "" {
-		responses.SendError(w, http.StatusBadRequest, "MISSING_PARAMS", "org_id and entity_id are required")
-		return
+	if req.Metadata != nil {
+		updates["metadata"] = req.Metadata
 	}
-
-	err := h.service.DeleteEntity(orgID, entityID)
-	if err != nil {
-		if errors.Is(err, shared.ErrNotFound) {
-			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
-		} else {
-			responses.SendError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
-		}
-		return
+	if req.VideoConfig != nil {
+		updates["video_config"] = req.VideoConfig
 	}
-
-	responses.SendSuccess(w, http.StatusOK, map[string]string{"message": "Entity deleted successfully"})
+	return updates
 }

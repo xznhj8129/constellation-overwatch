@@ -15,6 +15,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/nats-io/nats.go"
 )
 
@@ -27,7 +28,7 @@ type Server struct {
 	sseHandler   *SSEHandler
 	mtxClient    *mediamtx.Client
 	apiHandler   http.Handler
-	mux          *http.ServeMux
+	mux          chi.Router
 	server       *http.Server
 	bindAddr     string
 }
@@ -50,8 +51,8 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 
 	database := dbService.GetDB()
 
-	// Initialize session auth
-	sessionAuth := middleware.NewSessionAuth()
+	// Initialize session auth (backed by SQLite for restart persistence)
+	sessionAuth := middleware.NewSessionAuth(database)
 
 	// Initialize WebAuthn relying party
 	wa, err := services.NewWebAuthn()
@@ -119,8 +120,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	s.server = &http.Server{
-		Addr:    s.bindAddr,
-		Handler: s.mux,
+		Addr:              s.bindAddr,
+		Handler:           RecoverPanic(SecurityHeaders(MaxBodySize(1 << 20)(s.mux))),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      0, // Disabled — SSE endpoints are long-lived
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

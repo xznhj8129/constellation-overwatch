@@ -51,7 +51,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	keys, err := kv.Keys()
 	if err != nil {
 		logger.Infof("Error fetching KV keys: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -625,7 +625,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVDebug(w http.ResponseWriter, r *h
 	entries, err := h.natsEmbedded.GetAllKVEntries()
 	if err != nil {
 		logger.Infof("[Overwatch Debug] Error fetching KV entries: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -651,7 +651,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVDebug(w http.ResponseWriter, r *h
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(response); err != nil {
 		logger.Infof("[Overwatch Debug] Error encoding JSON: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 

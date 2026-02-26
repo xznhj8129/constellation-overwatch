@@ -1,19 +1,41 @@
 package services
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/google/uuid"
 	"github.com/nats-io/nkeys"
 )
+
+var apiKeyHMACWarnOnce sync.Once
+
+// hashAPIKey computes the HMAC-SHA256 hex digest when OVERWATCH_KEY_HASH_SECRET
+// is set, falling back to plain SHA-256 for development.
+func hashAPIKey(raw string) string {
+	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+	if secret == "" {
+		apiKeyHMACWarnOnce.Do(func() {
+			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash for API keys")
+		})
+		h := sha256.Sum256([]byte(raw))
+		return hex.EncodeToString(h[:])
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(raw))
+	return hex.EncodeToString(mac.Sum(nil))
+}
 
 // APIKeyService manages the lifecycle of API keys including creation,
 // revocation, validation, and usage tracking.
@@ -63,8 +85,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 	plaintext := "c4_live_" + hex.EncodeToString(raw)
 	prefix := plaintext[:16] // "c4_live_" plus first 8 hex chars
 
-	h := sha256.Sum256([]byte(plaintext))
-	keyHash := hex.EncodeToString(h[:])
+	keyHash := hashAPIKey(plaintext)
 
 	scopesStr := strings.Join(scopes, ",")
 

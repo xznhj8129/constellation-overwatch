@@ -2,6 +2,8 @@ package embeddednats
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -37,6 +39,7 @@ type EmbeddedNATS struct {
 	streams    map[string]*StreamConfig
 	mu         sync.Mutex      // protects serverOpts for NKey management
 	serverOpts *server.Options // tracks current opts for ReloadOptions
+	authToken  string          // internal auth token for embedded connections
 }
 
 // NKeyRecord is the minimal data needed to restore a NATS credential on startup.
@@ -82,13 +85,15 @@ func getEnvInt64(key string, fallback int64) int64 {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Host:            shared.GetEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
+		Host:            shared.GetEnv("NATS_HOST", "127.0.0.1"), // Bind to localhost by default
 		Port:            getEnvInt("NATS_PORT", 4222),
 		DataDir:         shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
 		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB
 		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
 		JetStreamDomain: shared.GetEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
 		EnableTLS:       shared.GetEnv("NATS_ENABLE_TLS", "false") == "true",
+		TLSCert:         shared.GetEnv("NATS_TLS_CERT", ""),
+		TLSKey:          shared.GetEnv("NATS_TLS_KEY", ""),
 	}
 }
 
@@ -125,9 +130,16 @@ func (en *EmbeddedNATS) Stop(ctx context.Context) error {
 
 func (en *EmbeddedNATS) StartEmbedded() error {
 	// Ensure the data directory exists before starting NATS
-	if err := os.MkdirAll(en.config.DataDir, 0755); err != nil {
+	if err := os.MkdirAll(en.config.DataDir, 0700); err != nil {
 		return fmt.Errorf("failed to create NATS data directory %s: %w", en.config.DataDir, err)
 	}
+
+	// Generate internal auth token for embedded connections.
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return fmt.Errorf("failed to generate NATS auth token: %w", err)
+	}
+	en.authToken = hex.EncodeToString(tokenBytes)
 
 	opts := &server.Options{
 		Host:      en.config.Host,
@@ -152,6 +164,9 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		Trace:   false,
 		Logtime: true,
 		NoSigs:  true, // Disable built-in signal handlers
+
+		// Internal auth token for embedded connections
+		Authorization: en.authToken,
 	}
 
 	// Configure JetStream limits
@@ -231,10 +246,17 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 	return nil
 }
 
+// AuthToken returns the internal auth token for external clients that need
+// to connect to the embedded NATS server.
+func (en *EmbeddedNATS) AuthToken() string {
+	return en.authToken
+}
+
 func (en *EmbeddedNATS) connect() error {
 	url := fmt.Sprintf("nats://localhost:%d", en.config.Port)
 
 	connectOpts := []nats.Option{
+		nats.Token(en.authToken),
 		nats.ReconnectWait(2 * time.Second),
 		nats.MaxReconnects(-1),
 		nats.PingInterval(20 * time.Second),

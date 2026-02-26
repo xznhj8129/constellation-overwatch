@@ -3,12 +3,15 @@ package middleware
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 )
 
 const (
@@ -16,6 +19,7 @@ const (
 	sessionDuration   = 24 * time.Hour
 )
 
+// session is the in-process representation of a session row.
 type session struct {
 	token             string
 	userID            string
@@ -25,17 +29,18 @@ type session struct {
 	expiresAt         time.Time
 }
 
-// SessionAuth handles session-based authentication for the web UI
+// SessionAuth handles session-based authentication for the web UI.
+// Sessions are persisted in SQLite so they survive server restarts.
 type SessionAuth struct {
-	sessions map[string]*session
-	mu       sync.RWMutex
+	db *sql.DB
 }
 
-// NewSessionAuth creates a new session auth handler
-func NewSessionAuth() *SessionAuth {
-	return &SessionAuth{
-		sessions: make(map[string]*session),
-	}
+// NewSessionAuth creates a new session auth handler backed by the given database.
+func NewSessionAuth(db *sql.DB) *SessionAuth {
+	sa := &SessionAuth{db: db}
+	// Start periodic cleanup of expired sessions.
+	go sa.cleanupLoop()
+	return sa
 }
 
 // CreateSessionForUser creates a new session with user identity and returns the session token.
@@ -48,87 +53,113 @@ func (s *SessionAuth) CreateSessionForUser(userID, role string, needsPasskey boo
 	}
 	tokenStr := hex.EncodeToString(token)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.sessions[tokenStr] = &session{
-		token:             tokenStr,
-		userID:            userID,
-		role:              role,
-		orgID:             orgID,
-		needsPasskeySetup: needsPasskey,
-		expiresAt:         time.Now().Add(sessionDuration),
+	expiresAt := time.Now().Add(sessionDuration).Format(time.RFC3339)
+	needsSetup := 0
+	if needsPasskey {
+		needsSetup = 1
 	}
 
-	// Cleanup expired sessions
-	s.cleanupExpiredSessions()
+	_, err := s.db.Exec(
+		`INSERT INTO sessions (session_token, user_id, role, org_id, needs_passkey_setup, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		tokenStr, userID, role, orgID, needsSetup, expiresAt,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
 
 	return tokenStr, nil
 }
 
 // ClearPasskeySetup removes the needsPasskeySetup flag from an existing session.
 func (s *SessionAuth) ClearPasskeySetup(token string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if sess, ok := s.sessions[token]; ok {
-		sess.needsPasskeySetup = false
+	_, err := s.db.Exec(
+		`UPDATE sessions SET needs_passkey_setup = 0 WHERE session_token = ?`, token,
+	)
+	if err != nil {
+		logger.Warnw("Failed to clear passkey setup flag", "error", err)
 	}
 }
 
 // IsPasskeySetup returns true if the session has the needsPasskeySetup flag set.
 func (s *SessionAuth) IsPasskeySetup(token string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if sess, ok := s.sessions[token]; ok {
-		return sess.needsPasskeySetup
-	}
-	return false
-}
-
-// ValidateSession checks if the session token is valid
-func (s *SessionAuth) ValidateSession(token string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	sess, ok := s.sessions[token]
-	if !ok {
+	var flag int
+	err := s.db.QueryRow(
+		`SELECT needs_passkey_setup FROM sessions WHERE session_token = ? AND expires_at > ?`,
+		token, time.Now().Format(time.RFC3339),
+	).Scan(&flag)
+	if err != nil {
 		return false
 	}
-	return time.Now().Before(sess.expiresAt)
+	return flag == 1
 }
 
-// DestroySession removes a session
+// ValidateSession checks if the session token is valid and not expired.
+func (s *SessionAuth) ValidateSession(token string) bool {
+	var count int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM sessions WHERE session_token = ? AND expires_at > ?`,
+		token, time.Now().Format(time.RFC3339),
+	).Scan(&count)
+	if err != nil {
+		return false
+	}
+	return count > 0
+}
+
+// DestroySession removes a session.
 func (s *SessionAuth) DestroySession(token string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.sessions, token)
+	_, _ = s.db.Exec(`DELETE FROM sessions WHERE session_token = ?`, token)
 }
 
-// cleanupExpiredSessions removes expired sessions (must be called with lock held)
+// cleanupLoop periodically removes expired sessions.
+func (s *SessionAuth) cleanupLoop() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.cleanupExpiredSessions()
+	}
+}
+
+// cleanupExpiredSessions removes expired sessions from the database.
 func (s *SessionAuth) cleanupExpiredSessions() {
-	now := time.Now()
-	for token, sess := range s.sessions {
-		if now.After(sess.expiresAt) {
-			delete(s.sessions, token)
-		}
+	result, err := s.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now().Format(time.RFC3339))
+	if err != nil {
+		logger.Warnw("Failed to cleanup expired sessions", "error", err)
+		return
+	}
+	if count, _ := result.RowsAffected(); count > 0 {
+		logger.Debugw("Cleaned up expired sessions", "count", count)
 	}
 }
 
-// getSession returns the session for a token, or nil if invalid/expired
+// getSession returns the session for a token, or nil if invalid/expired.
 func (s *SessionAuth) getSession(token string) *session {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	var userID, role, orgID, expiresAt string
+	var needsSetup int
 
-	sess, ok := s.sessions[token]
-	if !ok {
+	err := s.db.QueryRow(
+		`SELECT user_id, role, org_id, needs_passkey_setup, expires_at
+		 FROM sessions WHERE session_token = ?`, token,
+	).Scan(&userID, &role, &orgID, &needsSetup, &expiresAt)
+
+	if err != nil {
 		return nil
 	}
-	if time.Now().After(sess.expiresAt) {
+
+	exp, parseErr := time.Parse(time.RFC3339, expiresAt)
+	if parseErr != nil || time.Now().After(exp) {
 		return nil
 	}
-	return sess
+
+	return &session{
+		token:             token,
+		userID:            userID,
+		role:              role,
+		orgID:             orgID,
+		needsPasskeySetup: needsSetup == 1,
+		expiresAt:         exp,
+	}
 }
 
 // RequireSession is middleware that checks for a valid session cookie
@@ -229,11 +260,15 @@ func GetAllowedOrigins() []string {
 	return result
 }
 
-// IsOriginAllowed checks if an origin is in the allowed list
+// IsOriginAllowed checks if an origin is in the allowed list.
+// Returns false when ALLOWED_ORIGINS is not configured (deny by default).
 func IsOriginAllowed(origin string) bool {
 	origins := os.Getenv("ALLOWED_ORIGINS")
-	if origins == "" || origins == "*" {
-		return true
+	if origins == "" {
+		return false // Deny when not configured
+	}
+	if origins == "*" {
+		return true // Explicit wildcard for dev
 	}
 	for _, allowed := range strings.Split(origins, ",") {
 		if strings.TrimSpace(allowed) == origin {

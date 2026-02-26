@@ -35,7 +35,7 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 
 	orgs, err := h.orgSvc.ListOrganizations()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -49,7 +49,7 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 		entities, err = h.entitySvc.ListAllEntities()
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
 		isEdit = true
 		e, err := h.entitySvc.GetEntity(orgID, entityID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 		entity = e
@@ -173,14 +173,14 @@ func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
 	// Fetch all organizations for the dropdown
 	orgs, err := h.orgSvc.ListOrganizations()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	// Fetch all entities
 	entities, err := h.entitySvc.ListAllEntities()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -207,7 +207,7 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 	// Fetch all entities to populate the dropdown
 	entities, err := h.entitySvc.ListAllEntities()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 

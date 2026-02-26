@@ -28,6 +28,10 @@ func NewEntityService(db *sql.DB, nats *embeddednats.EmbeddedNATS) *EntityServic
 }
 
 func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityRequest) (*ontology.Entity, error) {
+	if !ontology.IsValidEntityType(req.EntityType) {
+		return nil, fmt.Errorf("invalid entity_type %q: %w", req.EntityType, shared.ErrInvalidInput)
+	}
+
 	entityID := uuid.New().String()
 	now := time.Now()
 

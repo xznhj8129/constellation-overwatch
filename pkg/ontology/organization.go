@@ -15,8 +15,8 @@ type Organization struct {
 }
 
 type CreateOrganizationRequest struct {
-	Name        string                 `json:"name" validate:"required,min=1,max=255"`
-	OrgType     string                 `json:"org_type" validate:"required,oneof=company agency individual"`
-	Description string                 `json:"description,omitempty" validate:"omitempty,max=500"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Name        string                 `json:"name" minLength:"1" maxLength:"255" doc:"Organization name"`
+	OrgType     string                 `json:"org_type" enum:"military,civilian,commercial,ngo" doc:"Organization type"`
+	Description string                 `json:"description,omitempty" maxLength:"500" doc:"Organization description"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty" doc:"Arbitrary metadata"`
 }

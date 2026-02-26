@@ -57,7 +57,7 @@ func New(config *Config) (*Service, error) {
 
 	// Ensure the directory exists
 	dbDir := filepath.Dir(config.DBPath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
+	if err := os.MkdirAll(dbDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
@@ -337,6 +337,23 @@ func (s *Service) MigrateSchema() error {
 		logger.Warnw("Failed to create unique email index (may already exist)", "error", err)
 	}
 
+	// Create sessions table if it doesn't exist (persistent session store).
+	_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS sessions (
+		session_token TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'viewer',
+		org_id TEXT NOT NULL DEFAULT '',
+		needs_passkey_setup INTEGER NOT NULL DEFAULT 0,
+		expires_at TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		FOREIGN KEY (user_id) REFERENCES users(user_id)
+	)`)
+	if err != nil {
+		logger.Warnw("Failed to create sessions table", "error", err)
+	}
+	s.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`)
+	s.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`)
+
 	// Add user_ref column to webauthn_sessions if it doesn't exist (needed for
 	// random session keys that store the user reference alongside the session).
 	if !s.columnExists("webauthn_sessions", "user_ref") {
@@ -350,28 +367,18 @@ func (s *Service) MigrateSchema() error {
 	return nil
 }
 
-// columnExists checks whether a column exists on a table.
+// columnExists checks whether a column exists on a table using the
+// pragma_table_info() table-valued function which accepts parameterized input.
 func (s *Service) columnExists(table, column string) bool {
-	rows, err := s.DB.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	var count int
+	err := s.DB.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?",
+		table, column,
+	).Scan(&count)
 	if err != nil {
 		return false
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name, ctype string
-		var notnull int
-		var dflt sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
-			continue
-		}
-		if name == column {
-			return true
-		}
-	}
-	return false
+	return count > 0
 }
 
 // GetSchemaVersion returns the current schema version

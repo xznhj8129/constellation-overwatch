@@ -48,8 +48,10 @@ templ EntityCard(entity shared.EntityState) {
 						<div class="entity-header__name">
 							if entity.Name != "" {
 								{ entity.Name }
-							} else {
+							} else if len(entity.EntityID) > 8 {
 								{ entity.EntityID[:8] }...
+							} else {
+								{ entity.EntityID }
 							}
 						</div>
 						<div class="entity-header__type">{ entity.EntityType }</div>

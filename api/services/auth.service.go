@@ -379,17 +379,19 @@ func (s *AuthService) GetWebAuthnSession(ceremony, key string) (*webauthn.Sessio
 		return nil, "", fmt.Errorf("failed to query webauthn session: %w", err)
 	}
 
-	// Delete the session immediately (single use).
-	_, _ = s.db.Exec(
+	// Check expiry BEFORE deleting to avoid timing oracle.
+	exp, parseErr := time.Parse(time.RFC3339, expiresAt)
+	if parseErr == nil && time.Now().After(exp) {
+		// Clean up expired row.
+		s.db.Exec(`DELETE FROM webauthn_sessions WHERE ceremony = ? AND session_key = ?`, ceremony, key)
+		return nil, "", fmt.Errorf("webauthn session: %w", shared.ErrNotFound) // same error as not-found
+	}
+
+	// Delete the session (single use).
+	s.db.Exec(
 		`DELETE FROM webauthn_sessions WHERE ceremony = ? AND session_key = ?`,
 		ceremony, key,
 	)
-
-	// Check expiry.
-	exp, parseErr := time.Parse(time.RFC3339, expiresAt)
-	if parseErr == nil && time.Now().After(exp) {
-		return nil, "", fmt.Errorf("webauthn session: %w", shared.ErrExpired)
-	}
 
 	var data webauthn.SessionData
 	if err := json.Unmarshal([]byte(dataJSON), &data); err != nil {

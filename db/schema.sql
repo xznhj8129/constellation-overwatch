@@ -251,6 +251,21 @@ CREATE TABLE invites (
 );
 
 -- ============================================================================
+-- SESSIONS (persistent session store)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS sessions (
+  session_token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  org_id TEXT NOT NULL DEFAULT '',
+  needs_passkey_setup INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- ============================================================================
 -- INDEXES
 -- ============================================================================
 
@@ -316,6 +331,10 @@ CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);
 CREATE INDEX idx_api_keys_user ON api_keys(user_id);
 CREATE INDEX idx_api_keys_org ON api_keys(org_id);
 CREATE INDEX idx_api_keys_nats_pub ON api_keys(nats_pub_key) WHERE nats_pub_key IS NOT NULL;
+
+-- Sessions
+CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+CREATE INDEX idx_sessions_user ON sessions(user_id);
 
 -- Invites
 CREATE INDEX idx_invites_token ON invites(token_hash);
