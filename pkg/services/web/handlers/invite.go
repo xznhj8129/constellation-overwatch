@@ -109,7 +109,10 @@ func (h *InviteHandler) HandleFinalizeInvite(w http.ResponseWriter, r *http.Requ
 
 	// Try to look up an existing user first (bootstrap flow creates the user
 	// before the invite, so the email may already exist).
-	existing, _ := h.userSvc.GetByEmail(invite.Email)
+	existing, err := h.userSvc.GetByEmail(invite.Email)
+	if err != nil {
+		logger.Debugw("No existing user found for invite email (expected for new invites)", "email", invite.Email, "error", err)
+	}
 
 	var user *services.User
 	if existing != nil {

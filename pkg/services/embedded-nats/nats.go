@@ -62,13 +62,6 @@ type StreamConfig struct {
 	DiscardPolicy   nats.DiscardPolicy
 }
 
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
-
 func getEnvInt(key string, fallback int) int {
 	if value, ok := os.LookupEnv(key); ok {
 		if i, err := strconv.Atoi(value); err == nil {
@@ -89,13 +82,13 @@ func getEnvInt64(key string, fallback int64) int64 {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Host:            getEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
+		Host:            shared.GetEnv("NATS_HOST", "0.0.0.0"), // Bind to all interfaces by default
 		Port:            getEnvInt("NATS_PORT", 4222),
-		DataDir:         getEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
+		DataDir:         shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
 		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB
 		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
-		JetStreamDomain: getEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
-		EnableTLS:       getEnv("NATS_ENABLE_TLS", "false") == "true",
+		JetStreamDomain: shared.GetEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
+		EnableTLS:       shared.GetEnv("NATS_ENABLE_TLS", "false") == "true",
 	}
 }
 

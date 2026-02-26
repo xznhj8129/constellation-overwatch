@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"time"
@@ -36,7 +37,10 @@ func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizatio
 
 	metadataJSON := "{}"
 	if req.Metadata != nil {
-		bytes, _ := json.Marshal(req.Metadata)
+		bytes, err := json.Marshal(req.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 		metadataJSON = string(bytes)
 	}
 
@@ -79,8 +83,16 @@ func (s *OrganizationService) ListOrganizations() ([]ontology.Organization, erro
 			return nil, fmt.Errorf("failed to scan organization: %w", err)
 		}
 
-		org.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		org.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			logger.Debugw("Failed to parse created_at timestamp", "value", createdAt, "error", err)
+		} else {
+			org.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+			logger.Debugw("Failed to parse updated_at timestamp", "value", updatedAt, "error", err)
+		} else {
+			org.UpdatedAt = t
+		}
 		orgs = append(orgs, org)
 	}
 
@@ -97,15 +109,23 @@ func (s *OrganizationService) GetOrganization(orgID string) (*ontology.Organizat
 		orgID,
 	).Scan(&org.OrgID, &org.Name, &org.OrgType, &org.Description, &org.Metadata, &createdAt, &updatedAt)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("organization not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query organization: %w", err)
 	}
 
-	org.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	org.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		logger.Debugw("Failed to parse created_at timestamp", "value", createdAt, "error", err)
+	} else {
+		org.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		logger.Debugw("Failed to parse updated_at timestamp", "value", updatedAt, "error", err)
+	} else {
+		org.UpdatedAt = t
+	}
 
 	return &org, nil
 }
@@ -125,7 +145,10 @@ func (s *OrganizationService) UpdateOrganization(orgID string, updates map[strin
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, value)
 		case "metadata":
-			bytes, _ := json.Marshal(value)
+			bytes, err := json.Marshal(value)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
 			query += ", metadata = ?"
 			args = append(args, string(bytes))
 		}
@@ -139,9 +162,12 @@ func (s *OrganizationService) UpdateOrganization(orgID string, updates map[strin
 		return fmt.Errorf("failed to update organization: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("organization not found")
+		return fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 
 	// If name was updated, we need to update all entities in KV with the new org name
@@ -212,9 +238,12 @@ func (s *OrganizationService) DeleteOrganization(orgID string) error {
 		return fmt.Errorf("failed to delete organization: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("organization not found")
+		return fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 
 	return nil

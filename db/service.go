@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
@@ -31,18 +32,10 @@ type Config struct {
 	AutoInitialize bool // Automatically initialize schema if DB doesn't exist
 }
 
-// getEnv gets environment variable with fallback
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
-
 // DefaultConfig returns default database configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DBPath:         getEnv("OVERWATCH_DATA_DIR", "./data") + "/db/constellation.db",
+		DBPath:         shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/db/constellation.db",
 		MaxOpenConns:   1, // SQLite doesn't handle concurrent writes well
 		MaxIdleConns:   1,
 		AutoInitialize: true,

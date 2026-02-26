@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/google/uuid"
 	"github.com/nats-io/nkeys"
 )
@@ -135,9 +137,12 @@ func (s *APIKeyService) RevokeKey(keyID string) error {
 		return fmt.Errorf("failed to revoke API key: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("API key not found: %s", keyID)
+		return fmt.Errorf("API key %s: %w", keyID, shared.ErrNotFound)
 	}
 
 	return nil
@@ -219,21 +224,21 @@ func (s *APIKeyService) ValidateKey(keyHash string) (*StoredKey, error) {
 		 FROM api_keys WHERE key_hash = ?`, keyHash,
 	).Scan(&k.KeyID, &k.UserID, &k.OrgID, &k.Name, &scopesStr, &revokedInt, &expiresAt)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("API key not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("API key: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query API key: %w", err)
 	}
 
 	if revokedInt == 1 {
-		return nil, fmt.Errorf("API key has been revoked")
+		return nil, fmt.Errorf("API key: %w", shared.ErrRevoked)
 	}
 
 	if expiresAt.Valid {
 		exp, parseErr := time.Parse(time.RFC3339, expiresAt.String)
 		if parseErr == nil && time.Now().After(exp) {
-			return nil, fmt.Errorf("API key has expired")
+			return nil, fmt.Errorf("API key: %w", shared.ErrExpired)
 		}
 	}
 

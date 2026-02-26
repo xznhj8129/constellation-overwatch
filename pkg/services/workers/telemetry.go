@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -68,7 +69,11 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
 	if telemetry.Timestamp.IsZero() {
 		// Try to parse from string if not already parsed
 		if timestampStr, ok := telemetry.Data["timestamp"].(string); ok {
-			telemetry.Timestamp, _ = time.Parse(time.RFC3339, timestampStr)
+			if t, err := time.Parse(time.RFC3339, timestampStr); err != nil {
+				logger.Debugw("Failed to parse timestamp", "value", timestampStr, "error", err)
+			} else {
+				telemetry.Timestamp = t
+			}
 		}
 		if telemetry.Timestamp.IsZero() {
 			telemetry.Timestamp = time.Now()
@@ -209,7 +214,7 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 		&metadata, &createdAt, &updatedAt,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		// Entity not in DB - validate entity_id before creating minimal state
 		if err := validateEntityID(entityID); err != nil {
 			return nil, fmt.Errorf("invalid entity_id '%s': %w", entityID, err)
@@ -240,8 +245,11 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 	// Parse fields
 	state.IsLive = isLive == 1
 	if expiryTime.Valid {
-		t, _ := time.Parse(time.RFC3339, expiryTime.String)
-		state.ExpiryTime = &t
+		if t, err := time.Parse(time.RFC3339, expiryTime.String); err != nil {
+			logger.Debugw("Failed to parse timestamp", "value", expiryTime.String, "error", err)
+		} else {
+			state.ExpiryTime = &t
+		}
 	}
 	if source.Valid {
 		state.Source = source.String
@@ -270,26 +278,42 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 	// Parse JSON fields
 	state.Components = make(map[string]any)
 	if components.Valid && components.String != "" {
-		json.Unmarshal([]byte(components.String), &state.Components)
+		if err := json.Unmarshal([]byte(components.String), &state.Components); err != nil {
+			logger.Debugw("Failed to unmarshal components", "entity_id", entityID, "error", err)
+		}
 	}
 
 	state.Aliases = make(map[string]string)
 	if aliases.Valid && aliases.String != "" {
-		json.Unmarshal([]byte(aliases.String), &state.Aliases)
+		if err := json.Unmarshal([]byte(aliases.String), &state.Aliases); err != nil {
+			logger.Debugw("Failed to unmarshal aliases", "entity_id", entityID, "error", err)
+		}
 	}
 
 	state.Tags = make([]string, 0)
 	if tags.Valid && tags.String != "" {
-		json.Unmarshal([]byte(tags.String), &state.Tags)
+		if err := json.Unmarshal([]byte(tags.String), &state.Tags); err != nil {
+			logger.Debugw("Failed to unmarshal tags", "entity_id", entityID, "error", err)
+		}
 	}
 
 	state.Metadata = make(map[string]any)
 	if metadata.Valid && metadata.String != "" {
-		json.Unmarshal([]byte(metadata.String), &state.Metadata)
+		if err := json.Unmarshal([]byte(metadata.String), &state.Metadata); err != nil {
+			logger.Debugw("Failed to unmarshal metadata", "entity_id", entityID, "error", err)
+		}
 	}
 
-	state.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	state.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		logger.Debugw("Failed to parse timestamp", "value", createdAt, "error", err)
+	} else {
+		state.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		logger.Debugw("Failed to parse timestamp", "value", updatedAt, "error", err)
+	} else {
+		state.UpdatedAt = t
+	}
 
 	logger.Infow("Initialized entity from database", "component", "TelemetryWorker", "entity_id", entityID, "entity_type", state.EntityType)
 	return &state, nil
@@ -326,7 +350,7 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 		existingEntry, err := w.kv.Get(key)
 
 		if err != nil {
-			if err == nats.ErrKeyNotFound {
+			if errors.Is(err, nats.ErrKeyNotFound) {
 				// Key doesn't exist yet, create it
 				data, err := json.Marshal(state)
 				if err != nil {
@@ -334,7 +358,7 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 				}
 
 				if _, err := w.kv.Create(key, data); err != nil {
-					if err == nats.ErrKeyExists {
+					if errors.Is(err, nats.ErrKeyExists) {
 						// Race condition: key was created between check and create, retry
 						logger.Debugw("Race condition creating key, retrying", "worker", w.Name(), "key", key)
 						continue
@@ -367,7 +391,7 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 
 		// Try to update with revision check (optimistic locking)
 		if _, err := w.kv.Update(key, data, existingEntry.Revision()); err != nil {
-			if err.Error() == "nats: wrong last sequence" || err.Error() == "wrong last sequence" {
+			if errors.Is(err, nats.ErrKeyExists) || strings.Contains(err.Error(), "wrong last sequence") {
 				// Revision mismatch - someone else updated between our read and write
 				logger.Debugw("Revision mismatch, retrying", "worker", w.Name(), "key", key, "attempt", attempt+1, "max_retries", maxRetries)
 				continue

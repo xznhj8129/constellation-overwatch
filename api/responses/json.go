@@ -3,9 +3,9 @@ package responses
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
@@ -19,7 +19,7 @@ func SendSuccess(w http.ResponseWriter, statusCode int, data interface{}) {
 	// Encode to buffer first to catch encoding errors before writing headers
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		log.Printf("Failed to encode success response: %v", err)
+		logger.Errorf("Failed to encode success response: %v", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(shared.Response{
@@ -50,7 +50,7 @@ func SendError(w http.ResponseWriter, statusCode int, code, message string) {
 	// Encode to buffer first to catch encoding errors before writing headers
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		log.Printf("Failed to encode error response: %v", err)
+		logger.Errorf("Failed to encode error response: %v", err)
 		// Fallback to a minimal error response that we know can be encoded
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)

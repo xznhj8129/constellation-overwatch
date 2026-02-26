@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -58,7 +59,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 		 FROM api_keys WHERE key_hash = ?`, hash,
 	).Scan(&keyID, &userID, &orgID, &role, &scopesJSON, &revoked, &expiresAt)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		responses.SendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid API key")
 		return
 	}
@@ -101,7 +102,6 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
-
 
 // RequireScope returns middleware that ensures the authenticated API key
 // possesses the given scope (or the "admin" scope, which implies all scopes).

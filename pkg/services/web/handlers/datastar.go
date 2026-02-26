@@ -64,7 +64,7 @@ func (h *DatastarHandler) HandleAPIOrganizations(w http.ResponseWriter, r *http.
 
 		// Parse form data
 		if err := r.ParseForm(); err != nil {
-			logger.Infow("[API] Error parsing form: %v", err)
+			logger.Infof("[API] Error parsing form: %v", err)
 			http.Error(w, "Invalid form data", http.StatusBadRequest)
 			return
 		}
@@ -89,15 +89,15 @@ func (h *DatastarHandler) HandleAPIOrganizations(w http.ResponseWriter, r *http.
 		logger.Infof("[API] Organization created: %s (ID: %s)", org.Name, org.OrgID)
 
 		// Always send SSE response (Datastar forms always expect SSE)
-		logger.Infow("[API] Creating SSE connection for response")
+		logger.Debugw("[API] Creating SSE connection for response")
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		logger.Infow("[API] SSE generator created successfully")
+		logger.Debugw("[API] SSE generator created successfully")
 
 		// Insert the new organization row before the form row
-		logger.Infow("[API] Rendering organization row component")
+		logger.Debugw("[API] Rendering organization row component")
 		component := org_components.OrganizationRow(*org, org.OrgID)
 
-		logger.Infow("[API] Patching component with selector '#new-org-form-row', mode: before")
+		logger.Debugw("[API] Patching component with selector '#new-org-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#new-org-form-row"),
 			datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
@@ -106,12 +106,12 @@ func (h *DatastarHandler) HandleAPIOrganizations(w http.ResponseWriter, r *http.
 		}
 
 		// Reset the form after successful submission
-		logger.Infow("[API] Resetting form via ExecuteScript")
+		logger.Debugw("[API] Resetting form via ExecuteScript")
 		if err := sse.ExecuteScript("document.getElementById('new-org-form').reset()"); err != nil {
 			logger.Infof("[API] ERROR resetting form: %v", err)
 		}
 
-		logger.Infow("[API] ✓ SSE patch sent successfully - new row appended and form reset")
+		logger.Debugw("[API] SSE patch sent successfully - new row appended and form reset")
 	}
 }
 
@@ -202,7 +202,7 @@ func (h *DatastarHandler) HandleAPIOrganizationUpdate(w http.ResponseWriter, r *
 		return
 	}
 
-	logger.Infow("[API] ✓ Organization row updated via SSE with Morph mode")
+	logger.Debugw("[API] Organization row updated via SSE with Morph mode")
 }
 
 func (h *DatastarHandler) HandleAPIOrganization(w http.ResponseWriter, r *http.Request) {
@@ -264,7 +264,7 @@ func (h *DatastarHandler) HandleAPIOrganization(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		logger.Infow("[API] ✓ Organization row updated via SSE with Morph mode")
+		logger.Debugw("[API] Organization row updated via SSE with Morph mode")
 
 	case "DELETE":
 		logger.Infof("[API] DELETE /api/organizations/%s", orgID)
@@ -282,7 +282,7 @@ func (h *DatastarHandler) HandleAPIOrganization(w http.ResponseWriter, r *http.R
 		// If Datastar, remove the row from the UI
 		acceptHeader := r.Header.Get("Accept")
 		if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
-			logger.Infow("[API] Sending SSE response to remove row")
+			logger.Debugw("[API] Sending SSE response to remove row")
 			sse := datastar.NewServerSentEventGenerator(w, r)
 			err := sse.PatchElements("",
 				datastar.WithSelector("#org-row-"+orgID),
@@ -290,12 +290,12 @@ func (h *DatastarHandler) HandleAPIOrganization(w http.ResponseWriter, r *http.R
 			if err != nil {
 				logger.Infof("[API] Error removing organization row: %v", err)
 			} else {
-				logger.Infow("[API] ✓ SSE response sent successfully")
+				logger.Debugw("[API] SSE response sent successfully")
 			}
 			return
 		}
 
-		logger.Infow("[API] No SSE request detected, returning JSON")
+		logger.Debugw("[API] No SSE request detected, returning JSON")
 		// Otherwise return JSON success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -471,7 +471,7 @@ func (h *DatastarHandler) HandleAPIEntities(w http.ResponseWriter, r *http.Reque
 				datastar.WithSelector("#entity-table tbody"),
 				datastar.WithMode(datastar.ElementPatchModeAppend))
 			if err != nil {
-				logger.Infow("Error patching new entity: %v", err)
+				logger.Infof("Error patching new entity: %v", err)
 			}
 
 			// Close the modal
@@ -576,7 +576,7 @@ func (h *DatastarHandler) HandleAPIEntity(w http.ResponseWriter, r *http.Request
 				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
 				datastar.WithMode(datastar.ElementPatchModeOuter))
 			if err != nil {
-				logger.Infow("Error patching updated entity: %v", err)
+				logger.Infof("Error patching updated entity: %v", err)
 			}
 
 			// Close the modal
@@ -604,7 +604,7 @@ func (h *DatastarHandler) HandleAPIEntity(w http.ResponseWriter, r *http.Request
 				datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
 				datastar.WithMode(datastar.ElementPatchModeRemove))
 			if err != nil {
-				logger.Infow("Error removing entity: %v", err)
+				logger.Infof("Error removing entity: %v", err)
 			}
 			return
 		}
@@ -642,7 +642,7 @@ func (h *DatastarHandler) HandleAPIFleet(w http.ResponseWriter, r *http.Request)
 				datastar.WithSelector("#fleet-table"),
 				datastar.WithMode(datastar.ElementPatchModeInner))
 			if err != nil {
-				logger.Infow("Error patching fleet: %v", err)
+				logger.Infof("Error patching fleet: %v", err)
 			}
 			return
 		}
@@ -655,12 +655,12 @@ func (h *DatastarHandler) HandleAPIFleet(w http.ResponseWriter, r *http.Request)
 
 	case "POST":
 		// Log request details for debugging
-		logger.Infow("[FLEET-API] POST /api/fleet - Content-Type: %s, Accept: %s",
+		logger.Infof("[FLEET-API] POST /api/fleet - Content-Type: %s, Accept: %s",
 			r.Header.Get("Content-Type"), r.Header.Get("Accept"))
 
 		// Parse form data
 		if err := r.ParseForm(); err != nil {
-			logger.Infow("[FLEET-API] Error parsing form: %v", err)
+			logger.Infof("[FLEET-API] Error parsing form: %v", err)
 			http.Error(w, "Invalid form data", http.StatusBadRequest)
 			return
 		}
@@ -701,49 +701,49 @@ func (h *DatastarHandler) HandleAPIFleet(w http.ResponseWriter, r *http.Request)
 		metadata["is_live"] = r.FormValue("is_live") == "true"
 		req.Metadata = metadata
 
-		logger.Infow("[FLEET-API] Creating fleet entity: type=%s, org_id=%s", req.EntityType, orgID)
+		logger.Infof("[FLEET-API] Creating fleet entity: type=%s, org_id=%s", req.EntityType, orgID)
 
 		// Create the entity
 		entity, err := h.entitySvc.CreateEntity(orgID, req)
 		if err != nil {
-			logger.Infow("[FLEET-API] Error creating entity: %v", err)
+			logger.Infof("[FLEET-API] Error creating entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		logger.Infow("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
+		logger.Infof("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 		// Fetch all organizations for rendering the row
 		orgs, err := h.orgSvc.ListOrganizations()
 		if err != nil {
-			logger.Infow("[FLEET-API] Error fetching organizations: %v", err)
+			logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// Always send SSE response (Datastar forms always expect SSE)
-		logger.Infow("[FLEET-API] Creating SSE connection for response")
+		logger.Debugw("[FLEET-API] Creating SSE connection for response")
 		sse := datastar.NewServerSentEventGenerator(w, r)
 
 		// Insert the new fleet row before the form row
-		logger.Infow("[FLEET-API] Rendering fleet row component")
+		logger.Debugw("[FLEET-API] Rendering fleet row component")
 		component := fleet_components.FleetRow(orgs, *entity)
 
-		logger.Infow("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
+		logger.Debugw("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
 		if err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("#new-fleet-form-row"),
 			datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
-			logger.Infow("[FLEET-API] ERROR inserting fleet row: %v", err)
+			logger.Infof("[FLEET-API] ERROR inserting fleet row: %v", err)
 			return
 		}
 
 		// Reset the form after successful submission
-		logger.Infow("[FLEET-API] Resetting form via ExecuteScript")
+		logger.Debugw("[FLEET-API] Resetting form via ExecuteScript")
 		if err := sse.ExecuteScript("document.getElementById('new-fleet-form').reset()"); err != nil {
-			logger.Infow("[FLEET-API] ERROR resetting form: %v", err)
+			logger.Infof("[FLEET-API] ERROR resetting form: %v", err)
 		}
 
-		logger.Infow("[FLEET-API] ✓ SSE patch sent successfully - new row appended and form reset")
+		logger.Debugw("[FLEET-API] SSE patch sent successfully - new row appended and form reset")
 	}
 }
 
@@ -761,7 +761,7 @@ func (h *DatastarHandler) HandleAPIFleetUpdate(w http.ResponseWriter, r *http.Re
 	signals := make(map[string]interface{})
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&signals); err != nil {
-		logger.Infow("[FLEET-API] Error reading JSON: %v", err)
+		logger.Infof("[FLEET-API] Error reading JSON: %v", err)
 		http.Error(w, "Invalid request data", http.StatusBadRequest)
 		return
 	}
@@ -803,23 +803,23 @@ func (h *DatastarHandler) HandleAPIFleetUpdate(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	logger.Infow("[FLEET-API] PUT /api/fleet/update (entity_id=%s, org_id=%s)", entityID, orgID)
-	logger.Infow("[FLEET-API] Updating entity with: %v", updates)
+	logger.Infof("[FLEET-API] PUT /api/fleet/update (entity_id=%s, org_id=%s)", entityID, orgID)
+	logger.Infof("[FLEET-API] Updating entity with: %v", updates)
 
 	// Update the entity
 	entity, err := h.entitySvc.UpdateEntity(orgID, entityID, updates)
 	if err != nil {
-		logger.Infow("[FLEET-API] Error updating entity: %v", err)
+		logger.Infof("[FLEET-API] Error updating entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	logger.Infow("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
+	logger.Infof("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 	// Fetch all organizations for the dropdown in the returned row
 	orgs, err := h.orgSvc.ListOrganizations()
 	if err != nil {
-		logger.Infow("[FLEET-API] Error fetching organizations: %v", err)
+		logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -830,11 +830,11 @@ func (h *DatastarHandler) HandleAPIFleetUpdate(w http.ResponseWriter, r *http.Re
 	if err := sse.PatchComponent(r.Context(), component,
 		datastar.WithSelector("#fleet-row-"+entityID),
 		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
-		logger.Infow("[FLEET-API] Error patching updated row: %v", err)
+		logger.Infof("[FLEET-API] Error patching updated row: %v", err)
 		return
 	}
 
-	logger.Infow("[FLEET-API] ✓ Fleet entity row updated via SSE with Morph mode")
+	logger.Debugw("[FLEET-API] Fleet entity row updated via SSE with Morph mode")
 }
 
 func (h *DatastarHandler) HandleAPIFleetEntity(w http.ResponseWriter, r *http.Request) {
@@ -850,14 +850,14 @@ func (h *DatastarHandler) HandleAPIFleetEntity(w http.ResponseWriter, r *http.Re
 
 	switch r.Method {
 	case "DELETE":
-		logger.Infow("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
-		logger.Infow("[FLEET-API] Accept header: %s", r.Header.Get("Accept"))
+		logger.Infof("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
+		logger.Infof("[FLEET-API] Accept header: %s", r.Header.Get("Accept"))
 
 		// If org_id not provided, try to find it
 		if orgID == "" {
 			orgs, err := h.orgSvc.ListOrganizations()
 			if err != nil {
-				logger.Infow("[FLEET-API] Error fetching organizations: %v", err)
+				logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -878,30 +878,30 @@ func (h *DatastarHandler) HandleAPIFleetEntity(w http.ResponseWriter, r *http.Re
 
 		// Delete the entity
 		if err := h.entitySvc.DeleteEntity(orgID, entityID); err != nil {
-			logger.Infow("[FLEET-API] Error deleting entity: %v", err)
+			logger.Infof("[FLEET-API] Error deleting entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		logger.Infow("[FLEET-API] Entity deleted: %s", entityID)
+		logger.Infof("[FLEET-API] Entity deleted: %s", entityID)
 
 		// If Datastar, remove the row from the UI
 		acceptHeader := r.Header.Get("Accept")
 		if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
-			logger.Infow("[FLEET-API] Sending SSE response to remove row")
+			logger.Debugw("[FLEET-API] Sending SSE response to remove row")
 			sse := datastar.NewServerSentEventGenerator(w, r)
 			err := sse.PatchElements("",
 				datastar.WithSelector("#fleet-row-"+entityID),
 				datastar.WithMode(datastar.ElementPatchModeRemove))
 			if err != nil {
-				logger.Infow("[FLEET-API] Error removing fleet row: %v", err)
+				logger.Infof("[FLEET-API] Error removing fleet row: %v", err)
 			} else {
-				logger.Infow("[FLEET-API] ✓ SSE response sent successfully")
+				logger.Debugw("[FLEET-API] SSE response sent successfully")
 			}
 			return
 		}
 
-		logger.Infow("[FLEET-API] No SSE request detected, returning JSON")
+		logger.Debugw("[FLEET-API] No SSE request detected, returning JSON")
 		// Otherwise return JSON success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})

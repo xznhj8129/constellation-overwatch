@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"go.uber.org/zap"
 )
@@ -66,19 +66,12 @@ type apiPathsResponse struct {
 	Items []apiPathItem `json:"items"`
 }
 
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
-
 // DefaultConfig returns a Config populated from environment variables with
 // sensible defaults. An empty MEDIAMTX_API_URL means MediaMTX is disabled.
 func DefaultConfig() *Config {
 	return &Config{
-		APIURL:    getEnv("MEDIAMTX_API_URL", ""),
-		WebRTCURL: getEnv("MEDIAMTX_WEBRTC_URL", ""),
+		APIURL:    shared.GetEnv("MEDIAMTX_API_URL", ""),
+		WebRTCURL: shared.GetEnv("MEDIAMTX_WEBRTC_URL", ""),
 	}
 }
 

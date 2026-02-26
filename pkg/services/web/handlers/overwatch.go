@@ -50,7 +50,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	// Get all keys using Keys() method
 	keys, err := kv.Keys()
 	if err != nil {
-		logger.Infow("Error fetching KV keys: %v", err)
+		logger.Infof("Error fetching KV keys: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -60,7 +60,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	for _, key := range keys {
 		entry, err := kv.Get(key)
 		if err != nil {
-			logger.Infow("Error getting key %s: %v", key, err)
+			logger.Infof("Error getting key %s: %v", key, err)
 			continue
 		}
 
@@ -80,7 +80,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 			datastar.WithSelector("#kv-content"),
 			datastar.WithMode(datastar.ElementPatchModeInner))
 		if err != nil {
-			logger.Infow("Error patching KV content: %v", err)
+			logger.Infof("Error patching KV content: %v", err)
 		}
 		return
 	}
@@ -113,7 +113,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	logger.Infow("[Overwatch] ✓ SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
+	logger.Debugw("[Overwatch] SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
 
 	// Create SSE generator AFTER setting headers
 	sse := datastar.NewServerSentEventGenerator(w, r)
@@ -145,7 +145,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 
 	flusher.Flush()
 	writeMutex.Unlock()
-	logger.Infow("SSE client connected", "component", "Overwatch", "remote_addr", r.RemoteAddr)
+	logger.Debugw("SSE client connected", "component", "Overwatch", "remote_addr", r.RemoteAddr)
 
 	// Local cache of all KV data: entityID -> key -> data
 	// This allows us to reconstruct a single entity's state without fetching everything
@@ -177,9 +177,9 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		defer close(updateChan)
 
 		// STEP 1: Load existing KV data on initial connection
-		logger.Infow("[Overwatch] Loading initial KV state...")
+		logger.Debugw("[Overwatch] Loading initial KV state...")
 		if initialEntries, err := h.natsEmbedded.GetAllKVEntries(); err == nil {
-			logger.Infow("[Overwatch] Loaded initial state", "kv_entries", len(initialEntries))
+			logger.Debugw("[Overwatch] Loaded initial state", "kv_entries", len(initialEntries))
 
 			// Send existing entries through the update channel to populate initial state
 			for _, entry := range initialEntries {
@@ -193,7 +193,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					logger.Debugw("[Overwatch] Skipped initial entry due to channel backup", "key", entry.Key())
 				}
 			}
-			logger.Infow("[Overwatch] Initial state load completed", "entities_loaded", len(initialEntries))
+			logger.Debugw("[Overwatch] Initial state load completed", "entities_loaded", len(initialEntries))
 		} else {
 			logger.Warnw("[Overwatch] Failed to load initial KV state", "error", err)
 		}
@@ -205,7 +205,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				return
 			}
 
-			logger.Infow("[Overwatch] KV watcher goroutine started, waiting for changes...")
+			logger.Debugw("[Overwatch] KV watcher goroutine started, waiting for changes...")
 
 			watchErr := h.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
 				select {
@@ -276,7 +276,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infow("[Overwatch] Client disconnected", "remote_addr", r.RemoteAddr)
+			logger.Debugw("[Overwatch] Client disconnected", "remote_addr", r.RemoteAddr)
 			return
 
 		case <-ticker.C:
@@ -335,7 +335,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 
 		case entry, ok := <-updateChan:
 			if !ok {
-				logger.Infow("[Overwatch] Update channel closed, stopping SSE stream")
+				logger.Debugw("[Overwatch] Update channel closed, stopping SSE stream")
 				return
 			}
 
@@ -396,7 +396,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 						if len(value) < previewLen {
 							previewLen = len(value)
 						}
-						logger.Infow("[Overwatch] NEW MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
+						logger.Debugw("[Overwatch] MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
 					}
 				}
 			}
@@ -549,7 +549,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 	for _, entityID := range removedIDs {
 		// Only remove if we knew about it
 		if orgID, known := knownEntities[entityID]; known {
-			logger.Infow("[Overwatch] Removing entity", "entity_id", entityID)
+			logger.Debugw("[Overwatch] Removing entity", "entity_id", entityID)
 
 			// Remove from DOM
 			var selector string
@@ -577,7 +577,10 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 
 	if updatesSent > 0 {
 		// Get total orgs from DB for accurate count
-		orgs, _ := h.orgSvc.ListOrganizations()
+		orgs, err := h.orgSvc.ListOrganizations()
+		if err != nil {
+			logger.Warnw("Failed to fetch organizations for analytics", "error", err)
+		}
 		totalOrgs := len(orgs)
 
 		// Compute analytics from the current snapshot
@@ -675,10 +678,10 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 	// Now build consolidated EntityState objects
 	entityStatesByOrg := make(map[string][]shared.EntityState)
 
-	logger.Infow("[Overwatch] Aggregating entities from KV entries", "entity_count", len(entitiesByID), "kv_entry_count", len(entries))
+	logger.Debugw("[Overwatch] Aggregating entities from KV entries", "entity_count", len(entitiesByID), "kv_entry_count", len(entries))
 
 	for entityID, dataMap := range entitiesByID {
-		logger.Infow("[Overwatch] Processing entity", "entity_id", entityID, "kv_entry_count", len(dataMap))
+		logger.Debugw("[Overwatch] Processing entity", "entity_id", entityID, "kv_entry_count", len(dataMap))
 		entityState := h.mergeEntityData(entityID, dataMap)
 
 		// Group by org_id
@@ -690,7 +693,7 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 		entityStatesByOrg[orgID] = append(entityStatesByOrg[orgID], entityState)
 	}
 
-	logger.Infow("[Overwatch] Built entities", "total_entities", len(entitiesByID), "org_count", len(entityStatesByOrg))
+	logger.Debugw("[Overwatch] Built entities", "total_entities", len(entitiesByID), "org_count", len(entityStatesByOrg))
 	return entityStatesByOrg
 }
 
@@ -939,7 +942,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	}
 
 	if state.OrgID == "" {
-		logger.Infow("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
+		logger.Debugw("[Overwatch] mergeFullState: no org_id or organization_id in data")
 	}
 
 	// Python detection service format (NEW): detections.tracked_objects
@@ -957,7 +960,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 		// Check for analytics nested inside detections (new format)
 		if analyticsData, ok := detectionsData["analytics"].(map[string]interface{}); ok {
 			h.mergeAnalytics(state, analyticsData)
-			logger.Infow("[Overwatch] Merged detections.analytics")
+			logger.Debugw("[Overwatch] Merged detections.analytics")
 		}
 	}
 
@@ -965,21 +968,21 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	if analyticsData, ok := data["analytics"].(map[string]interface{}); ok {
 		if summaryData, ok := analyticsData["summary"].(map[string]interface{}); ok {
 			h.mergeAnalytics(state, summaryData)
-			logger.Infow("[Overwatch] Merged analytics.summary")
+			logger.Debugw("[Overwatch] Merged analytics.summary")
 		}
 	}
 
 	// Python threat intelligence format (NEW): top-level threat_intelligence
 	if threatData, ok := data["threat_intelligence"].(map[string]interface{}); ok {
 		h.mergeThreatIntel(state, threatData)
-		logger.Infow("[Overwatch] Merged threat_intelligence")
+		logger.Debugw("[Overwatch] Merged threat_intelligence")
 	}
 
 	// Python C4ISR format (OLD): c4isr.threat_intelligence
 	if c4isrData, ok := data["c4isr"].(map[string]interface{}); ok {
 		if threatData, ok := c4isrData["threat_intelligence"].(map[string]interface{}); ok {
 			h.mergeThreatIntel(state, threatData)
-			logger.Infow("[Overwatch] Merged c4isr.threat_intelligence")
+			logger.Debugw("[Overwatch] Merged c4isr.threat_intelligence")
 		}
 	}
 

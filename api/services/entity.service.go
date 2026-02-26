@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
@@ -43,13 +44,19 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 
 	metadataJSON := "{}"
 	if req.Metadata != nil {
-		bytes, _ := json.Marshal(req.Metadata)
+		bytes, err := json.Marshal(req.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 		metadataJSON = string(bytes)
 	}
 
 	videoConfigJSON := "{}"
 	if req.VideoConfig != nil {
-		bytes, _ := json.Marshal(req.VideoConfig)
+		bytes, err := json.Marshal(req.VideoConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal video config: %w", err)
+		}
 		videoConfigJSON = string(bytes)
 	}
 
@@ -159,8 +166,8 @@ func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, err
 	)
 
 	entity, err := s.scanEntity(row)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("entity not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, err
@@ -171,7 +178,7 @@ func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, err
 
 func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]interface{}) (*ontology.Entity, error) {
 	if len(updates) == 0 {
-		return nil, fmt.Errorf("no updates provided")
+		return nil, shared.ErrNoUpdates
 	}
 
 	// Build dynamic update query
@@ -196,7 +203,10 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, value)
 		case "metadata", "components", "tags", "video_config":
-			bytes, _ := json.Marshal(value)
+			bytes, err := json.Marshal(value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal %s: %w", key, err)
+			}
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, string(bytes))
 		}
@@ -210,9 +220,12 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 		return nil, fmt.Errorf("failed to update entity: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf("entity not found")
+		return nil, fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 
 	// Get updated entity
@@ -245,9 +258,12 @@ func (s *EntityService) DeleteEntity(orgID, entityID string) error {
 		return fmt.Errorf("failed to delete entity: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("entity not found")
+		return fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 
 	// Publish entity deleted event
@@ -353,8 +369,16 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 		entity.Velocity = &velocity.Float64
 	}
 
-	entity.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	entity.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		logger.Debugw("Failed to parse created_at timestamp", "value", createdAt, "error", err)
+	} else {
+		entity.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		logger.Debugw("Failed to parse updated_at timestamp", "value", updatedAt, "error", err)
+	} else {
+		entity.UpdatedAt = t
+	}
 
 	return &entity, nil
 }

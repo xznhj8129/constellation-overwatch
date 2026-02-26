@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 type EntityHandler struct {
@@ -83,7 +85,7 @@ func (h *EntityHandler) ListOrGet(w http.ResponseWriter, r *http.Request) {
 	if entityID != "" {
 		entity, err := h.service.GetEntity(orgID, entityID)
 		if err != nil {
-			if err.Error() == "entity not found" {
+			if errors.Is(err, shared.ErrNotFound) {
 				responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
 			} else {
 				responses.SendError(w, http.StatusInternalServerError, "GET_FAILED", err.Error())
@@ -137,7 +139,7 @@ func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	entity, err := h.service.UpdateEntity(orgID, entityID, updates)
 	if err != nil {
-		if err.Error() == "entity not found" {
+		if errors.Is(err, shared.ErrNotFound) {
 			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
 		} else {
 			responses.SendError(w, http.StatusInternalServerError, "UPDATE_FAILED", err.Error())
@@ -174,7 +176,7 @@ func (h *EntityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	err := h.service.DeleteEntity(orgID, entityID)
 	if err != nil {
-		if err.Error() == "entity not found" {
+		if errors.Is(err, shared.ErrNotFound) {
 			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
 		} else {
 			responses.SendError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())

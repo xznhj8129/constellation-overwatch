@@ -34,6 +34,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	svcmgr "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
@@ -186,9 +187,6 @@ func main() {
 		logger.Fatalw("Failed to start NATS service", "error", err)
 	}
 
-	// Wait for NATS to be ready
-	time.Sleep(1 * time.Second)
-
 	// Get NATS connection
 	nc := natsService.Connection()
 
@@ -198,7 +196,7 @@ func main() {
 	if err != nil {
 		logger.Fatalw("Failed to initialize worker manager", "error", err)
 	}
-	if err := workerManager.Start(); err != nil {
+	if err := workerManager.Start(ctx); err != nil {
 		logger.Fatalw("Failed to start workers", "error", err)
 	}
 
@@ -220,6 +218,13 @@ func main() {
 	}
 
 	logger.Info("All services started successfully")
+
+	// Register services for managed shutdown (reverse order of addition)
+	mgr := svcmgr.NewManager()
+	mgr.AddService(dbService)
+	mgr.AddService(natsService)
+	mgr.AddService(workerManager)
+	mgr.AddService(webServer)
 
 	// TUI mode or headless mode
 	sigChan := make(chan os.Signal, 1)
@@ -261,25 +266,10 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
-	// Stop services in reverse order with timeout context
-	logger.Info("Stopping web server...")
-	if err := webServer.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping web server", "error", err)
-	}
-
-	logger.Info("Stopping workers...")
-	if err := workerManager.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping workers", "error", err)
-	}
-
-	logger.Info("Stopping NATS service...")
-	if err := natsService.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping NATS service", "error", err)
-	}
-
-	logger.Info("Stopping database service...")
-	if err := dbService.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping database service", "error", err)
+	// Stop all services in reverse registration order
+	logger.Info("Stopping all services...")
+	if err := mgr.Stop(shutdownCtx); err != nil {
+		logger.Errorw("Error during shutdown", "error", err)
 	}
 
 	// Cancel main context

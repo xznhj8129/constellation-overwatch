@@ -15,12 +15,24 @@ var pid = os.Getpid()
 var tuiHook *TUIHook
 
 func init() {
+	// Initialize with defaults; callers can re-initialize with Init() if needed.
+	Logger, _ = NewLogger()
+	if Logger == nil {
+		Logger, _ = zap.NewProduction()
+	}
+	Sugar = Logger.Sugar()
+}
+
+// Init explicitly initializes the logger, returning an error on failure
+// instead of panicking.
+func Init() error {
 	var err error
 	Logger, err = NewLogger()
 	if err != nil {
-		panic("failed to initialize logger: " + err.Error())
+		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
 	Sugar = Logger.Sugar()
+	return nil
 }
 
 // natsStyleTimeEncoder formats time with PID prefix like NATS: [12345] 2026/01/10 20:56:44.509687

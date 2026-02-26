@@ -7,6 +7,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/dev"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/handlers"
@@ -38,7 +39,11 @@ func NewRouter(
 	specHandler := handlers.NewSpecHandler()
 
 	// Serve static files (no auth required) - uses embedded filesystem
-	mux.Handle("/static/", http.StripPrefix("/static/", StaticFileServer()))
+	staticHandler, err := StaticFileServer()
+	if err != nil {
+		logger.Fatalw("Failed to initialize static file server", "error", err)
+	}
+	mux.Handle("/static/", http.StripPrefix("/static/", staticHandler))
 
 	// Prometheus metrics endpoint (no auth required for scraping)
 	mux.Handle("/metrics", metrics.Handler())

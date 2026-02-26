@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/google/uuid"
 )
 
@@ -87,8 +89,8 @@ func (s *InviteService) GetInviteByTokenHash(hash string) (*Invite, error) {
 	).Scan(&inv.InviteID, &inv.OrgID, &inv.Email, &inv.Role, &inv.InvitedByUserID,
 		&inv.Status, &inv.ExpiresAt, &inv.CreatedAt, &inv.UpdatedAt)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("invite not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("invite: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query invite: %w", err)
@@ -107,9 +109,12 @@ func (s *InviteService) AcceptInvite(inviteID string) error {
 		return fmt.Errorf("failed to accept invite: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("invite not found: %s", inviteID)
+		return fmt.Errorf("invite %s: %w", inviteID, shared.ErrNotFound)
 	}
 
 	return nil
@@ -153,9 +158,12 @@ func (s *InviteService) RevokeInvite(inviteID string) error {
 		return fmt.Errorf("failed to revoke invite: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("invite not found: %s", inviteID)
+		return fmt.Errorf("invite %s: %w", inviteID, shared.ErrNotFound)
 	}
 
 	return nil

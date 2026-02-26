@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
@@ -99,8 +98,8 @@ func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddedn
 	}
 
 	// Configure bind address from environment
-	host := getEnv("HOST", "0.0.0.0")
-	port := getEnv("PORT", "8080")
+	host := shared.GetEnv("HOST", "0.0.0.0")
+	port := shared.GetEnv("PORT", "8080")
 	server.bindAddr = fmt.Sprintf("%s:%s", host, port)
 
 	return server, nil
@@ -192,12 +191,4 @@ func (s *Server) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	fmt.Fprintf(w, `{"status":"%s"}`, health.Status)
-}
-
-// getEnv gets environment variable with fallback
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
 }

@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -112,8 +114,8 @@ func (s *AuthService) GetUserByID(userID string) (*WebAuthnUser, error) {
 		`SELECT username, email, role, org_id, webauthn_id FROM users WHERE user_id = ?`, userID,
 	).Scan(&username, &email, &role, &orgID, &webauthnID)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found: %s", userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user %s: %w", userID, shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user: %w", err)
@@ -155,8 +157,8 @@ func (s *AuthService) GetUserByWebAuthnID(handle []byte) (*WebAuthnUser, error) 
 		`SELECT user_id, username, email, role, org_id, webauthn_id FROM users WHERE webauthn_id = ?`, string(handle),
 	).Scan(&userID, &username, &email, &role, &orgID, &webauthnID)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found for webauthn handle")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user for webauthn handle: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user by webauthn ID: %w", err)
@@ -198,8 +200,8 @@ func (s *AuthService) GetUserByEmail(email string) (*WebAuthnUser, error) {
 		`SELECT user_id, username, role, org_id, webauthn_id FROM users WHERE email = ?`, email,
 	).Scan(&userID, &username, &role, &orgID, &webauthnID)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user by email: %w", err)
@@ -370,8 +372,8 @@ func (s *AuthService) GetWebAuthnSession(ceremony, key string) (*webauthn.Sessio
 		ceremony, key,
 	).Scan(&dataJSON, &userRef, &expiresAt)
 
-	if err == sql.ErrNoRows {
-		return nil, "", fmt.Errorf("webauthn session not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, "", fmt.Errorf("webauthn session: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query webauthn session: %w", err)
@@ -386,7 +388,7 @@ func (s *AuthService) GetWebAuthnSession(ceremony, key string) (*webauthn.Sessio
 	// Check expiry.
 	exp, parseErr := time.Parse(time.RFC3339, expiresAt)
 	if parseErr == nil && time.Now().After(exp) {
-		return nil, "", fmt.Errorf("webauthn session expired")
+		return nil, "", fmt.Errorf("webauthn session: %w", shared.ErrExpired)
 	}
 
 	var data webauthn.SessionData
@@ -411,8 +413,8 @@ func (s *AuthService) GetUserByCredentialID(credID []byte) (*WebAuthnUser, error
 		`SELECT user_id FROM webauthn_credentials WHERE credential_id = ?`, credIDHex,
 	).Scan(&userID)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("no user found for credential")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user for credential: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user by credential ID: %w", err)

@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/google/uuid"
 )
 
@@ -143,9 +145,12 @@ func (s *UserService) UpdateRole(userID, role string) error {
 		return fmt.Errorf("failed to update user role: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found: %s", userID)
+		return fmt.Errorf("user %s: %w", userID, shared.ErrNotFound)
 	}
 
 	return nil
@@ -174,9 +179,12 @@ func (s *UserService) MarkPasskeySetupComplete(userID string) error {
 		return fmt.Errorf("failed to mark passkey setup complete: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found: %s", userID)
+		return fmt.Errorf("user %s: %w", userID, shared.ErrNotFound)
 	}
 
 	return nil
@@ -193,8 +201,8 @@ func (s *UserService) scanUser(row *sql.Row) (*User, error) {
 		&permissions, &webAuthnID, &needsPasskey, &lastLogin,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan user: %w", err)

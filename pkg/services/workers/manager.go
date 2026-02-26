@@ -74,7 +74,17 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 	}, nil
 }
 
-func (m *Manager) Start() error {
+// Name returns the service name for logging.
+func (m *Manager) Name() string {
+	return "workers"
+}
+
+// HealthCheck returns the health status of the worker manager.
+func (m *Manager) HealthCheck() error {
+	return nil
+}
+
+func (m *Manager) Start(ctx context.Context) error {
 	for _, worker := range m.workers {
 		m.wg.Add(1)
 		go func(w Worker) {

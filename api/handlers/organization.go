@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 type OrganizationHandler struct {
@@ -78,7 +80,7 @@ func (h *OrganizationHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	org, err := h.service.GetOrganization(orgID)
 	if err != nil {
-		if err.Error() == "organization not found" {
+		if errors.Is(err, shared.ErrNotFound) {
 			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
 		} else {
 			responses.SendError(w, http.StatusInternalServerError, "GET_FAILED", err.Error())
@@ -112,7 +114,7 @@ func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	err := h.service.DeleteOrganization(orgID)
 	if err != nil {
-		if err.Error() == "organization not found" {
+		if errors.Is(err, shared.ErrNotFound) {
 			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
 		} else {
 			responses.SendError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
