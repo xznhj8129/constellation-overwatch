@@ -1,0 +1,103 @@
+direction: right
+
+vars: {
+  d2-config: {
+    sketch: true
+  }
+}
+
+title: Constellation Overwatch {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 26
+    bold: true
+  }
+}
+
+classes: {
+  fabric: {
+    shape: cylinder
+    style: {
+      fill: "#e6f3ff"
+      stroke: "#1f78b4"
+    }
+  }
+  animated_edge: {
+    style: {
+      animated: true
+      stroke: "#1f78b4"
+      stroke-width: 2
+    }
+  }
+}
+
+# --- Assets (Using custom shapes/icons) ---
+Drone: {
+  label: "UAV / Drone"
+  shape: image
+  icon: https://icons.terrastruct.com/essentials/112-location.svg
+}
+
+Robot: {
+  label: "UGV / Robot"
+  shape: image
+  icon: https://icons.terrastruct.com/dev/robot.svg
+}
+
+# --- Edge Layer ---
+EdgeStation: {
+  label: "Edge Control Station"
+  
+  PulsarBroker: {
+    label: "Apache Pulsar\n(Broker)"
+    shape: rectangle
+    style: {
+      border-radius: 4
+      shadow: true
+    }
+  }
+}
+
+# --- Transport Layer ---
+TLSTunnel: {
+  label: "Pulsar TLS 1.3 Tunnel\n(Encrypted Stream)"
+  shape: rectangle
+  style: {
+    stroke: "#2ca02c"
+    stroke-width: 2
+    stroke-dash: 5
+    border-radius: 4
+    fill: "#f0fff0"
+  }
+}
+
+# --- Cloud Layer ---
+OverwatchCloud: {
+  label: "Constellation Overwatch"
+
+  DataFabric: {
+    label: "Data Fabric\n(NATS JetStream)"
+    class: fabric
+  }
+  
+  Storage: {
+    label: "SQLite DB\n(State & History)"
+    class: fabric
+  }
+}
+
+# --- Connections with Animation ---
+Drone -> EdgeStation.PulsarBroker: "RF / ELRS" { class: animated_edge }
+Robot -> EdgeStation.PulsarBroker: "RF / ELRS" { class: animated_edge }
+
+EdgeStation.PulsarBroker -> TLSTunnel: "pulsar+ssl://" { class: animated_edge }
+TLSTunnel -> OverwatchCloud.DataFabric: "Telemetry & Commands" { class: animated_edge }
+
+OverwatchCloud.DataFabric -> OverwatchCloud.Storage: "Persist" { 
+  style: { 
+    stroke-dash: 5
+    animated: true 
+  } 
+}
+
