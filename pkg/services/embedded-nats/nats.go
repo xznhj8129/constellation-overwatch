@@ -383,6 +383,20 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			DiscardPolicy:   nats.DiscardOld,
 		},
 		{
+			Name:            "CONSTELLATION_ORGANIZATIONS",
+			Subjects:        []string{"constellation.organizations.>"},
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         10000,
+			MaxBytes:        32 * 1024 * 1024,   // 32MB
+			MaxAge:          7 * 24 * time.Hour,  // 7 days
+			MaxMsgSize:      256 * 1024,          // 256KB
+			Replicas:        1,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
+		},
+		{
 			Name:            "CONSTELLATION_COMMANDS",
 			Subjects:        []string{"constellation.commands.>"},
 			Retention:       nats.WorkQueuePolicy,

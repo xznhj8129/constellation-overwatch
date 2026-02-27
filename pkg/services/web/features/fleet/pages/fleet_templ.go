@@ -60,14 +60,14 @@ func FleetPage(organizations []ontology.Organization, entities []ontology.Entity
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\" data-signals=\"{_fleetFetching: false}\"><div id=\"fleet-panel\" class=\"panel\"><div class=\"panel-header\"><div style=\"display: flex; flex-direction: column; gap: 12px; flex: 1;\"><h2>Fleet Management</h2><div class=\"info-box\"><span class=\"info-icon\">i</span> <span class=\"info-text\">Use the Copy button in Actions to copy the <code class=\"inline-code\">entity_id</code> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"tab-content\" data-signals=\"{_fleetFetching: false}\"><div id=\"fleet-panel\" class=\"panel\" data-init=\"@get('/api/fleet/sse')\"><div class=\"panel-header\"><div style=\"display: flex; flex-direction: column; gap: 12px; flex: 1;\"><h2>Fleet Management</h2><div class=\"info-box\"><span class=\"info-icon\">i</span> <span class=\"info-text\">Use the Copy button in Actions to copy the <code class=\"inline-code\">entity_id</code> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("for")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/pages/fleet.templ`, Line: 22, Col: 102}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/pages/fleet.templ`, Line: 23, Col: 102}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {

@@ -34,14 +34,14 @@ func OrganizationsPanel(organizations []ontology.Organization, selectedOrgID str
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"organizations-panel\" class=\"panel\"><div class=\"panel-header\"><div style=\"display: flex; flex-direction: column; gap: 12px; flex: 1;\"><h2>Organizations</h2><div class=\"info-box\"><span class=\"info-icon\">i</span> <span class=\"info-text\">Use the Copy button in Actions to copy the <code class=\"inline-code\">org_id</code> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"organizations-panel\" class=\"panel\" data-init=\"@get('/api/organizations/sse')\"><div class=\"panel-header\"><div style=\"display: flex; flex-direction: column; gap: 12px; flex: 1;\"><h2>Organizations</h2><div class=\"info-box\"><span class=\"info-icon\">i</span> <span class=\"info-text\">Use the Copy button in Actions to copy the <code class=\"inline-code\">org_id</code> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("for")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 16, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 17, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -135,7 +135,7 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("org-row-" + org.OrgID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 81, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 82, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -161,7 +161,7 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(org.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 82, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 83, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(org.OrgType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 83, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 84, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -187,7 +187,7 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs("@get('/organizations/edit/" + org.OrgID + "')")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 87, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 88, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -200,7 +200,7 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(org.OrgID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 91, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 92, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -213,7 +213,7 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 97, Col: 175}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 98, Col: 175}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("org-row-%s", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 105, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 106, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -273,7 +273,7 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 			edit_description: '%s'
 		}`, org.OrgID, org.Name, org.OrgType, org.Description))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 111, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 112, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -286,7 +286,7 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("@get('/organizations/cancel/%s')", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 141, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 142, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {

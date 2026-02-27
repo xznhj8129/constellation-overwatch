@@ -30,10 +30,10 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Send initial connection signal using typed struct
-	if err := datastar.MarshalAndPatchSignals(sse, signals.ConnectionSignal{
+	if err := sse.MarshalAndPatchSignals(signals.ConnectionSignal{
 		IsConnected: true,
 	}); err != nil {
 		return
@@ -87,7 +87,7 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			if err := datastar.MarshalAndPatchSignals(sse, sig); err != nil {
+			if err := sse.MarshalAndPatchSignals(sig); err != nil {
 				return
 			}
 		}

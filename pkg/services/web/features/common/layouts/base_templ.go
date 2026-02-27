@@ -44,7 +44,7 @@ func Base(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"><script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js\"></script></head><body>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"><script type=\"module\" src=\"/static/lib/datastar.js\"></script></head><body>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -141,7 +141,7 @@ func BaseWithStyles(title string, styles []string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js\"></script></head><body>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<script type=\"module\" src=\"/static/lib/datastar.js\"></script></head><body>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

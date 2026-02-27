@@ -34,8 +34,8 @@ func NewRouter(
 
 	// Initialize handlers
 	pageHandler := handlers.NewPageHandler(orgSvc, entitySvc)
-	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc)
-	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc)
+	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc, natsEmbedded.Connection())
+	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc, entitySvc)
 	videoHandler := handlers.NewVideoHandler(mtxClient, entitySvc)
 	authHandler := handlers.NewAuthHandler(sessionAuth, authSvc, userSvc)
 	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
@@ -134,7 +134,11 @@ func NewRouter(
 			r.Post("/", datastarHandler.HandleCreateFleetEntity)
 			r.Put("/update", datastarHandler.HandleUpdateFleetEntity)
 			r.Delete("/{entity_id}", datastarHandler.HandleDeleteFleetEntity)
+			r.Get("/sse", datastarHandler.HandleFleetSSE)
 		})
+
+		// Realtime SSE: Organizations
+		r.Get("/api/organizations/sse", datastarHandler.HandleOrganizationsSSE)
 
 		// Web API: Overwatch
 		r.Get("/api/overwatch/kv", overwatchHandler.HandleAPIOverwatchKV)

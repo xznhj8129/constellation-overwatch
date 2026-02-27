@@ -37,7 +37,7 @@ func (h *HotReload) HandleReloadSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Send a comment to establish the connection
 	fmt.Fprintf(w, ": hot reload connection established\n\n")

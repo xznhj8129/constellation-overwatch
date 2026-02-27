@@ -302,10 +302,24 @@ func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType st
 		return
 	}
 
+	var subjectFn func(string) string
+	switch eventType {
+	case shared.EventTypeCreated:
+		subjectFn = shared.EntityCreatedSubject
+	case shared.EventTypeUpdated:
+		subjectFn = shared.EntityUpdatedSubject
+	case shared.EventTypeDeleted:
+		subjectFn = shared.EntityDeletedSubject
+	case shared.EventTypeStatus:
+		subjectFn = shared.EntityStatusSubject
+	default:
+		subjectFn = shared.EntityCreatedSubject
+	}
+
 	event := shared.Event{
 		ID:      uuid.New().String(),
 		Type:    eventType,
-		Subject: shared.EntityCreatedSubject(entity.OrgID),
+		Subject: subjectFn(entity.OrgID),
 		Data: map[string]interface{}{
 			"entity_id":   entity.EntityID,
 			"org_id":      entity.OrgID,

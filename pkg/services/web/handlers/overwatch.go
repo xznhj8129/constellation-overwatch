@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
@@ -24,12 +25,14 @@ import (
 type OverwatchHandler struct {
 	natsEmbedded *embeddednats.EmbeddedNATS
 	orgSvc       *services.OrganizationService
+	entitySvc    *services.EntityService
 }
 
-func NewOverwatchHandler(natsEmbedded *embeddednats.EmbeddedNATS, orgSvc *services.OrganizationService) *OverwatchHandler {
+func NewOverwatchHandler(natsEmbedded *embeddednats.EmbeddedNATS, orgSvc *services.OrganizationService, entitySvc *services.EntityService) *OverwatchHandler {
 	return &OverwatchHandler{
 		natsEmbedded: natsEmbedded,
 		orgSvc:       orgSvc,
+		entitySvc:    entitySvc,
 	}
 }
 
@@ -74,11 +77,11 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := overwatch.KVStateTable(kvEntries)
-		err := sse.PatchComponent(r.Context(), component,
+		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("#kv-content"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		if err != nil {
 			logger.Infof("Error patching KV content: %v", err)
 		}
@@ -116,7 +119,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	logger.Debugw("[Overwatch] SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
 
 	// Create SSE generator AFTER setting headers
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Determine view mode
 	viewMode := r.URL.Query().Get("view")
@@ -136,11 +139,11 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	if viewMode == "map" {
 		sse.PatchElements(emptyState,
 			datastar.WithSelector("#entity-list"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 	} else {
 		sse.PatchElements(emptyState,
 			datastar.WithSelector("#entities-container"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 	}
 
 	flusher.Flush()
@@ -154,6 +157,39 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// Track known entities (ID -> OrgID) to handle cleanup
 	knownEntities := make(map[string]string)
 	knownOrgs := make(map[string]bool)
+
+	// DB entity cache for VideoConfig lookup (same pattern as video handler)
+	// VideoConfig lives in the DB, not KV, so we must look it up separately.
+	videoConfigCache := make(map[string]*ontology.VideoConfig)
+	var videoConfigCacheTime time.Time
+	refreshVideoConfigCache := func() {
+		if time.Since(videoConfigCacheTime) < 30*time.Second {
+			return
+		}
+		if h.entitySvc == nil {
+			return
+		}
+		entities, err := h.entitySvc.ListAllEntities()
+		if err != nil {
+			logger.Warnw("[Overwatch] Failed to refresh video config cache", "error", err)
+			return
+		}
+		next := make(map[string]*ontology.VideoConfig, len(entities))
+		for _, ent := range entities {
+			if ent.VideoConfig == "" || ent.VideoConfig == "{}" {
+				continue
+			}
+			var vc ontology.VideoConfig
+			if json.Unmarshal([]byte(ent.VideoConfig), &vc) == nil {
+				next[ent.EntityID] = &vc
+			}
+		}
+		videoConfigCache = next
+		videoConfigCacheTime = time.Now()
+		logger.Debugw("[Overwatch] Refreshed video config cache", "entries", len(next))
+	}
+	// Initial load
+	refreshVideoConfigCache()
 
 	// Struct to pass data to renderer
 	type RenderPayload struct {
@@ -255,7 +291,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				}
 
 				// Render and Flush
-				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode)
+				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode, videoConfigCache)
 			}
 		}
 	}()
@@ -280,6 +316,8 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 			return
 
 		case <-ticker.C:
+			// Refresh DB video config cache on heartbeat interval
+			refreshVideoConfigCache()
 			// Send heartbeat only if connection is still valid
 			if flusher != nil {
 				writeMutex.Lock()
@@ -408,7 +446,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 }
 
 // Helper to render and flush a snapshot
-func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, removedIDs []string, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string) {
+func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, removedIDs []string, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string, videoConfigCache map[string]*ontology.VideoConfig) {
 	// Check if flusher is nil to prevent panic
 	if flusher == nil {
 		logger.Debugw("Flusher is nil, connection likely closed, skipping render")
@@ -446,7 +484,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		}
 
 		// Determine patch mode
-		var patchMode datastar.PatchElementMode
+		isNew := false
 		var selector string
 		var containerSelector string
 		entityID := entityState.EntityID
@@ -464,7 +502,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				// Create Org Container
 				if len(knownOrgs) == 0 {
 					// Use specific selector to only target empty state within our container
-					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+					if err := sse.RemoveElement(containerSelector + " .empty-state"); err != nil {
 						logger.Debugw("Failed to patch empty state, connection may be closed", "error", err)
 						return
 					}
@@ -477,14 +515,14 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				}
 				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
 
-				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
+				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithModeAppend()); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
 					return
 				}
 				knownOrgs[entityState.OrgID] = true
 
 				// Initialize signal (Same signal for both views)
-				if err := sse.PatchSignals(map[string]interface{}{
+				if err := sse.MarshalAndPatchSignals(map[string]interface{}{
 					fmt.Sprintf("entityStatesByOrg.%s", entityState.OrgID): map[string]interface{}{},
 				}); err != nil {
 					logger.Debugw("Failed to patch org signals, connection may be closed", "error", err)
@@ -493,17 +531,17 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			} else if viewMode == "map" {
 				// For map, remove empty state if first entity
 				if len(knownEntities) == 0 {
-					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+					if err := sse.RemoveElement(containerSelector + " .empty-state"); err != nil {
 						// Ignore error as empty state might not exist
 					}
 				}
 			}
 
-			patchMode = datastar.ElementPatchModeAppend
+			isNew = true
 			selector = containerSelector
 			knownEntities[entityID] = entityState.OrgID
 		} else {
-			patchMode = datastar.ElementPatchModeMorph
+			isNew = false
 			if viewMode == "map" {
 				selector = fmt.Sprintf("#c4-entity-%s", entityID)
 			} else {
@@ -514,22 +552,31 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		}
 
 		// Patch Element
-		if err := sse.PatchElements(cardHTML.String(), datastar.WithSelector(selector), datastar.WithMode(patchMode)); err != nil {
+		var patchOpts []datastar.PatchElementOption
+		patchOpts = append(patchOpts, datastar.WithSelector(selector))
+		if isNew {
+			patchOpts = append(patchOpts, datastar.WithModeAppend())
+		} else {
+			patchOpts = append(patchOpts, datastar.WithModeOuter())
+		}
+		if err := sse.PatchElements(cardHTML.String(), patchOpts...); err != nil {
 			logger.Debugw("Failed to patch entity, connection may be closed", "entity_id", entityID, "error", err)
 			return
 		}
 
 		// For new entities (append mode), also append the video player component separately
 		// This ensures video is only added once and never morphed, preventing connection duplication
-		if patchMode == datastar.ElementPatchModeAppend && viewMode == "map" {
+		if isNew {
+			// VideoConfig lives in the DB, not KV — look it up from the DB cache
+			// (same approach as the video handler)
 			webrtcURL := ""
-			if entityState.VideoConfig != nil {
-				webrtcURL = entityState.VideoConfig.PreferredWebRTCURL()
+			if vc, ok := videoConfigCache[entityID]; ok {
+				webrtcURL = vc.PreferredWebRTCURL()
 			}
 			var videoHTML strings.Builder
 			if err := common_components.C4VideoPlayer(entityID, webrtcURL).Render(context.Background(), &videoHTML); err == nil {
 				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
-				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithMode(datastar.ElementPatchModeInner)); err != nil {
+				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithModeInner()); err != nil {
 					logger.Debugw("Failed to append video player", "entity_id", entityID, "error", err)
 				}
 			}
@@ -537,9 +584,15 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 
 		// Patch Signal with typed entity metadata (not the full state - that's too large!)
 		// The full entity data is already rendered server-side in the card HTML
+		// Enrich with VideoConfig from DB cache (KV doesn't contain video_config)
+		if entityState.VideoConfig == nil {
+			if vc, ok := videoConfigCache[entityID]; ok {
+				entityState.VideoConfig = vc
+			}
+		}
 		entitySignal := buildEntitySignal(entityID, entityState)
 
-		if err := sse.PatchSignals(map[string]interface{}{
+		if err := sse.MarshalAndPatchSignals(map[string]interface{}{
 			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entitySignal,
 		}); err != nil {
 			logger.Debugw("Failed to patch entity signals, connection may be closed", "entity_id", entityID, "error", err)
@@ -563,12 +616,12 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				selector = fmt.Sprintf("#entity-%s", entityID)
 			}
 
-			if err := sse.PatchElements("", datastar.WithSelector(selector), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+			if err := sse.RemoveElement(selector); err != nil {
 				logger.Debugw("Failed to remove entity element", "error", err)
 			}
 
 			// Remove from Signal (set to null)
-			if err := sse.PatchSignals(map[string]interface{}{
+			if err := sse.MarshalAndPatchSignals(map[string]interface{}{
 				fmt.Sprintf("entityStatesByOrg.%s.%s", orgID, entityID): nil,
 			}); err != nil {
 				logger.Debugw("Failed to update signal for removed entity", "error", err)
@@ -599,7 +652,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			Analytics:     analytics,
 		}
 
-		if err := datastar.MarshalAndPatchSignals(sse, dashboardSig); err != nil {
+		if err := sse.MarshalAndPatchSignals(dashboardSig); err != nil {
 			logger.Debugw("Failed to patch final signals, connection may be closed", "error", err)
 			return
 		}

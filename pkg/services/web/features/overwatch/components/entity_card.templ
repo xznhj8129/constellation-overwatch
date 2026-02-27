@@ -336,6 +336,8 @@ templ EntityCard(entity shared.EntityState) {
 					</div>
 				</div>
 			}
+			<!-- Video Player Placeholder - video component appended separately via SSE to avoid morph recreation -->
+			<div class="video-section" id={ "video-section-" + entity.EntityID } data-ignore-morph></div>
 			<!-- Threat Intelligence: Alert banner -->
 			if entity.ThreatIntel != nil && entity.ThreatIntel.ThreatSummary != nil && entity.ThreatIntel.ThreatSummary.TotalThreats > 0 {
 				<div id={ "threat-intel-" + entity.EntityID } class="entity-section entity-section--threat">

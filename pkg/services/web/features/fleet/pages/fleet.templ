@@ -12,7 +12,8 @@ templ FleetPage(organizations []ontology.Organization, entities []ontology.Entit
 		@components.Navigation("fleet") {
 			<div class="tab-content"
 				data-signals="{_fleetFetching: false}">
-				<div id="fleet-panel" class="panel">
+				<div id="fleet-panel" class="panel"
+					data-init="@get('/api/fleet/sse')">
 					<div class="panel-header">
 						<div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
 							<h2>Fleet Management</h2>

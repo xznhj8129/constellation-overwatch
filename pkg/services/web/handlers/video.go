@@ -45,11 +45,11 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Send initial connection signal
 	fmt.Fprintf(w, ": SSE connection established\n\n")
-	sse.PatchSignals(map[string]interface{}{
+	sse.MarshalAndPatchSignals(map[string]interface{}{
 		"_isConnected": true,
 	})
 
@@ -61,7 +61,7 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 					</div>`
 	sse.PatchElements(emptyState,
 		datastar.WithSelector("#video-grid"),
-		datastar.WithMode(datastar.ElementPatchModeInner))
+		datastar.WithModeInner())
 
 	flusher.Flush()
 
@@ -186,12 +186,12 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 					var cardHTML strings.Builder
 					if err := video_pages.VideoCard(entityState, status).Render(context.Background(), &cardHTML); err == nil {
 						if len(knownStreams) == 0 {
-							sse.PatchElements("", datastar.WithSelector("#video-grid .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove))
+							sse.RemoveElement("#video-grid .empty-state")
 						}
 
 						sse.PatchElements(cardHTML.String(),
 							datastar.WithSelector("#video-grid"),
-							datastar.WithMode(datastar.ElementPatchModeAppend))
+							datastar.WithModeAppend())
 
 						knownStreams[entityID] = true
 					}
@@ -202,16 +202,14 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 				if err := video_pages.VideoStatusBadge(entityID, status.Ready, status.ReaderCount).Render(context.Background(), &badgeHTML); err == nil {
 					sse.PatchElements(badgeHTML.String(),
 						datastar.WithSelector(fmt.Sprintf("#video-status-%s", entityID)),
-						datastar.WithMode(datastar.ElementPatchModeMorph))
+						datastar.WithModeOuter())
 				}
 			}
 
 			// Remove cards for entities no longer video-capable
 			for entityID := range knownStreams {
 				if !currentActive[entityID] {
-					sse.PatchElements("",
-						datastar.WithSelector(fmt.Sprintf("#video-card-%s", entityID)),
-						datastar.WithMode(datastar.ElementPatchModeRemove))
+					sse.RemoveElementf("video-card-%s", entityID)
 					delete(knownStreams, entityID)
 				}
 			}
@@ -219,7 +217,7 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 			streamsMutex.Unlock()
 
 			// Update signals
-			sse.PatchSignals(map[string]interface{}{
+			sse.MarshalAndPatchSignals(map[string]interface{}{
 				"activeStreams": activeIDs,
 				"streamCount":   len(activeIDs),
 				"lastUpdate":    time.Now().Format("15:04:05"),

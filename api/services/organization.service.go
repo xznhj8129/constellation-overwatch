@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type OrganizationService struct {
@@ -53,7 +54,7 @@ func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizatio
 		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
 
-	return &ontology.Organization{
+	org := &ontology.Organization{
 		OrgID:       orgID,
 		Name:        req.Name,
 		OrgType:     req.OrgType,
@@ -61,7 +62,11 @@ func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizatio
 		Metadata:    metadataJSON,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}, nil
+	}
+
+	go s.publishOrgEvent(org, shared.EventTypeCreated)
+
+	return org, nil
 }
 
 func (s *OrganizationService) ListOrganizations() ([]ontology.Organization, error) {
@@ -175,6 +180,12 @@ func (s *OrganizationService) UpdateOrganization(orgID string, updates map[strin
 		go s.syncOrgNameToKV(orgID, updates["name"].(string))
 	}
 
+	// Publish org updated event
+	org, err := s.GetOrganization(orgID)
+	if err == nil {
+		go s.publishOrgEvent(org, shared.EventTypeUpdated)
+	}
+
 	return nil
 }
 
@@ -246,5 +257,57 @@ func (s *OrganizationService) DeleteOrganization(orgID string) error {
 		return fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 
+	go s.publishOrgEvent(&ontology.Organization{OrgID: orgID}, shared.EventTypeDeleted)
+
 	return nil
+}
+
+func (s *OrganizationService) publishOrgEvent(org *ontology.Organization, eventType string) {
+	if s.nats == nil || s.nats.JetStream() == nil {
+		logger.Warn("NATS not available for publishing org event")
+		return
+	}
+
+	var subject string
+	switch eventType {
+	case shared.EventTypeCreated:
+		subject = shared.OrgCreatedSubject()
+	case shared.EventTypeUpdated:
+		subject = shared.OrgUpdatedSubject()
+	case shared.EventTypeDeleted:
+		subject = shared.OrgDeletedSubject()
+	default:
+		subject = shared.OrgCreatedSubject()
+	}
+
+	event := shared.Event{
+		ID:      uuid.New().String(),
+		Type:    eventType,
+		Subject: subject,
+		Data: map[string]interface{}{
+			"org_id":   org.OrgID,
+			"name":     org.Name,
+			"org_type": org.OrgType,
+		},
+		Timestamp: time.Now().UTC(),
+		Source:    "organization-service",
+	}
+
+	if eventType == shared.EventTypeCreated || eventType == shared.EventTypeUpdated {
+		event.Data["organization"] = org
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		logger.Error("Failed to marshal org event", zap.Error(err))
+		return
+	}
+
+	msgID := fmt.Sprintf("%s-%s-%d", org.OrgID, eventType, time.Now().UnixNano())
+
+	if err := s.nats.PublishWithDedup(event.Subject, data, msgID); err != nil {
+		logger.Error("Failed to publish org event", zap.Error(err))
+	} else {
+		logger.Info("Published org event", zap.String("event_type", eventType), zap.String("subject", event.Subject))
+	}
 }

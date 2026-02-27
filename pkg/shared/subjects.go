@@ -16,6 +16,13 @@ const (
 	SubjectEntityStatus    = "constellation.entities.%s.status"    // org_id
 	SubjectEntityTelemetry = "constellation.entities.%s.telemetry" // org_id
 
+	// Organization subjects
+	SubjectOrganizations    = "constellation.organizations"
+	SubjectOrganizationsAll = "constellation.organizations.>"
+	SubjectOrgCreated       = "constellation.organizations.created"
+	SubjectOrgUpdated       = "constellation.organizations.updated"
+	SubjectOrgDeleted       = "constellation.organizations.deleted"
+
 	// Event subjects
 	SubjectEvents    = "constellation.events"
 	SubjectEventsAll = "constellation.events.>"
@@ -102,6 +109,18 @@ func CommandEntitySubject(orgID, entityID string) string {
 
 func CommandBroadcastSubject(orgID string) string {
 	return fmt.Sprintf(SubjectCommandBroadcast, orgID)
+}
+
+func OrgCreatedSubject() string {
+	return SubjectOrgCreated
+}
+
+func OrgUpdatedSubject() string {
+	return SubjectOrgUpdated
+}
+
+func OrgDeletedSubject() string {
+	return SubjectOrgDeleted
 }
 
 // Helper functions to generate KV keys

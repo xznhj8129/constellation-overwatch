@@ -6,25 +6,30 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	fleet_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/components"
 	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
 	"github.com/go-chi/chi/v5"
+	"github.com/nats-io/nats.go"
 )
 
 type DatastarHandler struct {
 	orgSvc    *services.OrganizationService
 	entitySvc *services.EntityService
+	nc        *nats.Conn
 }
 
-func NewDatastarHandler(orgSvc *services.OrganizationService, entitySvc *services.EntityService) *DatastarHandler {
+func NewDatastarHandler(orgSvc *services.OrganizationService, entitySvc *services.EntityService, nc *nats.Conn) *DatastarHandler {
 	return &DatastarHandler{
 		orgSvc:    orgSvc,
 		entitySvc: entitySvc,
+		nc:        nc,
 	}
 }
 
@@ -39,11 +44,11 @@ func (h *DatastarHandler) HandleListOrganizations(w http.ResponseWriter, r *http
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := org_components.OrganizationsTable(orgs, "")
-		err := sse.PatchComponent(r.Context(), component,
+		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("#org-table"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		if err != nil {
 			logger.Infof("Error patching organizations: %v", err)
 		}
@@ -89,29 +94,21 @@ func (h *DatastarHandler) HandleCreateOrganization(w http.ResponseWriter, r *htt
 	logger.Infof("[API] Organization created: %s (ID: %s)", org.Name, org.OrgID)
 
 	// Always send SSE response (Datastar forms always expect SSE)
-	logger.Debugw("[API] Creating SSE connection for response")
-	sse := datastar.NewServerSentEventGenerator(w, r)
-	logger.Debugw("[API] SSE generator created successfully")
+	sse := datastar.NewSSE(w, r)
 
 	// Insert the new organization row before the form row
-	logger.Debugw("[API] Rendering organization row component")
 	component := org_components.OrganizationRow(*org, org.OrgID)
-
-	logger.Debugw("[API] Patching component with selector '#new-org-form-row', mode: before")
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#new-org-form-row"),
-		datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
+		datastar.WithModeBefore()); err != nil {
 		logger.Infof("[API] ERROR inserting org row: %v", err)
 		return
 	}
 
 	// Reset the form after successful submission
-	logger.Debugw("[API] Resetting form via ExecuteScript")
 	if err := sse.ExecuteScript("document.getElementById('new-org-form').reset()"); err != nil {
 		logger.Infof("[API] ERROR resetting form: %v", err)
 	}
-
-	logger.Debugw("[API] SSE patch sent successfully - new row appended and form reset")
 }
 
 func (h *DatastarHandler) HandleUpdateOrganization(w http.ResponseWriter, r *http.Request) {
@@ -186,17 +183,15 @@ func (h *DatastarHandler) HandleUpdateOrganization(w http.ResponseWriter, r *htt
 
 	logger.Infof("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
 
-	// Return the updated row via SSE using Morph mode for intelligent DOM diffing
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	// Return the updated row via SSE using Outer mode for intelligent DOM morphing
+	sse := datastar.NewSSE(w, r)
 	component := org_components.OrganizationRow(*org, "")
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#org-row-"+orgID),
-		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		datastar.WithModeOuter()); err != nil {
 		logger.Infof("[API] Error patching updated row: %v", err)
 		return
 	}
-
-	logger.Debugw("[API] Organization row updated via SSE with Morph mode")
 }
 
 func (h *DatastarHandler) HandleUpdateOrganizationByID(w http.ResponseWriter, r *http.Request) {
@@ -245,17 +240,15 @@ func (h *DatastarHandler) HandleUpdateOrganizationByID(w http.ResponseWriter, r 
 
 	logger.Infof("[API] Organization updated: %s (ID: %s)", org.Name, org.OrgID)
 
-	// Return the updated row via SSE using Morph mode for intelligent DOM diffing
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	// Return the updated row via SSE using Outer mode for intelligent DOM morphing
+	sse := datastar.NewSSE(w, r)
 	component := org_components.OrganizationRow(*org, "")
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#org-row-"+orgID),
-		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		datastar.WithModeOuter()); err != nil {
 		logger.Infof("[API] Error patching updated row: %v", err)
 		return
 	}
-
-	logger.Debugw("[API] Organization row updated via SSE with Morph mode")
 }
 
 func (h *DatastarHandler) HandleDeleteOrganization(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +259,6 @@ func (h *DatastarHandler) HandleDeleteOrganization(w http.ResponseWriter, r *htt
 	}
 
 	logger.Infof("[API] DELETE /api/organizations/%s", orgID)
-	logger.Infof("[API] Accept header: %s", r.Header.Get("Accept"))
 
 	// Delete the organization
 	if err := h.orgSvc.DeleteOrganization(orgID); err != nil {
@@ -280,20 +272,13 @@ func (h *DatastarHandler) HandleDeleteOrganization(w http.ResponseWriter, r *htt
 	// If Datastar, remove the row from the UI
 	acceptHeader := r.Header.Get("Accept")
 	if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
-		logger.Debugw("[API] Sending SSE response to remove row")
-		sse := datastar.NewServerSentEventGenerator(w, r)
-		err := sse.PatchElements("",
-			datastar.WithSelector("#org-row-"+orgID),
-			datastar.WithMode(datastar.ElementPatchModeRemove))
-		if err != nil {
+		sse := datastar.NewSSE(w, r)
+		if err := sse.RemoveElement("#org-row-" + orgID); err != nil {
 			logger.Infof("[API] Error removing organization row: %v", err)
-		} else {
-			logger.Debugw("[API] SSE response sent successfully")
 		}
 		return
 	}
 
-	logger.Debugw("[API] No SSE request detected, returning JSON")
 	// Otherwise return JSON success
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -314,14 +299,12 @@ func (h *DatastarHandler) HandleOrganizationEdit(w http.ResponseWriter, r *http.
 		return
 	}
 
-	logger.Infof("[EDIT] Returning edit row for organization: %s", org.Name)
-
 	// Return the edit row component via SSE using Replace mode to force re-initialization of event listeners
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 	component := org_components.OrganizationEditRow(*org)
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#org-row-"+orgID),
-		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
+		datastar.WithModeReplace()); err != nil {
 		logger.Infof("[EDIT] Error patching edit row: %v", err)
 	}
 }
@@ -341,14 +324,12 @@ func (h *DatastarHandler) HandleOrganizationCancel(w http.ResponseWriter, r *htt
 		return
 	}
 
-	logger.Infof("[CANCEL] Returning normal row for organization: %s", org.Name)
-
-	// Return the normal row component via SSE using Morph mode
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	// Return the normal row component via SSE using Outer mode
+	sse := datastar.NewSSE(w, r)
 	component := org_components.OrganizationRow(*org, "")
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#org-row-"+orgID),
-		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		datastar.WithModeOuter()); err != nil {
 		logger.Infof("[CANCEL] Error patching normal row: %v", err)
 	}
 }
@@ -376,11 +357,11 @@ func (h *DatastarHandler) HandleListEntities(w http.ResponseWriter, r *http.Requ
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := org_components.EntitiesTable(orgID, entities)
-		err := sse.PatchComponent(r.Context(), component,
+		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("#entities-content"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		if err != nil {
 			logger.Infof("Error patching entities: %v", err)
 		}
@@ -482,11 +463,11 @@ func (h *DatastarHandler) HandleCreateEntity(w http.ResponseWriter, r *http.Requ
 
 	// If Datastar, return SSE format with new row
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := org_components.EntityRow(orgID, *entity)
-		err := sse.PatchComponent(r.Context(), component,
+		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("#entity-table tbody"),
-			datastar.WithMode(datastar.ElementPatchModeAppend))
+			datastar.WithModeAppend())
 		if err != nil {
 			logger.Infof("Error patching new entity: %v", err)
 		}
@@ -494,7 +475,7 @@ func (h *DatastarHandler) HandleCreateEntity(w http.ResponseWriter, r *http.Requ
 		// Close the modal
 		sse.PatchElements("",
 			datastar.WithSelector("#entity-form-modal"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		return
 	}
 
@@ -586,11 +567,11 @@ func (h *DatastarHandler) HandleUpdateEntity(w http.ResponseWriter, r *http.Requ
 
 	// If Datastar, return the updated row
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := org_components.EntityRow(orgID, *entity)
-		err := sse.PatchComponent(r.Context(), component,
-			datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
-			datastar.WithMode(datastar.ElementPatchModeOuter))
+		err := sse.PatchElementTempl(component,
+			datastar.WithSelectorf("#entity-%s", entityID),
+			datastar.WithModeOuter())
 		if err != nil {
 			logger.Infof("Error patching updated entity: %v", err)
 		}
@@ -598,7 +579,7 @@ func (h *DatastarHandler) HandleUpdateEntity(w http.ResponseWriter, r *http.Requ
 		// Close the modal
 		sse.PatchElements("",
 			datastar.WithSelector("#entity-form-modal"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		return
 	}
 
@@ -624,11 +605,8 @@ func (h *DatastarHandler) HandleDeleteEntity(w http.ResponseWriter, r *http.Requ
 
 	// If Datastar, remove the element
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
-		err := sse.PatchElements("",
-			datastar.WithSelector(fmt.Sprintf("#entity-%s", entityID)),
-			datastar.WithMode(datastar.ElementPatchModeRemove))
-		if err != nil {
+		sse := datastar.NewSSE(w, r)
+		if err := sse.RemoveElementf("#entity-%s", entityID); err != nil {
 			logger.Infof("Error removing entity: %v", err)
 		}
 		return
@@ -658,11 +636,11 @@ func (h *DatastarHandler) HandleListFleet(w http.ResponseWriter, r *http.Request
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := fleet_components.FleetTable(orgs, entities)
-		err := sse.PatchComponent(r.Context(), component,
+		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("#fleet-table"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		if err != nil {
 			logger.Infof("Error patching fleet: %v", err)
 		}
@@ -757,28 +735,21 @@ func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http
 	}
 
 	// Always send SSE response (Datastar forms always expect SSE)
-	logger.Debugw("[FLEET-API] Creating SSE connection for response")
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Insert the new fleet row before the form row
-	logger.Debugw("[FLEET-API] Rendering fleet row component")
 	component := fleet_components.FleetRow(orgs, *entity)
-
-	logger.Debugw("[FLEET-API] Patching component with selector '#new-fleet-form-row', mode: before")
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#new-fleet-form-row"),
-		datastar.WithMode(datastar.ElementPatchModeBefore)); err != nil {
+		datastar.WithModeBefore()); err != nil {
 		logger.Infof("[FLEET-API] ERROR inserting fleet row: %v", err)
 		return
 	}
 
 	// Reset the form after successful submission
-	logger.Debugw("[FLEET-API] Resetting form via ExecuteScript")
 	if err := sse.ExecuteScript("document.getElementById('new-fleet-form').reset()"); err != nil {
 		logger.Infof("[FLEET-API] ERROR resetting form: %v", err)
 	}
-
-	logger.Debugw("[FLEET-API] SSE patch sent successfully - new row appended and form reset")
 }
 
 func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http.Request) {
@@ -833,7 +804,6 @@ func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http
 	}
 
 	logger.Infof("[FLEET-API] PUT /api/fleet/update (entity_id=%s, org_id=%s)", entityID, orgID)
-	logger.Infof("[FLEET-API] Updating entity with: %v", updates)
 
 	// Update the entity
 	entity, err := h.entitySvc.UpdateEntity(orgID, entityID, updates)
@@ -853,17 +823,15 @@ func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Return the updated row via SSE using Morph mode
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	// Return the updated row via SSE using Outer mode
+	sse := datastar.NewSSE(w, r)
 	component := fleet_components.FleetRow(orgs, *entity)
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#fleet-row-"+entityID),
-		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		datastar.WithModeOuter()); err != nil {
 		logger.Infof("[FLEET-API] Error patching updated row: %v", err)
 		return
 	}
-
-	logger.Debugw("[FLEET-API] Fleet entity row updated via SSE with Morph mode")
 }
 
 func (h *DatastarHandler) HandleDeleteFleetEntity(w http.ResponseWriter, r *http.Request) {
@@ -877,7 +845,6 @@ func (h *DatastarHandler) HandleDeleteFleetEntity(w http.ResponseWriter, r *http
 	orgID := r.URL.Query().Get("org_id")
 
 	logger.Infof("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
-	logger.Infof("[FLEET-API] Accept header: %s", r.Header.Get("Accept"))
 
 	// If org_id not provided, try to find it
 	if orgID == "" {
@@ -914,20 +881,13 @@ func (h *DatastarHandler) HandleDeleteFleetEntity(w http.ResponseWriter, r *http
 	// If Datastar, remove the row from the UI
 	acceptHeader := r.Header.Get("Accept")
 	if acceptHeader != "" && (acceptHeader == "text/event-stream" || strings.Contains(acceptHeader, "text/event-stream")) {
-		logger.Debugw("[FLEET-API] Sending SSE response to remove row")
-		sse := datastar.NewServerSentEventGenerator(w, r)
-		err := sse.PatchElements("",
-			datastar.WithSelector("#fleet-row-"+entityID),
-			datastar.WithMode(datastar.ElementPatchModeRemove))
-		if err != nil {
+		sse := datastar.NewSSE(w, r)
+		if err := sse.RemoveElement("#fleet-row-" + entityID); err != nil {
 			logger.Infof("[FLEET-API] Error removing fleet row: %v", err)
-		} else {
-			logger.Debugw("[FLEET-API] SSE response sent successfully")
 		}
 		return
 	}
 
-	logger.Debugw("[FLEET-API] No SSE request detected, returning JSON")
 	// Otherwise return JSON success
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -965,14 +925,12 @@ func (h *DatastarHandler) HandleFleetEdit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	logger.Infof("[FLEET-EDIT] Returning edit row for entity: %s", entity.EntityID)
-
 	// Return the edit row component via SSE using Replace mode
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 	component := fleet_components.FleetEditRow(orgs, *entity)
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#fleet-row-"+entityID),
-		datastar.WithMode(datastar.ElementPatchModeReplace)); err != nil {
+		datastar.WithModeReplace()); err != nil {
 		logger.Infof("[FLEET-EDIT] Error patching edit row: %v", err)
 	}
 }
@@ -1008,14 +966,150 @@ func (h *DatastarHandler) HandleFleetCancel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	logger.Infof("[FLEET-CANCEL] Returning normal row for entity: %s", entity.EntityID)
-
-	// Return the normal row component via SSE using Morph mode
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	// Return the normal row component via SSE using Outer mode
+	sse := datastar.NewSSE(w, r)
 	component := fleet_components.FleetRow(orgs, *entity)
-	if err := sse.PatchComponent(r.Context(), component,
+	if err := sse.PatchElementTempl(component,
 		datastar.WithSelector("#fleet-row-"+entityID),
-		datastar.WithMode(datastar.ElementPatchModeMorph)); err != nil {
+		datastar.WithModeOuter()); err != nil {
 		logger.Infof("[FLEET-CANCEL] Error patching normal row: %v", err)
+	}
+}
+
+// Realtime SSE Handlers
+
+func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request) {
+	if h.nc == nil {
+		http.Error(w, "NATS not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	sse := datastar.NewSSE(w, r)
+
+	sub, err := h.nc.Subscribe(shared.SubjectEntitiesAll, func(msg *nats.Msg) {
+		var event shared.Event
+		if err := json.Unmarshal(msg.Data, &event); err != nil {
+			logger.Errorw("Failed to unmarshal entity event in fleet SSE", "error", err)
+			return
+		}
+
+		entityID, _ := event.Data["entity_id"].(string)
+		orgID, _ := event.Data["org_id"].(string)
+		if entityID == "" || orgID == "" {
+			return
+		}
+
+		switch event.Type {
+		case shared.EventTypeCreated, shared.EventTypeUpdated:
+			entity, err := h.entitySvc.GetEntity(orgID, entityID)
+			if err != nil {
+				logger.Errorw("Failed to fetch entity for fleet SSE", "entity_id", entityID, "error", err)
+				return
+			}
+			orgs, err := h.orgSvc.ListOrganizations()
+			if err != nil {
+				logger.Errorw("Failed to fetch orgs for fleet SSE", "error", err)
+				return
+			}
+			component := fleet_components.FleetRow(orgs, *entity)
+			if event.Type == shared.EventTypeCreated {
+				sse.PatchElementTempl(component,
+					datastar.WithSelector("#new-fleet-form-row"),
+					datastar.WithModeBefore())
+			} else {
+				sse.PatchElementTempl(component,
+					datastar.WithSelectorf("#fleet-row-%s", entityID),
+					datastar.WithModeOuter())
+			}
+		case shared.EventTypeDeleted:
+			sse.RemoveElementf("#fleet-row-%s", entityID)
+		}
+	})
+	if err != nil {
+		logger.Errorw("Failed to subscribe for fleet SSE", "error", err)
+		http.Error(w, "Failed to subscribe", http.StatusInternalServerError)
+		return
+	}
+	defer sub.Unsubscribe()
+
+	// Keep connection alive with heartbeats
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
+	}
+}
+
+func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.Request) {
+	if h.nc == nil {
+		http.Error(w, "NATS not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	sse := datastar.NewSSE(w, r)
+
+	sub, err := h.nc.Subscribe(shared.SubjectOrganizationsAll, func(msg *nats.Msg) {
+		var event shared.Event
+		if err := json.Unmarshal(msg.Data, &event); err != nil {
+			logger.Errorw("Failed to unmarshal org event in orgs SSE", "error", err)
+			return
+		}
+
+		orgID, _ := event.Data["org_id"].(string)
+		if orgID == "" {
+			return
+		}
+
+		switch event.Type {
+		case shared.EventTypeCreated, shared.EventTypeUpdated:
+			org, err := h.orgSvc.GetOrganization(orgID)
+			if err != nil {
+				logger.Errorw("Failed to fetch org for orgs SSE", "org_id", orgID, "error", err)
+				return
+			}
+			component := org_components.OrganizationRow(*org, "")
+			if event.Type == shared.EventTypeCreated {
+				sse.PatchElementTempl(component,
+					datastar.WithSelector("#new-org-form-row"),
+					datastar.WithModeBefore())
+			} else {
+				sse.PatchElementTempl(component,
+					datastar.WithSelectorf("#org-row-%s", orgID),
+					datastar.WithModeOuter())
+			}
+		case shared.EventTypeDeleted:
+			sse.RemoveElementf("#org-row-%s", orgID)
+		}
+	})
+	if err != nil {
+		logger.Errorw("Failed to subscribe for orgs SSE", "error", err)
+		http.Error(w, "Failed to subscribe", http.StatusInternalServerError)
+		return
+	}
+	defer sub.Unsubscribe()
+
+	// Keep connection alive with heartbeats
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
 	}
 }
