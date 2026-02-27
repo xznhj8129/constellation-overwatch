@@ -17,7 +17,7 @@ templ VideoPlayer(entityID string, webrtcURL string) {
 			style="width: 100%; height: auto; display: block; background: #000;">
 		</video>
 		<div class="video-controls">
-			<span class="connection-status" id={ "video-status-" + entityID }>connecting...</span>
+			<span class="connection-status" id={ "video-conn-" + entityID }>connecting...</span>
 			<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
 				Fullscreen
 			</button>
@@ -45,7 +45,7 @@ templ WHEPScript() {
 			var webrtcUrl = wrapper.dataset.webrtcUrl;
 
 			if (!entityId || !webrtcUrl) {
-				var statusEl = document.getElementById('video-status-' + (entityId || ''));
+				var statusEl = document.getElementById('video-conn-' + (entityId || ''));
 				if (statusEl) statusEl.textContent = entityId ? 'no video url' : 'error';
 				return;
 			}
@@ -88,7 +88,7 @@ templ WHEPScript() {
 			if (!wrapper) return;
 
 			var videoEl  = document.getElementById('video-whep-' + entityId);
-			var statusEl = document.getElementById('video-status-' + entityId);
+			var statusEl = document.getElementById('video-conn-' + entityId);
 			var overlay  = wrapper.querySelector('.no-signal-overlay');
 			var webrtcURL = wrapper.dataset.webrtcUrl;
 
@@ -163,7 +163,7 @@ templ WHEPScript() {
 
 			if (retries >= WHEP_MAX_RETRIES) {
 				console.error('[WHEP] Max retries for ' + entityId);
-				var statusEl = document.getElementById('video-status-' + entityId);
+				var statusEl = document.getElementById('video-conn-' + entityId);
 				if (statusEl) statusEl.textContent = 'failed';
 				return;
 			}
@@ -193,7 +193,7 @@ templ WHEPScript() {
 			}
 			var videoEl = document.getElementById('video-whep-' + entityId);
 			if (videoEl) videoEl.srcObject = null;
-			var statusEl = document.getElementById('video-status-' + entityId);
+			var statusEl = document.getElementById('video-conn-' + entityId);
 			if (statusEl) statusEl.textContent = 'disconnected';
 		}
 
