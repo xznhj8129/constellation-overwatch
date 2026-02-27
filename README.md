@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  Open Source C4 for the Industrial Edge — Data Fabric & Toolbelt for Agentic Drones, Robots, Sensors, and Video Streams
+  Vendor Agnostic C4ISR Data Plane — Data Fabric & Toolbelt for Drones, Robotics, and the Industrial Edge
 </p>
 
 <p align="center">

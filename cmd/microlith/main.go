@@ -319,7 +319,10 @@ func printSplash() {
 		`      ╚═════╝     ╚═╝`,
 	}
 
-	versionStr := fmt.Sprintf("  Constellation Overwatch %s", version)
+	versionStr := "  Constellation Overwatch"
+	if version != "dev" {
+		versionStr = fmt.Sprintf("  Constellation Overwatch v%s", version)
+	}
 
 	fmt.Println(topBorder)
 	fmt.Println(empty)
@@ -329,7 +332,7 @@ func printSplash() {
 	fmt.Println(empty)
 	fmt.Println(midBorder)
 	fmt.Println(padLine(versionStr))
-	fmt.Println(padLine("  Vendor-agnostic edge C4ISR server mesh for drones, robots & sensors"))
+	fmt.Println(padLine("  Vendor-agnostic edge C4ISR data plane for drones, robots & sensors"))
 	fmt.Println(empty)
 	fmt.Println(padLine("  https://constellation-overwatch.dev"))
 	fmt.Println(botBorder)
