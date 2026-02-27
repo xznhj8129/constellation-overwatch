@@ -421,7 +421,7 @@ func (h *MapHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.
 				webrtcURL = vc.PreferredWebRTCURL()
 			}
 			var videoHTML strings.Builder
-			if err := common_components.C4VideoPlayer(entityID, webrtcURL).Render(context.Background(), &videoHTML); err == nil {
+			if err := common_components.VideoPlayer(entityID, webrtcURL).Render(context.Background(), &videoHTML); err == nil {
 				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
 				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithModeInner()); err != nil {
 					logger.Debugw("[Map] Failed to append video player", "entity_id", entityID, "error", err)

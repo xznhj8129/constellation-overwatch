@@ -641,10 +641,9 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 	})
 }
 
-// C4VideoPlayer is a standalone video component that gets appended once (not morphed)
-// This separation prevents WebRTC connection duplication during card morphs
-// webrtcURL is the per-entity WebRTC base URL (e.g. "http://host:8889/entity-id")
-func C4VideoPlayer(entityID string, webrtcURL string) templ.Component {
+// C4EntityCardScript contains the JS logic for card interaction (toggle detail view).
+// WHEP video connection is handled by the shared WHEPScript (video_player.templ).
+func C4EntityCardScript() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -665,102 +664,7 @@ func C4VideoPlayer(entityID string, webrtcURL string) templ.Component {
 			templ_7745c5c3_Var39 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<div class=\"video-container\" data-entity-id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var40 string
-		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 190, Col: 55}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" data-webrtc-url=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var41 string
-		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(webrtcURL)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 190, Col: 85}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\"><div class=\"no-signal-overlay\"><span>No Video Signal</span></div><video id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var42 string
-		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs("c4-video-whep-" + entityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 195, Col: 35}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" class=\"video-whep\" autoplay muted playsinline style=\"width: 100%; height: auto; display: block; background: #000;\"></video></div><div class=\"video-controls\"><span class=\"connection-status\" id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var43 string
-		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs("c4-status-" + entityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 204, Col: 62}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\">connecting...</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var44 string
-		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 205, Col: 58}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "\" onclick=\"openVideoFullscreen(this.dataset.entityId)\">Fullscreen</button></div><script>\n\t\t(function() {\n\t\t\tvar entityId = document.currentScript.parentElement.dataset.entityId;\n\t\t\tc4ConnectWHEP(entityId);\n\t\t})();\n\t</script>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		return nil
-	})
-}
-
-// C4EntityCardScript contains the JS logic for the card interaction and video
-func C4EntityCardScript() templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
-		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
-		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var45 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var45 == nil {
-			templ_7745c5c3_Var45 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<script>\n\t\t// WHEP connection management for C4 entity cards\n\t\tconst c4WHEPConnections = {};\n\t\tconst C4_WHEP_MAX_RETRIES = 8;\n\t\tconst C4_WHEP_BASE_DELAY = 2000;\n\t\tconst C4_WHEP_MAX_DELAY = 30000;\n\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c4-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c4-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t\t// Disconnect WHEP when collapsing\n\t\t\t\tc4DisconnectWHEP(entityId);\n\t\t\t}\n\t\t}\n\n\t\tasync function c4ConnectWHEP(entityId) {\n\t\t\tvar existing = c4WHEPConnections[entityId];\n\n\t\t\t// Guard: already connected or connecting\n\t\t\tif (existing && existing.connecting) return;\n\t\t\tif (existing && existing.pc && existing.pc.connectionState === 'connected') return;\n\n\t\t\tc4DisconnectWHEP(entityId);\n\n\t\t\tvar videoEl = document.getElementById('c4-video-whep-' + entityId);\n\t\t\tvar statusEl = document.getElementById('c4-status-' + entityId);\n\t\t\tif (!videoEl) return;\n\n\t\t\t// Read per-entity webrtc_url from the video container's data attribute\n\t\t\tvar container = videoEl.closest('.video-container');\n\t\t\tvar overlay = container ? container.querySelector('.no-signal-overlay') : null;\n\t\t\tvar webrtcURL = container ? container.dataset.webrtcUrl : '';\n\t\t\tif (!webrtcURL) {\n\t\t\t\tif (statusEl) statusEl.textContent = 'no video url';\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// WHEP endpoint is webrtc_url + \"/whep\" (webrtc_url already includes the entity path)\n\t\t\tvar whepURL = webrtcURL.replace(/\\/+$/, '') + '/whep';\n\n\t\t\t// Track connecting state and retry count\n\t\t\tvar retries = (existing && existing.retries) || 0;\n\t\t\tc4WHEPConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };\n\n\t\t\tif (statusEl) statusEl.textContent = 'connecting...';\n\n\t\t\tvar pc = null;\n\t\t\ttry {\n\t\t\t\tpc = new RTCPeerConnection({\n\t\t\t\t\ticeServers: [{ urls: 'stun:stun.l.google.com:19302' }]\n\t\t\t\t});\n\n\t\t\t\tpc.addTransceiver('video', { direction: 'recvonly' });\n\t\t\t\tpc.addTransceiver('audio', { direction: 'recvonly' });\n\n\t\t\t\tpc.ontrack = function(evt) {\n\t\t\t\t\tvideoEl.srcObject = evt.streams[0];\n\t\t\t\t\tif (overlay) overlay.style.display = 'none';\n\t\t\t\t\tif (statusEl) statusEl.textContent = 'live';\n\t\t\t\t};\n\n\t\t\t\tvar offer = await pc.createOffer();\n\t\t\t\tawait pc.setLocalDescription(offer);\n\n\t\t\t\tvar resp = await fetch(whepURL, {\n\t\t\t\t\tmethod: 'POST',\n\t\t\t\t\theaders: { 'Content-Type': 'application/sdp' },\n\t\t\t\t\tbody: pc.localDescription.sdp\n\t\t\t\t});\n\n\t\t\t\tif (!resp.ok) throw new Error('WHEP: ' + resp.status);\n\n\t\t\t\tvar sdp = await resp.text();\n\t\t\t\tawait pc.setRemoteDescription(new RTCSessionDescription({\n\t\t\t\t\ttype: 'answer',\n\t\t\t\t\tsdp: sdp\n\t\t\t\t}));\n\n\t\t\t\t// Success — store and reset retries\n\t\t\t\tc4WHEPConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };\n\n\t\t\t\tpc.onconnectionstatechange = function() {\n\t\t\t\t\tvar conn = c4WHEPConnections[entityId];\n\t\t\t\t\tif (!conn || conn.pc !== pc) return; // stale listener\n\t\t\t\t\tif (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {\n\t\t\t\t\t\tif (statusEl) statusEl.textContent = 'reconnecting...';\n\t\t\t\t\t\tif (overlay) overlay.style.display = 'flex';\n\t\t\t\t\t\tc4ScheduleReconnect(entityId, 0);\n\t\t\t\t\t}\n\t\t\t\t};\n\t\t\t} catch (err) {\n\t\t\t\t// Close the PC if it was created to prevent leak\n\t\t\t\tif (pc) {\n\t\t\t\t\ttry { pc.close(); } catch (_) {}\n\t\t\t\t}\n\t\t\t\tif (c4WHEPConnections[entityId]) {\n\t\t\t\t\tc4WHEPConnections[entityId].connecting = false;\n\t\t\t\t}\n\t\t\t\tconsole.error('[C4 WHEP] Error connecting ' + entityId + ':', err.message);\n\t\t\t\tif (statusEl) statusEl.textContent = 'error';\n\t\t\t\tif (overlay) overlay.style.display = 'flex';\n\t\t\t\tc4ScheduleReconnect(entityId, retries);\n\t\t\t}\n\t\t}\n\n\t\tfunction c4ScheduleReconnect(entityId, retries) {\n\t\t\tvar conn = c4WHEPConnections[entityId];\n\t\t\tif (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);\n\n\t\t\tif (retries >= C4_WHEP_MAX_RETRIES) {\n\t\t\t\tconsole.error('[C4 WHEP] Max retries reached for ' + entityId + ', giving up');\n\t\t\t\tvar statusEl = document.getElementById('c4-status-' + entityId);\n\t\t\t\tif (statusEl) statusEl.textContent = 'failed (max retries)';\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tvar delay = Math.min(C4_WHEP_BASE_DELAY * Math.pow(2, retries), C4_WHEP_MAX_DELAY);\n\t\t\tconsole.log('[C4 WHEP] Retry ' + (retries + 1) + '/' + C4_WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');\n\n\t\t\tvar timer = setTimeout(function() {\n\t\t\t\tif (!c4WHEPConnections[entityId]) return; // was disconnected\n\t\t\t\tc4WHEPConnections[entityId].retries = retries + 1;\n\t\t\t\tc4ConnectWHEP(entityId);\n\t\t\t}, delay);\n\n\t\t\tif (!c4WHEPConnections[entityId]) {\n\t\t\t\tc4WHEPConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };\n\t\t\t} else {\n\t\t\t\tc4WHEPConnections[entityId].reconnectTimer = timer;\n\t\t\t}\n\t\t}\n\n\t\tfunction c4DisconnectWHEP(entityId) {\n\t\t\tvar conn = c4WHEPConnections[entityId];\n\t\t\tif (conn) {\n\t\t\t\tif (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);\n\t\t\t\tif (conn.pc) {\n\t\t\t\t\ttry { conn.pc.close(); } catch (_) {}\n\t\t\t\t}\n\t\t\t\tdelete c4WHEPConnections[entityId];\n\t\t\t}\n\t\t\tvar videoEl = document.getElementById('c4-video-whep-' + entityId);\n\t\t\tif (videoEl) videoEl.srcObject = null;\n\t\t\tvar statusEl = document.getElementById('c4-status-' + entityId);\n\t\t\tif (statusEl) statusEl.textContent = 'disconnected';\n\t\t}\n\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) return;\n\t\t\tvar videoEl = document.getElementById('c4-video-whep-' + entityId) ||\n\t\t\t              document.getElementById('video-whep-' + entityId);\n\t\t\tif (videoEl && videoEl.requestFullscreen) {\n\t\t\t\tvideoEl.requestFullscreen();\n\t\t\t} else if (videoEl && videoEl.webkitRequestFullscreen) {\n\t\t\t\tvideoEl.webkitRequestFullscreen();\n\t\t\t}\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<script>\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c4-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c4-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t\t// Connect video when expanding (shared WHEP manager)\n\t\t\t\tif (typeof connectWHEP === 'function') connectWHEP(entityId);\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t\t// Disconnect video when collapsing\n\t\t\t\tif (typeof disconnectWHEP === 'function') disconnectWHEP(entityId);\n\t\t\t}\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

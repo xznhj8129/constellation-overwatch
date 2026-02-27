@@ -3,18 +3,19 @@ package pages
 import (
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	common "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 templ VideoPage(entityIDs []string, webrtcBaseURL string) {
 	@layouts.Base("Video") {
-		@components.Navigation("video") {
+		@common.Navigation("video") {
 			<div class="tab-content">
 				@VideoPanel(entityIDs, webrtcBaseURL)
 			</div>
 			@VideoPageStyles()
+			@common.WHEPScript()
 		}
 	}
 }
@@ -75,7 +76,8 @@ templ VideoPanel(entityIDs []string, webrtcBaseURL string) {
 	</div>
 }
 
-// VideoCard renders a video card with WHEP player
+// VideoCard renders a video card with WHEP player.
+// Uses the shared VideoPlayer component; WHEP connection is auto-managed by WHEPScript.
 templ VideoCard(entity shared.EntityState, status mediamtx.PathStatus) {
 	<div id={ "video-card-" + entity.EntityID } class="video-card" data-entity-id={ entity.EntityID } data-ignore-morph>
 		<div class="video-card-header">
@@ -90,31 +92,9 @@ templ VideoCard(entity shared.EntityState, status mediamtx.PathStatus) {
 				@VideoStatusBadge(entity.EntityID, status.Ready, status.ReaderCount)
 			</div>
 		</div>
-		<div class="video-container" data-entity-id={ entity.EntityID }
-			if entity.VideoConfig != nil && entity.VideoConfig.PreferredWebRTCURL() != "" {
-				data-webrtc-url={ entity.VideoConfig.PreferredWebRTCURL() }
-			}>
-			<video
-				id={ "video-whep-" + entity.EntityID }
-				class="video-whep"
-				autoplay
-				muted
-				playsinline
-				style="width: 100%; height: auto; display: block; background: #000;">
-			</video>
-		</div>
-		<div class="video-card-controls">
-			<span class="status-label live">LIVE</span>
-			<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
-				Fullscreen
-			</button>
-		</div>
-		<script>
-			(function() {
-				var entityId = document.currentScript.parentElement.dataset.entityId;
-				connectWHEP(entityId);
-			})();
-		</script>
+		if entity.VideoConfig != nil && entity.VideoConfig.PreferredWebRTCURL() != "" {
+			@common.VideoPlayer(entity.EntityID, entity.VideoConfig.PreferredWebRTCURL())
+		}
 	</div>
 }
 
@@ -132,149 +112,9 @@ templ VideoStatusBadge(entityID string, isLive bool, readerCount int) {
 	</div>
 }
 
-// VideoPageStyles contains the styles and scripts for the video page
+// VideoPageStyles contains the styles for the video page.
+// WHEP JS is provided by the shared WHEPScript component.
 templ VideoPageStyles() {
-	<script>
-		// WHEP connection management
-		const whepConnections = {};
-		const WHEP_MAX_RETRIES = 8;
-		const WHEP_BASE_DELAY = 2000;
-		const WHEP_MAX_DELAY = 30000;
-
-		async function connectWHEP(entityId) {
-			var existing = whepConnections[entityId];
-
-			// Guard: already connected or connecting
-			if (existing && existing.connecting) return;
-			if (existing && existing.pc && existing.pc.connectionState === 'connected') return;
-
-			disconnectWHEP(entityId);
-
-			// Read the WebRTC URL from the video container's data attribute (set from VideoConfig)
-			var videoCard = document.getElementById('video-card-' + entityId);
-			var container = videoCard ? videoCard.querySelector('.video-container') : null;
-			var webrtcURL = container ? container.dataset.webrtcUrl : '';
-
-			if (!webrtcURL) {
-				console.warn('[WHEP] No webrtc_url for ' + entityId + ', skipping');
-				return;
-			}
-
-			// WHEP endpoint = webrtc_url + /whep
-			var whepURL = webrtcURL.replace(/\/+$/, '') + '/whep';
-
-			var videoEl = document.getElementById('video-whep-' + entityId);
-			if (!videoEl) return;
-
-			// Track connecting state and retry count
-			var retries = (existing && existing.retries) || 0;
-			whepConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };
-
-			var pc = null;
-			try {
-				pc = new RTCPeerConnection({
-					iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-				});
-
-				pc.addTransceiver('video', { direction: 'recvonly' });
-				pc.addTransceiver('audio', { direction: 'recvonly' });
-
-				pc.ontrack = function(evt) {
-					videoEl.srcObject = evt.streams[0];
-				};
-
-				var offer = await pc.createOffer();
-				await pc.setLocalDescription(offer);
-
-				var resp = await fetch(whepURL, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/sdp' },
-					body: pc.localDescription.sdp
-				});
-
-				if (!resp.ok) {
-					throw new Error('WHEP response: ' + resp.status);
-				}
-
-				var sdp = await resp.text();
-				await pc.setRemoteDescription(new RTCSessionDescription({
-					type: 'answer',
-					sdp: sdp
-				}));
-
-				// Success — store and reset retries
-				whepConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };
-
-				pc.onconnectionstatechange = function() {
-					var conn = whepConnections[entityId];
-					if (!conn || conn.pc !== pc) return; // stale listener
-					if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-						console.warn('[WHEP] Connection lost for ' + entityId + ', scheduling reconnect');
-						scheduleWHEPReconnect(entityId, 0);
-					}
-				};
-
-			} catch (err) {
-				// Close the PC if it was created to prevent leak
-				if (pc) {
-					try { pc.close(); } catch (_) {}
-				}
-				if (whepConnections[entityId]) {
-					whepConnections[entityId].connecting = false;
-				}
-				console.error('[WHEP] Error connecting ' + entityId + ':', err.message);
-				scheduleWHEPReconnect(entityId, retries);
-			}
-		}
-
-		function scheduleWHEPReconnect(entityId, retries) {
-			var conn = whepConnections[entityId];
-			if (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
-
-			if (retries >= WHEP_MAX_RETRIES) {
-				console.error('[WHEP] Max retries reached for ' + entityId + ', giving up');
-				return;
-			}
-
-			var delay = Math.min(WHEP_BASE_DELAY * Math.pow(2, retries), WHEP_MAX_DELAY);
-			console.log('[WHEP] Retry ' + (retries + 1) + '/' + WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');
-
-			var timer = setTimeout(function() {
-				if (!whepConnections[entityId]) return; // was disconnected
-				whepConnections[entityId].retries = retries + 1;
-				connectWHEP(entityId);
-			}, delay);
-
-			if (!whepConnections[entityId]) {
-				whepConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };
-			} else {
-				whepConnections[entityId].reconnectTimer = timer;
-			}
-		}
-
-		function disconnectWHEP(entityId) {
-			var conn = whepConnections[entityId];
-			if (conn) {
-				if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
-				if (conn.pc) {
-					try { conn.pc.close(); } catch (_) {}
-				}
-				delete whepConnections[entityId];
-			}
-			var videoEl = document.getElementById('video-whep-' + entityId);
-			if (videoEl) videoEl.srcObject = null;
-		}
-
-		function openVideoFullscreen(entityId) {
-			if (!entityId) return;
-			var videoEl = document.getElementById('video-whep-' + entityId);
-			if (videoEl && videoEl.requestFullscreen) {
-				videoEl.requestFullscreen();
-			} else if (videoEl && videoEl.webkitRequestFullscreen) {
-				videoEl.webkitRequestFullscreen();
-			}
-		}
-	</script>
 	<style>
 		/* Video Card Styles */
 		.video-card {

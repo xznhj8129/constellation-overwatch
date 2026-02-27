@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	common "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
@@ -77,9 +77,17 @@ func VideoPage(entityIDs []string, webrtcBaseURL string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = common.WHEPScript().Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Navigation("video").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = common.Navigation("video").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -114,7 +122,7 @@ func VideoPanel(entityIDs []string, webrtcBaseURL string) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"video-panel\" class=\"panel\" data-signals=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div id=\"video-panel\" class=\"panel\" data-signals=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -128,49 +136,49 @@ func VideoPanel(entityIDs []string, webrtcBaseURL string) templ.Component {
 			webrtcBaseURL: '%s'
 		}`, webrtcBaseURL))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 32, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 33, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" data-init=\"@get('/api/video/list')\"><div class=\"panel-header\"><h2>Video Feeds</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$streamCount + ' active streams'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div class=\"video-controls-bar\" style=\"padding: 15px; border-bottom: 1px solid #333;\"><div style=\"display: flex; gap: 15px; align-items: center;\"><label style=\"color: #888;\">Select Entity:</label> <select data-model=\"selectedEntity\" style=\"background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;\"><option value=\"\">-- All Active Streams --</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" data-init=\"@get('/api/video/list')\"><div class=\"panel-header\"><h2>Video Feeds</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$streamCount + ' active streams'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div class=\"video-controls-bar\" style=\"padding: 15px; border-bottom: 1px solid #333;\"><div style=\"display: flex; gap: 15px; align-items: center;\"><label style=\"color: #888;\">Select Entity:</label> <select data-model=\"selectedEntity\" style=\"background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;\"><option value=\"\">-- All Active Streams --</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, entityID := range entityIDs {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<option value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<option value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 59, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 60, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 59, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 60, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</option>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</option>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</select></div></div><div id=\"video-content\" class=\"video-content\" style=\"padding: 20px;\"><!-- Grid view for all active streams --><div id=\"video-grid\" class=\"video-grid\" style=\"display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;\"><!-- Populated by SSE from /api/video/list --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;\"><div style=\"font-size: 48px; margin-bottom: 10px;\">📹</div><p>No active video streams detected.</p><p style=\"font-size: 12px; margin-top: 10px;\">Waiting for entities with video configuration...</p></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</select></div></div><div id=\"video-content\" class=\"video-content\" style=\"padding: 20px;\"><!-- Grid view for all active streams --><div id=\"video-grid\" class=\"video-grid\" style=\"display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;\"><!-- Populated by SSE from /api/video/list --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;\"><div style=\"font-size: 48px; margin-bottom: 10px;\">📹</div><p>No active video streams detected.</p><p style=\"font-size: 12px; margin-top: 10px;\">Waiting for entities with video configuration...</p></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -178,7 +186,8 @@ func VideoPanel(entityIDs []string, webrtcBaseURL string) templ.Component {
 	})
 }
 
-// VideoCard renders a video card with WHEP player
+// VideoCard renders a video card with WHEP player.
+// Uses the shared VideoPlayer component; WHEP connection is auto-managed by WHEPScript.
 func VideoCard(entity shared.EntityState, status mediamtx.PathStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -200,33 +209,33 @@ func VideoCard(entity shared.EntityState, status mediamtx.PathStatus) templ.Comp
 			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs("video-card-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 80, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 82, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" class=\"video-card\" data-entity-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" class=\"video-card\" data-entity-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 80, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 82, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" data-ignore-morph><div class=\"video-card-header\"><span class=\"entity-name\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" data-ignore-morph><div class=\"video-card-header\"><span class=\"entity-name\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -234,7 +243,7 @@ func VideoCard(entity shared.EntityState, status mediamtx.PathStatus) templ.Comp
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 84, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 86, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -244,14 +253,14 @@ func VideoCard(entity shared.EntityState, status mediamtx.PathStatus) templ.Comp
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 86, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 88, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span><div class=\"video-card-stats\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span><div class=\"video-card-stats\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -259,69 +268,17 @@ func VideoCard(entity shared.EntityState, status mediamtx.PathStatus) templ.Comp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div></div><div class=\"video-container\" data-entity-id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 93, Col: 63}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if entity.VideoConfig != nil && entity.VideoConfig.PreferredWebRTCURL() != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, " data-webrtc-url=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var14 string
-			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(entity.VideoConfig.PreferredWebRTCURL())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 95, Col: 61}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"")
+			templ_7745c5c3_Err = common.VideoPlayer(entity.EntityID, entity.VideoConfig.PreferredWebRTCURL()).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "><video id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("video-whep-" + entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 98, Col: 40}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"video-whep\" autoplay muted playsinline style=\"width: 100%; height: auto; display: block; background: #000;\"></video></div><div class=\"video-card-controls\"><span class=\"status-label live\">LIVE</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 108, Col: 66}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" onclick=\"openVideoFullscreen(this.dataset.entityId)\">Fullscreen</button></div><script>\n\t\t\t(function() {\n\t\t\t\tvar entityId = document.currentScript.parentElement.dataset.entityId;\n\t\t\t\tconnectWHEP(entityId);\n\t\t\t})();\n\t\t</script></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -346,59 +303,59 @@ func VideoStatusBadge(entityID string, isLive bool, readerCount int) templ.Compo
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var17 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var17 == nil {
-			templ_7745c5c3_Var17 = templ.NopComponent
+		templ_7745c5c3_Var13 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var13 == nil {
+			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<div id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var18 string
-		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs("video-status-" + entityID)
+		var templ_7745c5c3_Var14 string
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs("video-status-" + entityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 123, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 103, Col: 37}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" class=\"video-status-badge\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" class=\"video-status-badge\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if isLive {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<span class=\"badge-live\">LIVE</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<span class=\"badge-live\">LIVE</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<span class=\"badge-offline\">OFFLINE</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<span class=\"badge-offline\">OFFLINE</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if readerCount > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<span class=\"badge-viewers\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span class=\"badge-viewers\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var19 string
-			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", readerCount))
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", readerCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 130, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 110, Col: 63}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, " viewers</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, " viewers</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -406,7 +363,8 @@ func VideoStatusBadge(entityID string, isLive bool, readerCount int) templ.Compo
 	})
 }
 
-// VideoPageStyles contains the styles and scripts for the video page
+// VideoPageStyles contains the styles for the video page.
+// WHEP JS is provided by the shared WHEPScript component.
 func VideoPageStyles() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -423,12 +381,12 @@ func VideoPageStyles() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var20 == nil {
-			templ_7745c5c3_Var20 = templ.NopComponent
+		templ_7745c5c3_Var16 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var16 == nil {
+			templ_7745c5c3_Var16 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<script>\n\t\t// WHEP connection management\n\t\tconst whepConnections = {};\n\t\tconst WHEP_MAX_RETRIES = 8;\n\t\tconst WHEP_BASE_DELAY = 2000;\n\t\tconst WHEP_MAX_DELAY = 30000;\n\n\t\tasync function connectWHEP(entityId) {\n\t\t\tvar existing = whepConnections[entityId];\n\n\t\t\t// Guard: already connected or connecting\n\t\t\tif (existing && existing.connecting) return;\n\t\t\tif (existing && existing.pc && existing.pc.connectionState === 'connected') return;\n\n\t\t\tdisconnectWHEP(entityId);\n\n\t\t\t// Read the WebRTC URL from the video container's data attribute (set from VideoConfig)\n\t\t\tvar videoCard = document.getElementById('video-card-' + entityId);\n\t\t\tvar container = videoCard ? videoCard.querySelector('.video-container') : null;\n\t\t\tvar webrtcURL = container ? container.dataset.webrtcUrl : '';\n\n\t\t\tif (!webrtcURL) {\n\t\t\t\tconsole.warn('[WHEP] No webrtc_url for ' + entityId + ', skipping');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// WHEP endpoint = webrtc_url + /whep\n\t\t\tvar whepURL = webrtcURL.replace(/\\/+$/, '') + '/whep';\n\n\t\t\tvar videoEl = document.getElementById('video-whep-' + entityId);\n\t\t\tif (!videoEl) return;\n\n\t\t\t// Track connecting state and retry count\n\t\t\tvar retries = (existing && existing.retries) || 0;\n\t\t\twhepConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };\n\n\t\t\tvar pc = null;\n\t\t\ttry {\n\t\t\t\tpc = new RTCPeerConnection({\n\t\t\t\t\ticeServers: [{ urls: 'stun:stun.l.google.com:19302' }]\n\t\t\t\t});\n\n\t\t\t\tpc.addTransceiver('video', { direction: 'recvonly' });\n\t\t\t\tpc.addTransceiver('audio', { direction: 'recvonly' });\n\n\t\t\t\tpc.ontrack = function(evt) {\n\t\t\t\t\tvideoEl.srcObject = evt.streams[0];\n\t\t\t\t};\n\n\t\t\t\tvar offer = await pc.createOffer();\n\t\t\t\tawait pc.setLocalDescription(offer);\n\n\t\t\t\tvar resp = await fetch(whepURL, {\n\t\t\t\t\tmethod: 'POST',\n\t\t\t\t\theaders: { 'Content-Type': 'application/sdp' },\n\t\t\t\t\tbody: pc.localDescription.sdp\n\t\t\t\t});\n\n\t\t\t\tif (!resp.ok) {\n\t\t\t\t\tthrow new Error('WHEP response: ' + resp.status);\n\t\t\t\t}\n\n\t\t\t\tvar sdp = await resp.text();\n\t\t\t\tawait pc.setRemoteDescription(new RTCSessionDescription({\n\t\t\t\t\ttype: 'answer',\n\t\t\t\t\tsdp: sdp\n\t\t\t\t}));\n\n\t\t\t\t// Success — store and reset retries\n\t\t\t\twhepConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };\n\n\t\t\t\tpc.onconnectionstatechange = function() {\n\t\t\t\t\tvar conn = whepConnections[entityId];\n\t\t\t\t\tif (!conn || conn.pc !== pc) return; // stale listener\n\t\t\t\t\tif (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {\n\t\t\t\t\t\tconsole.warn('[WHEP] Connection lost for ' + entityId + ', scheduling reconnect');\n\t\t\t\t\t\tscheduleWHEPReconnect(entityId, 0);\n\t\t\t\t\t}\n\t\t\t\t};\n\n\t\t\t} catch (err) {\n\t\t\t\t// Close the PC if it was created to prevent leak\n\t\t\t\tif (pc) {\n\t\t\t\t\ttry { pc.close(); } catch (_) {}\n\t\t\t\t}\n\t\t\t\tif (whepConnections[entityId]) {\n\t\t\t\t\twhepConnections[entityId].connecting = false;\n\t\t\t\t}\n\t\t\t\tconsole.error('[WHEP] Error connecting ' + entityId + ':', err.message);\n\t\t\t\tscheduleWHEPReconnect(entityId, retries);\n\t\t\t}\n\t\t}\n\n\t\tfunction scheduleWHEPReconnect(entityId, retries) {\n\t\t\tvar conn = whepConnections[entityId];\n\t\t\tif (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);\n\n\t\t\tif (retries >= WHEP_MAX_RETRIES) {\n\t\t\t\tconsole.error('[WHEP] Max retries reached for ' + entityId + ', giving up');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tvar delay = Math.min(WHEP_BASE_DELAY * Math.pow(2, retries), WHEP_MAX_DELAY);\n\t\t\tconsole.log('[WHEP] Retry ' + (retries + 1) + '/' + WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');\n\n\t\t\tvar timer = setTimeout(function() {\n\t\t\t\tif (!whepConnections[entityId]) return; // was disconnected\n\t\t\t\twhepConnections[entityId].retries = retries + 1;\n\t\t\t\tconnectWHEP(entityId);\n\t\t\t}, delay);\n\n\t\t\tif (!whepConnections[entityId]) {\n\t\t\t\twhepConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };\n\t\t\t} else {\n\t\t\t\twhepConnections[entityId].reconnectTimer = timer;\n\t\t\t}\n\t\t}\n\n\t\tfunction disconnectWHEP(entityId) {\n\t\t\tvar conn = whepConnections[entityId];\n\t\t\tif (conn) {\n\t\t\t\tif (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);\n\t\t\t\tif (conn.pc) {\n\t\t\t\t\ttry { conn.pc.close(); } catch (_) {}\n\t\t\t\t}\n\t\t\t\tdelete whepConnections[entityId];\n\t\t\t}\n\t\t\tvar videoEl = document.getElementById('video-whep-' + entityId);\n\t\t\tif (videoEl) videoEl.srcObject = null;\n\t\t}\n\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) return;\n\t\t\tvar videoEl = document.getElementById('video-whep-' + entityId);\n\t\t\tif (videoEl && videoEl.requestFullscreen) {\n\t\t\t\tvideoEl.requestFullscreen();\n\t\t\t} else if (videoEl && videoEl.webkitRequestFullscreen) {\n\t\t\t\tvideoEl.webkitRequestFullscreen();\n\t\t\t}\n\t\t}\n\t</script><style>\n\t\t/* Video Card Styles */\n\t\t.video-card {\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t\tborder: 1px solid #333;\n\t\t}\n\n\t\t.video-card-header {\n\t\t\tpadding: 10px 15px;\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t\tbackground: #1a1a1a;\n\t\t}\n\n\t\t.video-card-header .entity-name {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.video-card-stats {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 8px;\n\t\t}\n\n\t\t/* Video Container */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.video-whep {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t/* Video Controls */\n\t\t.video-card-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.status-label.live {\n\t\t\tcolor: #0f0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Status Badges */\n\t\t.video-status-badge {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 6px;\n\t\t}\n\n\t\t.badge-live {\n\t\t\tcolor: #0f0;\n\t\t\tfont-size: 11px;\n\t\t\tfont-weight: bold;\n\t\t\ttext-transform: uppercase;\n\t\t\tposition: relative;\n\t\t\tpadding-left: 12px;\n\t\t}\n\n\t\t.badge-live::before {\n\t\t\tcontent: '';\n\t\t\tposition: absolute;\n\t\t\tleft: 0;\n\t\t\ttop: 50%;\n\t\t\ttransform: translateY(-50%);\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t\tanimation: pulse-live 2s infinite;\n\t\t}\n\n\t\t.badge-offline {\n\t\t\tcolor: #f44;\n\t\t\tfont-size: 11px;\n\t\t\tfont-weight: bold;\n\t\t\ttext-transform: uppercase;\n\t\t\tposition: relative;\n\t\t\tpadding-left: 12px;\n\t\t}\n\n\t\t.badge-offline::before {\n\t\t\tcontent: '';\n\t\t\tposition: absolute;\n\t\t\tleft: 0;\n\t\t\ttop: 50%;\n\t\t\ttransform: translateY(-50%);\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #f44;\n\t\t\tborder-radius: 50%;\n\t\t}\n\n\t\t.badge-viewers {\n\t\t\tcolor: #888;\n\t\t\tfont-size: 10px;\n\t\t}\n\n\t\t@keyframes pulse-live {\n\t\t\t0%, 100% { opacity: 1; }\n\t\t\t50% { opacity: 0.4; }\n\t\t}\n\t</style>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<style>\n\t\t/* Video Card Styles */\n\t\t.video-card {\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t\tborder: 1px solid #333;\n\t\t}\n\n\t\t.video-card-header {\n\t\t\tpadding: 10px 15px;\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t\tbackground: #1a1a1a;\n\t\t}\n\n\t\t.video-card-header .entity-name {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.video-card-stats {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 8px;\n\t\t}\n\n\t\t/* Video Container */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.video-whep {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t/* Video Controls */\n\t\t.video-card-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.status-label.live {\n\t\t\tcolor: #0f0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Status Badges */\n\t\t.video-status-badge {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 6px;\n\t\t}\n\n\t\t.badge-live {\n\t\t\tcolor: #0f0;\n\t\t\tfont-size: 11px;\n\t\t\tfont-weight: bold;\n\t\t\ttext-transform: uppercase;\n\t\t\tposition: relative;\n\t\t\tpadding-left: 12px;\n\t\t}\n\n\t\t.badge-live::before {\n\t\t\tcontent: '';\n\t\t\tposition: absolute;\n\t\t\tleft: 0;\n\t\t\ttop: 50%;\n\t\t\ttransform: translateY(-50%);\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t\tanimation: pulse-live 2s infinite;\n\t\t}\n\n\t\t.badge-offline {\n\t\t\tcolor: #f44;\n\t\t\tfont-size: 11px;\n\t\t\tfont-weight: bold;\n\t\t\ttext-transform: uppercase;\n\t\t\tposition: relative;\n\t\t\tpadding-left: 12px;\n\t\t}\n\n\t\t.badge-offline::before {\n\t\t\tcontent: '';\n\t\t\tposition: absolute;\n\t\t\tleft: 0;\n\t\t\ttop: 50%;\n\t\t\ttransform: translateY(-50%);\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #f44;\n\t\t\tborder-radius: 50%;\n\t\t}\n\n\t\t.badge-viewers {\n\t\t\tcolor: #888;\n\t\t\tfont-size: 10px;\n\t\t}\n\n\t\t@keyframes pulse-live {\n\t\t\t0%, 100% { opacity: 1; }\n\t\t\t50% { opacity: 0.4; }\n\t\t}\n\t</style>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -183,46 +183,10 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 	</div>
 }
 
-// C4VideoPlayer is a standalone video component that gets appended once (not morphed)
-// This separation prevents WebRTC connection duplication during card morphs
-// webrtcURL is the per-entity WebRTC base URL (e.g. "http://host:8889/entity-id")
-templ C4VideoPlayer(entityID string, webrtcURL string) {
-	<div class="video-container" data-entity-id={ entityID } data-webrtc-url={ webrtcURL }>
-		<div class="no-signal-overlay">
-			<span>No Video Signal</span>
-		</div>
-		<video
-			id={ "c4-video-whep-" + entityID }
-			class="video-whep"
-			autoplay
-			muted
-			playsinline
-			style="width: 100%; height: auto; display: block; background: #000;">
-		</video>
-	</div>
-	<div class="video-controls">
-		<span class="connection-status" id={ "c4-status-" + entityID }>connecting...</span>
-		<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
-			Fullscreen
-		</button>
-	</div>
-	<script>
-		(function() {
-			var entityId = document.currentScript.parentElement.dataset.entityId;
-			c4ConnectWHEP(entityId);
-		})();
-	</script>
-}
-
-// C4EntityCardScript contains the JS logic for the card interaction and video
+// C4EntityCardScript contains the JS logic for card interaction (toggle detail view).
+// WHEP video connection is handled by the shared WHEPScript (video_player.templ).
 templ C4EntityCardScript() {
 	<script>
-		// WHEP connection management for C4 entity cards
-		const c4WHEPConnections = {};
-		const C4_WHEP_MAX_RETRIES = 8;
-		const C4_WHEP_BASE_DELAY = 2000;
-		const C4_WHEP_MAX_DELAY = 30000;
-
 		function toggleEntityDetail(entityId) {
 			const card = document.getElementById('c4-entity-' + entityId);
 			if (!card) return;
@@ -232,153 +196,12 @@ templ C4EntityCardScript() {
 
 			if (isDetailed) {
 				body.style.display = 'block';
+				// Connect video when expanding (shared WHEP manager)
+				if (typeof connectWHEP === 'function') connectWHEP(entityId);
 			} else {
 				body.style.display = 'none';
-				// Disconnect WHEP when collapsing
-				c4DisconnectWHEP(entityId);
-			}
-		}
-
-		async function c4ConnectWHEP(entityId) {
-			var existing = c4WHEPConnections[entityId];
-
-			// Guard: already connected or connecting
-			if (existing && existing.connecting) return;
-			if (existing && existing.pc && existing.pc.connectionState === 'connected') return;
-
-			c4DisconnectWHEP(entityId);
-
-			var videoEl = document.getElementById('c4-video-whep-' + entityId);
-			var statusEl = document.getElementById('c4-status-' + entityId);
-			if (!videoEl) return;
-
-			// Read per-entity webrtc_url from the video container's data attribute
-			var container = videoEl.closest('.video-container');
-			var overlay = container ? container.querySelector('.no-signal-overlay') : null;
-			var webrtcURL = container ? container.dataset.webrtcUrl : '';
-			if (!webrtcURL) {
-				if (statusEl) statusEl.textContent = 'no video url';
-				return;
-			}
-
-			// WHEP endpoint is webrtc_url + "/whep" (webrtc_url already includes the entity path)
-			var whepURL = webrtcURL.replace(/\/+$/, '') + '/whep';
-
-			// Track connecting state and retry count
-			var retries = (existing && existing.retries) || 0;
-			c4WHEPConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };
-
-			if (statusEl) statusEl.textContent = 'connecting...';
-
-			var pc = null;
-			try {
-				pc = new RTCPeerConnection({
-					iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-				});
-
-				pc.addTransceiver('video', { direction: 'recvonly' });
-				pc.addTransceiver('audio', { direction: 'recvonly' });
-
-				pc.ontrack = function(evt) {
-					videoEl.srcObject = evt.streams[0];
-					if (overlay) overlay.style.display = 'none';
-					if (statusEl) statusEl.textContent = 'live';
-				};
-
-				var offer = await pc.createOffer();
-				await pc.setLocalDescription(offer);
-
-				var resp = await fetch(whepURL, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/sdp' },
-					body: pc.localDescription.sdp
-				});
-
-				if (!resp.ok) throw new Error('WHEP: ' + resp.status);
-
-				var sdp = await resp.text();
-				await pc.setRemoteDescription(new RTCSessionDescription({
-					type: 'answer',
-					sdp: sdp
-				}));
-
-				// Success — store and reset retries
-				c4WHEPConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };
-
-				pc.onconnectionstatechange = function() {
-					var conn = c4WHEPConnections[entityId];
-					if (!conn || conn.pc !== pc) return; // stale listener
-					if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-						if (statusEl) statusEl.textContent = 'reconnecting...';
-						if (overlay) overlay.style.display = 'flex';
-						c4ScheduleReconnect(entityId, 0);
-					}
-				};
-			} catch (err) {
-				// Close the PC if it was created to prevent leak
-				if (pc) {
-					try { pc.close(); } catch (_) {}
-				}
-				if (c4WHEPConnections[entityId]) {
-					c4WHEPConnections[entityId].connecting = false;
-				}
-				console.error('[C4 WHEP] Error connecting ' + entityId + ':', err.message);
-				if (statusEl) statusEl.textContent = 'error';
-				if (overlay) overlay.style.display = 'flex';
-				c4ScheduleReconnect(entityId, retries);
-			}
-		}
-
-		function c4ScheduleReconnect(entityId, retries) {
-			var conn = c4WHEPConnections[entityId];
-			if (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
-
-			if (retries >= C4_WHEP_MAX_RETRIES) {
-				console.error('[C4 WHEP] Max retries reached for ' + entityId + ', giving up');
-				var statusEl = document.getElementById('c4-status-' + entityId);
-				if (statusEl) statusEl.textContent = 'failed (max retries)';
-				return;
-			}
-
-			var delay = Math.min(C4_WHEP_BASE_DELAY * Math.pow(2, retries), C4_WHEP_MAX_DELAY);
-			console.log('[C4 WHEP] Retry ' + (retries + 1) + '/' + C4_WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');
-
-			var timer = setTimeout(function() {
-				if (!c4WHEPConnections[entityId]) return; // was disconnected
-				c4WHEPConnections[entityId].retries = retries + 1;
-				c4ConnectWHEP(entityId);
-			}, delay);
-
-			if (!c4WHEPConnections[entityId]) {
-				c4WHEPConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };
-			} else {
-				c4WHEPConnections[entityId].reconnectTimer = timer;
-			}
-		}
-
-		function c4DisconnectWHEP(entityId) {
-			var conn = c4WHEPConnections[entityId];
-			if (conn) {
-				if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
-				if (conn.pc) {
-					try { conn.pc.close(); } catch (_) {}
-				}
-				delete c4WHEPConnections[entityId];
-			}
-			var videoEl = document.getElementById('c4-video-whep-' + entityId);
-			if (videoEl) videoEl.srcObject = null;
-			var statusEl = document.getElementById('c4-status-' + entityId);
-			if (statusEl) statusEl.textContent = 'disconnected';
-		}
-
-		function openVideoFullscreen(entityId) {
-			if (!entityId) return;
-			var videoEl = document.getElementById('c4-video-whep-' + entityId) ||
-			              document.getElementById('video-whep-' + entityId);
-			if (videoEl && videoEl.requestFullscreen) {
-				videoEl.requestFullscreen();
-			} else if (videoEl && videoEl.webkitRequestFullscreen) {
-				videoEl.webkitRequestFullscreen();
+				// Disconnect video when collapsing
+				if (typeof disconnectWHEP === 'function') disconnectWHEP(entityId);
 			}
 		}
 	</script>
