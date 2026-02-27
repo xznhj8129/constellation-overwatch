@@ -178,7 +178,7 @@ func (c *Client) fetchAndCache(ctx context.Context) {
 	next := make(map[string]PathStatus, len(apiResp.Items))
 	for _, item := range apiResp.Items {
 		entityID := extractEntityID(item.Name)
-		next[entityID] = PathStatus{
+		ps := PathStatus{
 			Name:          item.Name,
 			EntityID:      entityID,
 			Ready:         item.Ready,
@@ -187,6 +187,18 @@ func (c *Client) fetchAndCache(ctx context.Context) {
 			ReaderCount:   len(item.Readers),
 			BytesReceived: item.BytesReceived,
 			BytesSent:     item.BytesSent,
+		}
+
+		// When multiple paths exist for the same entity (e.g. "entity-id" and
+		// "entity-id/pulsar"), prefer the overlay stream for display since it
+		// carries bounding box annotations.
+		if existing, ok := next[entityID]; ok {
+			if isOverlayStream(item.Name) && !isOverlayStream(existing.Name) {
+				next[entityID] = ps
+			}
+			// Otherwise keep existing (overlay already stored, or both are same type)
+		} else {
+			next[entityID] = ps
 		}
 	}
 
@@ -243,13 +255,16 @@ func (c *Client) WHEPEndpoint(streamPath string) string {
 		strings.TrimLeft(streamPath, "/"))
 }
 
-// extractEntityID returns the segment after the last "/" in a MediaMTX path
-// name, which by convention is the entity ID. If the path contains no slash
-// the entire name is returned.
+// extractEntityID returns the first path segment from a MediaMTX path name,
+// which by convention is the entity ID. Sub-paths like "entity-id/pulsar"
+// (overlay streams) share the same entity ID as the base "entity-id" path.
 func extractEntityID(pathName string) string {
-	idx := strings.LastIndex(pathName, "/")
-	if idx < 0 {
-		return pathName
-	}
-	return pathName[idx+1:]
+	parts := strings.SplitN(pathName, "/", 2)
+	return parts[0]
+}
+
+// isOverlayStream returns true if the path represents an overlay stream
+// (e.g. "entity-id/pulsar") rather than the base raw stream.
+func isOverlayStream(pathName string) bool {
+	return strings.Contains(pathName, "/")
 }

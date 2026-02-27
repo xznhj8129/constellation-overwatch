@@ -84,15 +84,16 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	}
 
 	entity := &ontology.Entity{
-		EntityID:   entityID,
-		OrgID:      orgID,
-		Name:       req.Name,
-		EntityType: req.EntityType,
-		Status:     status,
-		Priority:   priority,
-		Metadata:   metadataJSON,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		EntityID:    entityID,
+		OrgID:       orgID,
+		Name:        req.Name,
+		EntityType:  req.EntityType,
+		Status:      status,
+		Priority:    priority,
+		Metadata:    metadataJSON,
+		VideoConfig: videoConfigJSON,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
 	if req.Position != nil {
@@ -423,9 +424,9 @@ func (s *EntityService) syncToKV(entity *ontology.Entity) {
 
 	// Parse and set video config
 	if entity.VideoConfig != "" && entity.VideoConfig != "{}" {
-		var vc map[string]interface{}
+		var vc ontology.VideoConfig
 		if json.Unmarshal([]byte(entity.VideoConfig), &vc) == nil {
-			state.VideoConfig = vc
+			state.VideoConfig = &vc
 		}
 	}
 

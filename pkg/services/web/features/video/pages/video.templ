@@ -68,7 +68,7 @@ templ VideoPanel(entityIDs []string, webrtcBaseURL string) {
 				<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
 					<div style="font-size: 48px; margin-bottom: 10px;">📹</div>
 					<p>No active video streams detected.</p>
-					<p style="font-size: 12px; margin-top: 10px;">Waiting for MediaMTX streams...</p>
+					<p style="font-size: 12px; margin-top: 10px;">Waiting for entities with video configuration...</p>
 				</div>
 			</div>
 		</div>
@@ -90,14 +90,16 @@ templ VideoCard(entity shared.EntityState, status mediamtx.PathStatus) {
 				@VideoStatusBadge(entity.EntityID, status.Ready, status.ReaderCount)
 			</div>
 		</div>
-		<div class="video-container" data-entity-id={ entity.EntityID }>
+		<div class="video-container" data-entity-id={ entity.EntityID }
+			if entity.VideoConfig != nil && entity.VideoConfig.PreferredWebRTCURL() != "" {
+				data-webrtc-url={ entity.VideoConfig.PreferredWebRTCURL() }
+			}>
 			<video
 				id={ "video-whep-" + entity.EntityID }
 				class="video-whep"
 				autoplay
 				muted
 				playsinline
-				data-whep-url={ status.Name }
 				style="width: 100%; height: auto; display: block; background: #000;">
 			</video>
 		</div>
@@ -110,11 +112,7 @@ templ VideoCard(entity shared.EntityState, status mediamtx.PathStatus) {
 		<script>
 			(function() {
 				var entityId = document.currentScript.parentElement.dataset.entityId;
-				var videoEl = document.getElementById('video-whep-' + entityId);
-				if (videoEl) {
-					var whepPath = videoEl.dataset.whepUrl;
-					connectWHEP(entityId, whepPath);
-				}
+				connectWHEP(entityId);
 			})();
 		</script>
 	</div>
@@ -139,27 +137,42 @@ templ VideoPageStyles() {
 	<script>
 		// WHEP connection management
 		const whepConnections = {};
+		const WHEP_MAX_RETRIES = 8;
+		const WHEP_BASE_DELAY = 2000;
+		const WHEP_MAX_DELAY = 30000;
 
-		async function connectWHEP(entityId, streamPath) {
-			if (whepConnections[entityId]) {
-				disconnectWHEP(entityId);
-			}
+		async function connectWHEP(entityId) {
+			var existing = whepConnections[entityId];
 
-			// Get the webrtcBaseURL from signals
-			var panel = document.getElementById('video-panel');
-			var signals = panel ? JSON.parse(panel.dataset.signals || '{}') : {};
-			var baseURL = signals.webrtcBaseURL || '';
-			if (!baseURL) {
-				console.warn('[WHEP] No webrtcBaseURL configured');
+			// Guard: already connected or connecting
+			if (existing && existing.connecting) return;
+			if (existing && existing.pc && existing.pc.connectionState === 'connected') return;
+
+			disconnectWHEP(entityId);
+
+			// Read the WebRTC URL from the video container's data attribute (set from VideoConfig)
+			var videoCard = document.getElementById('video-card-' + entityId);
+			var container = videoCard ? videoCard.querySelector('.video-container') : null;
+			var webrtcURL = container ? container.dataset.webrtcUrl : '';
+
+			if (!webrtcURL) {
+				console.warn('[WHEP] No webrtc_url for ' + entityId + ', skipping');
 				return;
 			}
 
-			var whepURL = baseURL.replace(/\/+$/, '') + '/' + streamPath + '/whep';
+			// WHEP endpoint = webrtc_url + /whep
+			var whepURL = webrtcURL.replace(/\/+$/, '') + '/whep';
+
 			var videoEl = document.getElementById('video-whep-' + entityId);
 			if (!videoEl) return;
 
+			// Track connecting state and retry count
+			var retries = (existing && existing.retries) || 0;
+			whepConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };
+
+			var pc = null;
 			try {
-				var pc = new RTCPeerConnection({
+				pc = new RTCPeerConnection({
 					iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 				});
 
@@ -189,21 +202,53 @@ templ VideoPageStyles() {
 					sdp: sdp
 				}));
 
-				whepConnections[entityId] = {
-					pc: pc,
-					reconnectTimer: null
-				};
+				// Success — store and reset retries
+				whepConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };
 
 				pc.onconnectionstatechange = function() {
+					var conn = whepConnections[entityId];
+					if (!conn || conn.pc !== pc) return; // stale listener
 					if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-						console.warn('[WHEP] Connection lost for ' + entityId + ', reconnecting...');
-						setTimeout(function() { connectWHEP(entityId, streamPath); }, 3000);
+						console.warn('[WHEP] Connection lost for ' + entityId + ', scheduling reconnect');
+						scheduleWHEPReconnect(entityId, 0);
 					}
 				};
 
 			} catch (err) {
-				console.error('[WHEP] Error connecting ' + entityId + ':', err);
-				setTimeout(function() { connectWHEP(entityId, streamPath); }, 5000);
+				// Close the PC if it was created to prevent leak
+				if (pc) {
+					try { pc.close(); } catch (_) {}
+				}
+				if (whepConnections[entityId]) {
+					whepConnections[entityId].connecting = false;
+				}
+				console.error('[WHEP] Error connecting ' + entityId + ':', err.message);
+				scheduleWHEPReconnect(entityId, retries);
+			}
+		}
+
+		function scheduleWHEPReconnect(entityId, retries) {
+			var conn = whepConnections[entityId];
+			if (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
+
+			if (retries >= WHEP_MAX_RETRIES) {
+				console.error('[WHEP] Max retries reached for ' + entityId + ', giving up');
+				return;
+			}
+
+			var delay = Math.min(WHEP_BASE_DELAY * Math.pow(2, retries), WHEP_MAX_DELAY);
+			console.log('[WHEP] Retry ' + (retries + 1) + '/' + WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');
+
+			var timer = setTimeout(function() {
+				if (!whepConnections[entityId]) return; // was disconnected
+				whepConnections[entityId].retries = retries + 1;
+				connectWHEP(entityId);
+			}, delay);
+
+			if (!whepConnections[entityId]) {
+				whepConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };
+			} else {
+				whepConnections[entityId].reconnectTimer = timer;
 			}
 		}
 
@@ -211,7 +256,9 @@ templ VideoPageStyles() {
 			var conn = whepConnections[entityId];
 			if (conn) {
 				if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
-				if (conn.pc) conn.pc.close();
+				if (conn.pc) {
+					try { conn.pc.close(); } catch (_) {}
+				}
 				delete whepConnections[entityId];
 			}
 			var videoEl = document.getElementById('video-whep-' + entityId);

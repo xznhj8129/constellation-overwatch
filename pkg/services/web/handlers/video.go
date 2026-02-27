@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
@@ -56,7 +57,7 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 	emptyState := `<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
 						<div style="font-size: 48px; margin-bottom: 10px;">📹</div>
 						<p>No active video streams detected.</p>
-						<p style="font-size: 12px; margin-top: 10px;">Waiting for MediaMTX streams...</p>
+						<p style="font-size: 12px; margin-top: 10px;">Waiting for entities with video configuration...</p>
 					</div>`
 	sse.PatchElements(emptyState,
 		datastar.WithSelector("#video-grid"),
@@ -68,9 +69,57 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 	knownStreams := make(map[string]bool)
 	var streamsMutex sync.Mutex
 
+	// Cache entity data from DB to resolve VideoConfig per entity.
+	// Refreshed periodically so new entities are picked up.
+	entityCache := make(map[string]*ontology.Entity)
+	var entityCacheTime time.Time
+
+	refreshEntityCache := func() {
+		if time.Since(entityCacheTime) < 30*time.Second {
+			return
+		}
+		entities, err := h.entitySvc.ListAllEntities()
+		if err != nil {
+			logger.Warnw("Video handler: failed to refresh entity cache", "error", err)
+			return
+		}
+		next := make(map[string]*ontology.Entity, len(entities))
+		for i := range entities {
+			next[entities[i].EntityID] = &entities[i]
+		}
+		entityCache = next
+		entityCacheTime = time.Now()
+	}
+
+	// buildEntityState constructs an EntityState from the DB entity (if found)
+	// with its VideoConfig, falling back to a minimal state using just the stream ID.
+	buildEntityState := func(entityID string) shared.EntityState {
+		state := shared.EntityState{
+			EntityID: entityID,
+			Name:     entityID,
+		}
+		if ent, ok := entityCache[entityID]; ok {
+			state.Name = ent.Name
+			if state.Name == "" {
+				state.Name = entityID
+			}
+			state.EntityType = ent.EntityType
+			state.Status = ent.Status
+			state.OrgID = ent.OrgID
+			// Parse VideoConfig from DB JSON
+			if ent.VideoConfig != "" && ent.VideoConfig != "{}" {
+				var vc ontology.VideoConfig
+				if json.Unmarshal([]byte(ent.VideoConfig), &vc) == nil {
+					state.VideoConfig = &vc
+				}
+			}
+		}
+		return state
+	}
+
 	ctx := r.Context()
 
-	// Ticker for polling MediaMTX
+	// Ticker for polling entity video state
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -87,33 +136,52 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 			flusher.Flush()
 
 		case <-ticker.C:
-			// If MediaMTX client is nil (disabled), skip
-			if h.mtxClient == nil {
-				continue
-			}
+			// Refresh entity cache periodically
+			refreshEntityCache()
 
-			streams := h.mtxClient.GetAllStreams()
+			// Build MediaMTX lookup (may be nil/empty)
+			mtxStreams := make(map[string]mediamtx.PathStatus)
+			if h.mtxClient != nil {
+				for _, s := range h.mtxClient.GetAllStreams() {
+					mtxStreams[s.EntityID] = s
+				}
+			}
 
 			streamsMutex.Lock()
 
-			// Build current active set
+			// Primary source: entities with video_config
 			currentActive := make(map[string]bool)
 			var activeIDs []string
 
-			for _, status := range streams {
-				if !status.Ready {
+			for entityID, ent := range entityCache {
+				// Parse VideoConfig from DB JSON
+				if ent.VideoConfig == "" || ent.VideoConfig == "{}" {
 					continue
 				}
-				entityID := status.EntityID
+				var vc ontology.VideoConfig
+				if json.Unmarshal([]byte(ent.VideoConfig), &vc) != nil {
+					continue
+				}
+				if vc.PreferredWebRTCURL() == "" {
+					continue // no playable URL
+				}
+
 				currentActive[entityID] = true
 				activeIDs = append(activeIDs, entityID)
 
+				// Use MediaMTX status if available, otherwise synthetic
+				status, ok := mtxStreams[entityID]
+				if !ok {
+					status = mediamtx.PathStatus{
+						Name:     entityID,
+						EntityID: entityID,
+						Ready:    true,
+					}
+				}
+
 				// New stream: render and append card
 				if !knownStreams[entityID] {
-					entityState := shared.EntityState{
-						EntityID: entityID,
-						Name:     entityID,
-					}
+					entityState := buildEntityState(entityID)
 
 					var cardHTML strings.Builder
 					if err := video_pages.VideoCard(entityState, status).Render(context.Background(), &cardHTML); err == nil {
@@ -131,14 +199,14 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 
 				// Update status badge for existing streams
 				var badgeHTML strings.Builder
-				if err := video_pages.VideoStatusBadge(entityID, true, status.ReaderCount).Render(context.Background(), &badgeHTML); err == nil {
+				if err := video_pages.VideoStatusBadge(entityID, status.Ready, status.ReaderCount).Render(context.Background(), &badgeHTML); err == nil {
 					sse.PatchElements(badgeHTML.String(),
 						datastar.WithSelector(fmt.Sprintf("#video-status-%s", entityID)),
 						datastar.WithMode(datastar.ElementPatchModeMorph))
 				}
 			}
 
-			// Remove stale streams
+			// Remove cards for entities no longer video-capable
 			for entityID := range knownStreams {
 				if !currentActive[entityID] {
 					sse.PatchElements("",

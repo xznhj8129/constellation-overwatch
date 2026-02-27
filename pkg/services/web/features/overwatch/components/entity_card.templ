@@ -302,6 +302,12 @@ templ EntityCard(entity shared.EntityState) {
 					<h4 class="section-header" data-action="toggle-section">
 						<span>Detections</span>
 						<span class="section-badge">{ fmt.Sprintf("%d", len(entity.Detections.TrackedObjects)) }</span>
+						if entity.Detections.IsLive {
+							<span class="section-badge section-badge--live">LIVE</span>
+						}
+						if entity.Detections.FrameCount > 0 {
+							<span class="section-badge section-badge--dim">{ fmt.Sprintf("F%d", entity.Detections.FrameCount) }</span>
+						}
 						<svg class="section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<polyline points="6 9 12 15 18 9"></polyline>
 						</svg>
@@ -309,21 +315,21 @@ templ EntityCard(entity shared.EntityState) {
 					<div class="section-content">
 						<div class="track-list">
 							for trackID, obj := range entity.Detections.TrackedObjects {
-								<div id={ "track-" + trackID } class={ "track-item", templ.KV("track-item--active", obj.IsActive), templ.KV("track-item--inactive", !obj.IsActive) }>
+								<div id={ "track-" + trackID } class="track-item track-item--active">
 									<div class="track-item__main">
-										<span class={ "track-status", templ.KV("track-status--active", obj.IsActive) }>
-											if obj.IsActive {
-												LIVE
-											} else {
-												-
-											}
-										</span>
+										<span class="track-status track-status--active">LIVE</span>
 										<span class="track-label">{ obj.Label }</span>
-										<span class="track-conf">{ fmt.Sprintf("%.0f%%", obj.AvgConfidence*100) }</span>
+										<span class="track-conf">{ fmt.Sprintf("%.0f%%", obj.EffectiveConfidence()*100) }</span>
 									</div>
-									<span class={ "track-threat", templ.KV("track-threat--high", obj.ThreatLevel == "HIGH_THREAT"), templ.KV("track-threat--med", obj.ThreatLevel == "MEDIUM_THREAT") }>
-										{ obj.ThreatLevel }
-									</span>
+									<div class="track-item__detail">
+										<span class="track-pos">{ fmt.Sprintf("(%.2f, %.2f)", obj.CX, obj.CY) }</span>
+										if obj.DX != 0 || obj.DY != 0 {
+											<span class="track-vel">{ fmt.Sprintf("d(%+.3f, %+.3f)", obj.DX, obj.DY) }</span>
+										}
+										if obj.FrameCount > 0 {
+											<span class="track-frames">{ fmt.Sprintf("%d fr", obj.FrameCount) }</span>
+										}
+									</div>
 								</div>
 							}
 						</div>

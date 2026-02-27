@@ -75,7 +75,7 @@ type CreateEntityRequest struct {
 	Priority    string                 `json:"priority,omitempty" enum:"low,normal,high,critical" doc:"Priority level"`
 	Position    *Position              `json:"position,omitempty" doc:"Geographic position"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" doc:"Arbitrary metadata"`
-	VideoConfig map[string]interface{} `json:"video_config,omitempty" doc:"Video stream configuration"`
+	VideoConfig *VideoConfig           `json:"video_config,omitempty" doc:"Video stream configuration"`
 }
 
 type UpdateEntityRequest struct {
@@ -85,11 +85,31 @@ type UpdateEntityRequest struct {
 	IsLive      *bool                  `json:"is_live,omitempty" doc:"Whether entity is live"`
 	Position    *Position              `json:"position,omitempty" doc:"Geographic position"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" doc:"Arbitrary metadata"`
-	VideoConfig map[string]interface{} `json:"video_config,omitempty" doc:"Video stream configuration"`
+	VideoConfig *VideoConfig           `json:"video_config,omitempty" doc:"Video stream configuration"`
 }
 
 type Position struct {
 	Latitude  float64 `json:"latitude" minimum:"-90" maximum:"90" doc:"Latitude in degrees"`
 	Longitude float64 `json:"longitude" minimum:"-180" maximum:"180" doc:"Longitude in degrees"`
 	Altitude  float64 `json:"altitude,omitempty" doc:"Altitude in meters"`
+}
+
+// VideoConfig defines the video stream endpoints for an entity.
+type VideoConfig struct {
+	Protocol        string `json:"protocol,omitempty" enum:"rtsp,rtmp,srt,hls" doc:"Stream source protocol"`
+	Port            int    `json:"port,omitempty" doc:"Stream source port"`
+	StreamURL       string `json:"stream_url,omitempty" doc:"Primary RTSP/RTMP stream URL"`
+	OverlayURL      string `json:"overlay_url,omitempty" doc:"Detection overlay RTSP/RTMP stream URL (e.g. rtsp://host:8554/entity_id/pulsar)"`
+	WebRTCURL       string `json:"webrtc_url,omitempty" doc:"WebRTC playback base URL for raw stream (WHEP = webrtc_url + /whep)"`
+	OverlayWebRTCURL string `json:"overlay_webrtc_url,omitempty" doc:"WebRTC playback URL for detection overlay stream (WHEP = overlay_webrtc_url + /whep). Preferred by video player when set."`
+	HLSURL          string `json:"hls_url,omitempty" doc:"HLS playback URL"`
+}
+
+// PreferredWebRTCURL returns the best WebRTC URL for video playback.
+// Prefers the overlay (bounding box) stream when available.
+func (vc *VideoConfig) PreferredWebRTCURL() string {
+	if vc.OverlayWebRTCURL != "" {
+		return vc.OverlayWebRTCURL
+	}
+	return vc.WebRTCURL
 }

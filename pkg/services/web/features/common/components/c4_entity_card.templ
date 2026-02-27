@@ -116,37 +116,40 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 				<div class="detections-section">
 					<div class="detections-header">
 						<h5>Object Detections</h5>
-						if entity.Analytics != nil {
-							<span class="detection-count">{ fmt.Sprintf("%d active", entity.Analytics.ActiveObjectsCount) }</span>
-						}
+						<div class="detection-meta">
+							<span class="detection-count">{ fmt.Sprintf("%d tracked", len(entity.Detections.TrackedObjects)) }</span>
+							if entity.Detections.FrameCount > 0 {
+								<span class="detection-frames">{ fmt.Sprintf("F%d", entity.Detections.FrameCount) }</span>
+							}
+							if entity.Detections.IsLive {
+								<span class="detection-live-badge">LIVE</span>
+							}
+						</div>
 					</div>
 					<div class="tracked-objects-list">
 						for _, obj := range entity.Detections.TrackedObjects {
-							<div class={ "tracked-object", templ.KV("threat-high", obj.ThreatLevel == "high"), templ.KV("threat-medium", obj.ThreatLevel == "medium"), templ.KV("threat-low", obj.ThreatLevel == "low"), templ.KV("inactive", !obj.IsActive) }>
+							<div class="tracked-object">
 								<div class="object-header">
 									<span class="object-label">{ obj.Label }</span>
-									<span class={ "threat-badge", "threat-" + obj.ThreatLevel }>{ obj.ThreatLevel }</span>
+									<span class="confidence-badge">{ fmt.Sprintf("%.0f%%", obj.EffectiveConfidence()*100) }</span>
 								</div>
 								<div class="object-stats">
 									<span class="stat">
-										<span class="stat-label">Conf</span>
-										<span class="stat-value">{ fmt.Sprintf("%.0f%%", obj.AvgConfidence*100) }</span>
+										<span class="stat-label">Pos</span>
+										<span class="stat-value">{ fmt.Sprintf("%.2f, %.2f", obj.CX, obj.CY) }</span>
 									</span>
+									if obj.DX != 0 || obj.DY != 0 {
+										<span class="stat">
+											<span class="stat-label">Vel</span>
+											<span class="stat-value motion">{ fmt.Sprintf("%+.3f, %+.3f", obj.DX, obj.DY) }</span>
+										</span>
+									}
 									<span class="stat">
 										<span class="stat-label">Frames</span>
 										<span class="stat-value">{ fmt.Sprintf("%d", obj.FrameCount) }</span>
 									</span>
-									if obj.IsActive {
-										<span class="active-indicator"></span>
-									}
+									<span class="active-indicator"></span>
 								</div>
-								if len(obj.SuspiciousIndicators) > 0 {
-									<div class="suspicious-indicators">
-										for _, indicator := range obj.SuspiciousIndicators {
-											<span class="indicator-tag">{ indicator }</span>
-										}
-									</div>
-								}
 							</div>
 						}
 					</div>
@@ -166,12 +169,6 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 							<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
 							<span class="analytics-label">Tracked</span>
 						</div>
-						if entity.Analytics.ActiveThreatCount > 0 {
-							<div class="analytics-stat threat">
-								<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }</span>
-								<span class="analytics-label">Active Threats</span>
-							</div>
-						}
 					</div>
 					if len(entity.Analytics.LabelDistribution) > 0 {
 						<div class="label-distribution">
@@ -188,8 +185,9 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 
 // C4VideoPlayer is a standalone video component that gets appended once (not morphed)
 // This separation prevents WebRTC connection duplication during card morphs
-templ C4VideoPlayer(entityID string) {
-	<div class="video-container" data-entity-id={ entityID }>
+// webrtcURL is the per-entity WebRTC base URL (e.g. "http://host:8889/entity-id")
+templ C4VideoPlayer(entityID string, webrtcURL string) {
+	<div class="video-container" data-entity-id={ entityID } data-webrtc-url={ webrtcURL }>
 		<div class="no-signal-overlay">
 			<span>No Video Signal</span>
 		</div>
@@ -199,7 +197,6 @@ templ C4VideoPlayer(entityID string) {
 			autoplay
 			muted
 			playsinline
-			data-whep-url={ entityID }
 			style="width: 100%; height: auto; display: block; background: #000;">
 		</video>
 	</div>
@@ -222,6 +219,9 @@ templ C4EntityCardScript() {
 	<script>
 		// WHEP connection management for C4 entity cards
 		const c4WHEPConnections = {};
+		const C4_WHEP_MAX_RETRIES = 8;
+		const C4_WHEP_BASE_DELAY = 2000;
+		const C4_WHEP_MAX_DELAY = 30000;
 
 		function toggleEntityDetail(entityId) {
 			const card = document.getElementById('c4-entity-' + entityId);
@@ -240,33 +240,39 @@ templ C4EntityCardScript() {
 		}
 
 		async function c4ConnectWHEP(entityId) {
-			if (c4WHEPConnections[entityId]) {
-				c4DisconnectWHEP(entityId);
-			}
+			var existing = c4WHEPConnections[entityId];
 
-			// Get the webrtcBaseURL from the video panel signals
-			var panel = document.getElementById('video-panel');
-			var baseURL = '';
-			if (panel) {
-				try {
-					var signals = JSON.parse(panel.dataset.signals || '{}');
-					baseURL = signals.webrtcBaseURL || '';
-				} catch(e) {}
-			}
-			if (!baseURL) {
-				var statusEl = document.getElementById('c4-status-' + entityId);
+			// Guard: already connected or connecting
+			if (existing && existing.connecting) return;
+			if (existing && existing.pc && existing.pc.connectionState === 'connected') return;
+
+			c4DisconnectWHEP(entityId);
+
+			var videoEl = document.getElementById('c4-video-whep-' + entityId);
+			var statusEl = document.getElementById('c4-status-' + entityId);
+			if (!videoEl) return;
+
+			// Read per-entity webrtc_url from the video container's data attribute
+			var container = videoEl.closest('.video-container');
+			var overlay = container ? container.querySelector('.no-signal-overlay') : null;
+			var webrtcURL = container ? container.dataset.webrtcUrl : '';
+			if (!webrtcURL) {
 				if (statusEl) statusEl.textContent = 'no video url';
 				return;
 			}
 
-			var whepURL = baseURL.replace(/\/+$/, '') + '/' + entityId + '/whep';
-			var videoEl = document.getElementById('c4-video-whep-' + entityId);
-			var statusEl = document.getElementById('c4-status-' + entityId);
-			var overlay = videoEl ? videoEl.closest('.video-container').querySelector('.no-signal-overlay') : null;
-			if (!videoEl) return;
+			// WHEP endpoint is webrtc_url + "/whep" (webrtc_url already includes the entity path)
+			var whepURL = webrtcURL.replace(/\/+$/, '') + '/whep';
 
+			// Track connecting state and retry count
+			var retries = (existing && existing.retries) || 0;
+			c4WHEPConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };
+
+			if (statusEl) statusEl.textContent = 'connecting...';
+
+			var pc = null;
 			try {
-				var pc = new RTCPeerConnection({
+				pc = new RTCPeerConnection({
 					iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 				});
 
@@ -296,27 +302,67 @@ templ C4EntityCardScript() {
 					sdp: sdp
 				}));
 
-				c4WHEPConnections[entityId] = { pc: pc };
+				// Success — store and reset retries
+				c4WHEPConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };
 
 				pc.onconnectionstatechange = function() {
+					var conn = c4WHEPConnections[entityId];
+					if (!conn || conn.pc !== pc) return; // stale listener
 					if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
 						if (statusEl) statusEl.textContent = 'reconnecting...';
 						if (overlay) overlay.style.display = 'flex';
-						setTimeout(function() { c4ConnectWHEP(entityId); }, 3000);
+						c4ScheduleReconnect(entityId, 0);
 					}
 				};
 			} catch (err) {
-				console.error('[C4 WHEP] Error connecting ' + entityId + ':', err);
+				// Close the PC if it was created to prevent leak
+				if (pc) {
+					try { pc.close(); } catch (_) {}
+				}
+				if (c4WHEPConnections[entityId]) {
+					c4WHEPConnections[entityId].connecting = false;
+				}
+				console.error('[C4 WHEP] Error connecting ' + entityId + ':', err.message);
 				if (statusEl) statusEl.textContent = 'error';
 				if (overlay) overlay.style.display = 'flex';
-				setTimeout(function() { c4ConnectWHEP(entityId); }, 5000);
+				c4ScheduleReconnect(entityId, retries);
+			}
+		}
+
+		function c4ScheduleReconnect(entityId, retries) {
+			var conn = c4WHEPConnections[entityId];
+			if (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
+
+			if (retries >= C4_WHEP_MAX_RETRIES) {
+				console.error('[C4 WHEP] Max retries reached for ' + entityId + ', giving up');
+				var statusEl = document.getElementById('c4-status-' + entityId);
+				if (statusEl) statusEl.textContent = 'failed (max retries)';
+				return;
+			}
+
+			var delay = Math.min(C4_WHEP_BASE_DELAY * Math.pow(2, retries), C4_WHEP_MAX_DELAY);
+			console.log('[C4 WHEP] Retry ' + (retries + 1) + '/' + C4_WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');
+
+			var timer = setTimeout(function() {
+				if (!c4WHEPConnections[entityId]) return; // was disconnected
+				c4WHEPConnections[entityId].retries = retries + 1;
+				c4ConnectWHEP(entityId);
+			}, delay);
+
+			if (!c4WHEPConnections[entityId]) {
+				c4WHEPConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };
+			} else {
+				c4WHEPConnections[entityId].reconnectTimer = timer;
 			}
 		}
 
 		function c4DisconnectWHEP(entityId) {
 			var conn = c4WHEPConnections[entityId];
 			if (conn) {
-				if (conn.pc) conn.pc.close();
+				if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
+				if (conn.pc) {
+					try { conn.pc.close(); } catch (_) {}
+				}
 				delete c4WHEPConnections[entityId];
 			}
 			var videoEl = document.getElementById('c4-video-whep-' + entityId);
@@ -461,8 +507,8 @@ templ C4EntityCardScript() {
 		.detections-section {
 			margin-top: 15px;
 			padding: 12px;
-			background: rgba(255, 100, 0, 0.05);
-			border: 1px solid rgba(255, 100, 0, 0.2);
+			background: rgba(0, 255, 200, 0.04);
+			border: 1px solid rgba(0, 255, 200, 0.15);
 			border-radius: 6px;
 		}
 
@@ -475,10 +521,16 @@ templ C4EntityCardScript() {
 
 		.detections-header h5 {
 			margin: 0;
-			color: #fa0;
+			color: #0fa;
 			font-size: 12px;
 			text-transform: uppercase;
 			letter-spacing: 0.5px;
+		}
+
+		.detection-meta {
+			display: flex;
+			gap: 6px;
+			align-items: center;
 		}
 
 		.detection-count {
@@ -489,10 +541,27 @@ templ C4EntityCardScript() {
 			border-radius: 10px;
 		}
 
+		.detection-frames {
+			font-size: 10px;
+			color: #666;
+			font-family: monospace;
+		}
+
+		.detection-live-badge {
+			font-size: 9px;
+			padding: 2px 6px;
+			border-radius: 3px;
+			background: rgba(0, 255, 100, 0.25);
+			color: #0f8;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+
 		.tracked-objects-list {
 			display: flex;
 			flex-direction: column;
-			gap: 8px;
+			gap: 6px;
 			max-height: 200px;
 			overflow-y: auto;
 		}
@@ -501,26 +570,7 @@ templ C4EntityCardScript() {
 			background: rgba(0, 0, 0, 0.3);
 			border-radius: 4px;
 			padding: 8px 10px;
-			border-left: 3px solid #666;
-		}
-
-		.tracked-object.threat-high {
-			border-left-color: #f44;
-			background: rgba(255, 68, 68, 0.1);
-		}
-
-		.tracked-object.threat-medium {
-			border-left-color: #fa0;
-			background: rgba(255, 170, 0, 0.1);
-		}
-
-		.tracked-object.threat-low {
-			border-left-color: #0f8;
-			background: rgba(0, 255, 136, 0.05);
-		}
-
-		.tracked-object.inactive {
-			opacity: 0.5;
+			border-left: 3px solid #0fa;
 		}
 
 		.object-header {
@@ -536,27 +586,14 @@ templ C4EntityCardScript() {
 			font-size: 12px;
 		}
 
-		.threat-badge {
-			font-size: 9px;
+		.confidence-badge {
+			font-size: 10px;
 			padding: 2px 6px;
 			border-radius: 3px;
-			text-transform: uppercase;
-			font-weight: 600;
-		}
-
-		.threat-badge.threat-high {
-			background: rgba(255, 68, 68, 0.3);
-			color: #f66;
-		}
-
-		.threat-badge.threat-medium {
-			background: rgba(255, 170, 0, 0.3);
-			color: #fb0;
-		}
-
-		.threat-badge.threat-low {
-			background: rgba(0, 255, 136, 0.2);
-			color: #0f8;
+			background: rgba(0, 255, 200, 0.15);
+			color: #0fa;
+			font-weight: 500;
+			font-family: monospace;
 		}
 
 		.object-stats {
@@ -580,6 +617,11 @@ templ C4EntityCardScript() {
 		.object-stats .stat-value {
 			color: #aaa;
 			font-weight: 500;
+			font-family: monospace;
+		}
+
+		.object-stats .stat-value.motion {
+			color: #0cf;
 		}
 
 		.active-indicator {
@@ -594,21 +636,6 @@ templ C4EntityCardScript() {
 		@keyframes pulse {
 			0%, 100% { opacity: 1; }
 			50% { opacity: 0.4; }
-		}
-
-		.suspicious-indicators {
-			margin-top: 6px;
-			display: flex;
-			flex-wrap: wrap;
-			gap: 4px;
-		}
-
-		.indicator-tag {
-			font-size: 9px;
-			padding: 2px 6px;
-			background: rgba(255, 68, 68, 0.2);
-			color: #f88;
-			border-radius: 3px;
 		}
 
 		/* Analytics Summary */
@@ -630,7 +657,7 @@ templ C4EntityCardScript() {
 
 		.analytics-grid {
 			display: grid;
-			grid-template-columns: repeat(3, 1fr);
+			grid-template-columns: repeat(2, 1fr);
 			gap: 10px;
 		}
 
@@ -641,19 +668,11 @@ templ C4EntityCardScript() {
 			border-radius: 4px;
 		}
 
-		.analytics-stat.threat {
-			background: rgba(255, 68, 68, 0.15);
-		}
-
 		.analytics-value {
 			display: block;
 			font-size: 18px;
 			font-weight: 600;
 			color: #fff;
-		}
-
-		.analytics-stat.threat .analytics-value {
-			color: #f66;
 		}
 
 		.analytics-label {

@@ -522,8 +522,12 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		// For new entities (append mode), also append the video player component separately
 		// This ensures video is only added once and never morphed, preventing connection duplication
 		if patchMode == datastar.ElementPatchModeAppend && viewMode == "map" {
+			webrtcURL := ""
+			if entityState.VideoConfig != nil {
+				webrtcURL = entityState.VideoConfig.PreferredWebRTCURL()
+			}
 			var videoHTML strings.Builder
-			if err := common_components.C4VideoPlayer(entityID).Render(context.Background(), &videoHTML); err == nil {
+			if err := common_components.C4VideoPlayer(entityID, webrtcURL).Render(context.Background(), &videoHTML); err == nil {
 				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
 				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithMode(datastar.ElementPatchModeInner)); err != nil {
 					logger.Debugw("Failed to append video player", "entity_id", entityID, "error", err)
@@ -782,43 +786,115 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 	return state
 }
 
-// mergeDetections merges detection data into EntityState
+// mergeDetections merges detection data into EntityState.
+// Supports both old format (tracked_objects with avg_confidence/threat_level)
+// and new format (objects with confidence/bbox/cx/cy/dx/dy).
 func (h *OverwatchHandler) mergeDetections(state *shared.EntityState, data map[string]interface{}) {
-	if trackedObjects, ok := data["tracked_objects"].(map[string]interface{}); ok {
-		detectionState := &shared.DetectionState{
-			TrackedObjects: make(map[string]shared.TrackedObject),
-			Timestamp:      time.Now(),
+	// Try "objects" (new format) first, then "tracked_objects" (old)
+	trackedObjects, ok := data["objects"].(map[string]interface{})
+	if !ok {
+		trackedObjects, ok = data["tracked_objects"].(map[string]interface{})
+	}
+	if !ok {
+		return
+	}
+
+	detectionState := &shared.DetectionState{
+		TrackedObjects: make(map[string]shared.TrackedObject),
+		Timestamp:      time.Now(),
+	}
+
+	// Detection-level metadata (new format)
+	if status, ok := data["status"].(string); ok {
+		detectionState.Status = status
+	}
+	if isLive, ok := data["is_live"].(bool); ok {
+		detectionState.IsLive = isLive
+	}
+	if fc, ok := data["frame_count"].(float64); ok {
+		detectionState.FrameCount = int(fc)
+	}
+
+	for trackID, objData := range trackedObjects {
+		objMap, ok := objData.(map[string]interface{})
+		if !ok {
+			continue
 		}
 
-		for trackID, objData := range trackedObjects {
-			if objMap, ok := objData.(map[string]interface{}); ok {
-				trackedObj := shared.TrackedObject{
-					TrackID:  trackID,
-					IsActive: false,
-				}
+		trackedObj := shared.TrackedObject{
+			TrackID:  trackID,
+			IsActive: true, // presence in KV = active (1Hz atomic replacement)
+		}
 
-				if label, ok := objMap["label"].(string); ok {
-					trackedObj.Label = label
-				}
-				if conf, ok := objMap["avg_confidence"].(float64); ok {
-					trackedObj.AvgConfidence = conf
-				}
-				if active, ok := objMap["is_active"].(bool); ok {
-					trackedObj.IsActive = active
-				}
-				if threat, ok := objMap["threat_level"].(string); ok {
-					trackedObj.ThreatLevel = threat
-				}
-				if frames, ok := objMap["frame_count"].(float64); ok {
-					trackedObj.FrameCount = int(frames)
-				}
+		if label, ok := objMap["label"].(string); ok {
+			trackedObj.Label = label
+		}
 
-				detectionState.TrackedObjects[trackID] = trackedObj
+		// New format: "confidence"; old format: "avg_confidence"
+		if conf, ok := objMap["confidence"].(float64); ok {
+			trackedObj.Confidence = conf
+		}
+		if conf, ok := objMap["avg_confidence"].(float64); ok {
+			trackedObj.AvgConfidence = conf
+		}
+
+		if frames, ok := objMap["frame_count"].(float64); ok {
+			trackedObj.FrameCount = int(frames)
+		}
+
+		// New format fields: bbox, centroid, motion vector
+		if bboxData, ok := objMap["bbox"].(map[string]interface{}); ok {
+			trackedObj.BBox = &shared.BoundingBox{}
+			if v, ok := bboxData["x1"].(float64); ok {
+				trackedObj.BBox.X1 = v
+			}
+			if v, ok := bboxData["y1"].(float64); ok {
+				trackedObj.BBox.Y1 = v
+			}
+			if v, ok := bboxData["x2"].(float64); ok {
+				trackedObj.BBox.X2 = v
+			}
+			if v, ok := bboxData["y2"].(float64); ok {
+				trackedObj.BBox.Y2 = v
+			}
+		}
+		if v, ok := objMap["cx"].(float64); ok {
+			trackedObj.CX = v
+		}
+		if v, ok := objMap["cy"].(float64); ok {
+			trackedObj.CY = v
+		}
+		if v, ok := objMap["dx"].(float64); ok {
+			trackedObj.DX = v
+		}
+		if v, ok := objMap["dy"].(float64); ok {
+			trackedObj.DY = v
+		}
+
+		// Timestamps
+		if fs, ok := objMap["first_seen"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, fs); err == nil {
+				trackedObj.FirstSeen = t
+			}
+		}
+		if ls, ok := objMap["last_seen"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, ls); err == nil {
+				trackedObj.LastSeen = t
 			}
 		}
 
-		state.Detections = detectionState
+		// Legacy fields
+		if active, ok := objMap["is_active"].(bool); ok {
+			trackedObj.IsActive = active
+		}
+		if threat, ok := objMap["threat_level"].(string); ok {
+			trackedObj.ThreatLevel = threat
+		}
+
+		detectionState.TrackedObjects[trackID] = trackedObj
 	}
+
+	state.Detections = detectionState
 }
 
 // mergeAnalytics merges analytics data into EntityState
@@ -945,19 +1021,18 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 		logger.Debugw("[Overwatch] mergeFullState: no org_id or organization_id in data")
 	}
 
-	// Python detection service format (NEW): detections.tracked_objects
+	// Detection service format: detections.objects.{track_id} (new) or detections.tracked_objects (old)
 	if detectionsData, ok := data["detections"].(map[string]interface{}); ok {
-		// Check for tracked_objects (new format)
-		if trackedObjects, ok := detectionsData["tracked_objects"].(map[string]interface{}); ok {
-			h.mergeDetections(state, map[string]interface{}{"tracked_objects": trackedObjects})
-			logger.Infof("[Overwatch] Merged detections.tracked_objects with %d tracked objects", len(trackedObjects))
-		} else if objectsData, ok := detectionsData["objects"].(map[string]interface{}); ok {
-			// Fallback to old format: detections.objects
-			h.mergeDetections(state, map[string]interface{}{"tracked_objects": objectsData})
-			logger.Infof("[Overwatch] Merged detections.objects with %d tracked objects", len(objectsData))
+		// Pass the whole detections map — mergeDetections handles both
+		// "objects" (new) and "tracked_objects" (old), plus detection-level metadata
+		h.mergeDetections(state, detectionsData)
+		objectCount := 0
+		if state.Detections != nil {
+			objectCount = len(state.Detections.TrackedObjects)
 		}
+		logger.Debugw("[Overwatch] Merged detections", "entity_id", state.EntityID, "objects", objectCount)
 
-		// Check for analytics nested inside detections (new format)
+		// Check for analytics nested inside detections
 		if analyticsData, ok := detectionsData["analytics"].(map[string]interface{}); ok {
 			h.mergeAnalytics(state, analyticsData)
 			logger.Debugw("[Overwatch] Merged detections.analytics")
@@ -1200,6 +1275,12 @@ func buildEntitySignal(entityID string, state shared.EntityState) signals.Entity
 	if state.VFR != nil {
 		heading := state.VFR.Heading
 		sig.Heading = &heading
+	}
+
+	// Add WebRTC URL if available (for per-entity WHEP playback)
+	// Prefers overlay (bounding box) stream over raw
+	if state.VideoConfig != nil {
+		sig.WebRTCURL = state.VideoConfig.PreferredWebRTCURL()
 	}
 
 	return sig
