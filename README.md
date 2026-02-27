@@ -189,7 +189,7 @@ go mod download
 task dev
 
 # OR run directly
-go run ./cmd/microlith/main.go
+go run ./cmd/microlith/main.go start
 ```
 
 The server will start:
@@ -526,10 +526,11 @@ constellation-overwatch/
 Update to the latest version with a single command:
 
 ```bash
-overwatch --update
+overwatch update
 ```
 
 This will:
+
 1. Check GitHub for the latest release
 2. Download the appropriate binary for your platform
 3. Replace the current binary with the new version
@@ -556,7 +557,7 @@ task build
 
 # Run the binary
 task run
-# OR manually: ./bin/overwatch
+# OR manually: ./bin/overwatch start
 
 # Run tests
 go test ./...
@@ -580,6 +581,7 @@ task --list
 <br>
 
 **REST API:** Use API keys (generated via Web UI or admin bootstrap):
+
 ```bash
 curl -H "X-API-Key: c4_live_..." http://localhost:8080/api/v1/organizations
 ```
