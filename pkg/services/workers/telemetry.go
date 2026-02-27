@@ -193,7 +193,8 @@ func (w *TelemetryWorker) getOrCreateEntityState(entityID, orgID string) (*share
 // initializeEntityFromDB fetches entity from database and creates initial state
 func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*shared.EntityState, error) {
 	query := `
-		SELECT e.entity_id, e.org_id, o.name as org_name, e.entity_type, e.status, e.priority,
+		SELECT e.entity_id, e.org_id, o.name as org_name, COALESCE(e.name, '') as entity_name,
+		       e.entity_type, e.status, e.priority,
 		       e.is_live, e.expiry_time, e.latitude, e.longitude, e.altitude,
 		       e.components, e.aliases, e.tags, e.source, e.created_by, e.classification,
 		       e.metadata, e.created_at, e.updated_at
@@ -208,7 +209,8 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 	var components, aliases, tags, metadata sql.NullString
 
 	err := w.db.QueryRow(query, entityID).Scan(
-		&state.EntityID, &state.OrgID, &state.OrgName, &state.EntityType, &state.Status, &state.Priority,
+		&state.EntityID, &state.OrgID, &state.OrgName, &state.Name,
+		&state.EntityType, &state.Status, &state.Priority,
 		&isLive, &expiryTime, &lat, &lon, &alt,
 		&components, &aliases, &tags, &source, &createdBy, &classification,
 		&metadata, &createdAt, &updatedAt,

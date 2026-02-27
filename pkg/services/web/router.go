@@ -104,7 +104,7 @@ func NewRouter(
 
 		// Passkey setup & registration
 		r.Get("/setup-passkey", authHandler.HandleSetupPasskey)
-		r.Get("/auth/passkey/register/begin", authHandler.HandlePasskeyRegisterBegin)
+		r.Post("/auth/passkey/register/begin", authHandler.HandlePasskeyRegisterBegin)
 		r.Post("/auth/passkey/register/finish", authHandler.HandlePasskeyRegisterFinish)
 
 		// Metrics dashboard
