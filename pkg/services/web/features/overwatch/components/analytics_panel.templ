@@ -25,7 +25,7 @@ templ AnalyticsPanel() {
 		}"
 		data-init="@get('/api/overwatch/kv/watch')">
 
-		<!-- Header with connection status -->
+		<!-- Header: Command Bar -->
 		<div class="panel-header">
 			<h2>Overwatch Analytics</h2>
 			<div class="status-bar">
@@ -37,13 +37,13 @@ templ AnalyticsPanel() {
 					<span class="status-dot disconnected"></span>
 					Connecting...
 				</span>
-				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+				<span class="stats" data-show="$_isConnected">
 					<span data-text="$totalOrgs + ' orgs'"></span>
-					<span data-text="' • ' + $totalEntities + ' entities'"></span>
+					<span data-text="' · ' + $totalEntities + ' entities'"></span>
 				</span>
-				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
-				<button data-on-click="$debugMode = !$debugMode" style="margin-left: 20px; padding: 4px 8px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 3px;">
-					<span data-text="$debugMode ? 'Hide Debug' : 'Show Debug'"></span>
+				<span class="last-update" data-show="$lastUpdate != ''" data-text="$lastUpdate"></span>
+				<button class="debug-toggle-btn" data-on-click="$debugMode = !$debugMode">
+					<span data-text="$debugMode ? 'Hide Debug' : 'Debug'"></span>
 				</button>
 			</div>
 		</div>
@@ -70,7 +70,7 @@ templ AnalyticsPanel() {
 								</div>
 							</template>
 						</div>
-						<div class="empty-chart" data-show="Object.keys($analytics.typeCounts || {}).length === 0" style="color: #666; font-size: 11px; text-align: center; padding: 20px;">
+						<div class="empty-chart" data-show="Object.keys($analytics.typeCounts || {}).length === 0">
 							No entities yet
 						</div>
 					</div>
@@ -132,305 +132,57 @@ templ AnalyticsPanel() {
 
 			<!-- Debug Panel -->
 			<div data-show="$debugMode" class="debug-panel">
-				<h4 style="color: #0f0; margin-top: 0;">Signal Store Debug</h4>
-				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+				<h4>Signal Store Debug</h4>
+				<div class="debug-grid">
 					<div>
-						<strong style="color: #888;">Total Orgs:</strong> <span style="color: #fff;" data-text="$totalOrgs"></span>
+						<span class="debug-label">Total Orgs:</span>
+						<span class="debug-value" data-text="$totalOrgs"></span>
 					</div>
 					<div>
-						<strong style="color: #888;">Total Entities:</strong> <span style="color: #fff;" data-text="$totalEntities"></span>
+						<span class="debug-label">Total Entities:</span>
+						<span class="debug-value" data-text="$totalEntities"></span>
 					</div>
 					<div>
-						<strong style="color: #888;">Connected:</strong> <span style="color: #fff;" data-text="$_isConnected ? 'Yes' : 'No'"></span>
+						<span class="debug-label">Connected:</span>
+						<span class="debug-value" data-text="$_isConnected ? 'Yes' : 'No'"></span>
 					</div>
 					<div>
-						<strong style="color: #888;">Last Update:</strong> <span style="color: #fff;" data-text="$lastUpdate || 'Never'"></span>
+						<span class="debug-label">Last Update:</span>
+						<span class="debug-value" data-text="$lastUpdate || 'Never'"></span>
 					</div>
 				</div>
-				<details style="margin-top: 10px;">
-					<summary style="color: #0ff; cursor: pointer; margin-bottom: 10px;">View Raw Signal Data</summary>
-					<pre data-text="JSON.stringify($entityStatesByOrg, null, 2)" style="color: #888; font-size: 10px; max-height: 400px; overflow: auto; background: #0a0a0a; padding: 10px; border-radius: 3px;"></pre>
+				<details>
+					<summary>View Raw Signal Data</summary>
+					<pre data-text="JSON.stringify($entityStatesByOrg, null, 2)"></pre>
 				</details>
 			</div>
 
-			<!-- Entities Container - Server-rendered HTML via SSE -->
+			<!-- Entities Container — Server-rendered HTML via SSE -->
 			<div id="entities-container" class="entities-grid">
-				<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
+				<div class="empty-state">
 					<p>No entity states in global store. Waiting for telemetry data...</p>
-					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
+					<p>Server-side rendering via SSE</p>
 				</div>
 			</div>
 		</div>
 
 		<script>
 			function getTypeColor(type) {
-				switch(type) {
-					case 'aircraft_multirotor': return '#00ff88';
-					case 'ground_vehicle': return '#ffa500';
-					case 'sensor_fixed': return '#00ff64';
-					case 'control_station': return '#b464ff';
-					default: return '#888';
-				}
+				const colors = {
+					'aircraft_multirotor': '#00ff88',
+					'aircraft_vtol':       '#00e5ff',
+					'aircraft_fixedwing':  '#00bcd4',
+					'aircraft_airship':    '#80deea',
+					'ground_vehicle':      '#ffab00',
+					'ground_robot':        '#ff6d00',
+					'sensor_fixed':        '#00e676',
+					'sensor':              '#69f0ae',
+					'control_station':     '#b388ff',
+					'vessel':              '#448aff',
+					'submarine':           '#82b1ff',
+				};
+				return colors[type] || '#555';
 			}
 		</script>
-
-		<style>
-			.analytics-overwatch-panel {
-				display: flex;
-				flex-direction: column;
-				height: 100%;
-			}
-
-			.analytics-overwatch-panel .panel-header {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 15px 20px;
-				border-bottom: 1px solid #333;
-				background: #0a0a0a;
-			}
-
-			.analytics-overwatch-panel .panel-header h2 {
-				margin: 0;
-				color: #0ff;
-				font-size: 18px;
-			}
-
-			.analytics-overwatch-panel .status-bar {
-				display: flex;
-				align-items: center;
-				gap: 15px;
-			}
-
-			.analytics-overwatch-panel .connection-status {
-				display: flex;
-				align-items: center;
-				gap: 6px;
-				font-size: 12px;
-			}
-
-			.analytics-overwatch-panel .status-dot {
-				width: 8px;
-				height: 8px;
-				border-radius: 50%;
-			}
-
-			.analytics-overwatch-panel .status-dot.connected {
-				background: #0f0;
-				box-shadow: 0 0 6px #0f0;
-			}
-
-			.analytics-overwatch-panel .status-dot.disconnected {
-				background: #f00;
-				animation: blink 1s infinite;
-			}
-
-			@keyframes blink {
-				50% { opacity: 0.3; }
-			}
-
-			.analytics-overwatch-panel .last-update {
-				color: #888;
-				font-size: 11px;
-			}
-
-			.analytics-overwatch-content {
-				flex: 1;
-				overflow-y: auto;
-				padding: 15px;
-			}
-
-			.analytics-grid {
-				display: grid;
-				grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-				gap: 15px;
-				margin-bottom: 20px;
-			}
-
-			.analytics-card {
-				background: #111;
-				border: 1px solid #333;
-				border-radius: 6px;
-				padding: 15px;
-			}
-
-			.analytics-card h4 {
-				margin: 0 0 12px 0;
-				color: #0ff;
-				font-size: 12px;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-
-			/* Bar chart styles */
-			.bar-chart {
-				display: flex;
-				flex-direction: column;
-				gap: 8px;
-			}
-
-			.chart-row {
-				display: flex;
-				align-items: center;
-				gap: 8px;
-			}
-
-			.chart-row .label {
-				width: 100px;
-				font-size: 10px;
-				color: #888;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				white-space: nowrap;
-			}
-
-			.bar-track {
-				flex: 1;
-				height: 12px;
-				background: #1a1a1a;
-				border-radius: 3px;
-				overflow: hidden;
-			}
-
-			.bar-fill {
-				height: 100%;
-				transition: width 0.3s ease;
-			}
-
-			.chart-row .value {
-				min-width: 24px;
-				text-align: right;
-				font-size: 11px;
-				color: #fff;
-				font-weight: bold;
-			}
-
-			/* Status stats */
-			.status-stats {
-				display: flex;
-				justify-content: space-around;
-			}
-
-			.stat-item {
-				text-align: center;
-				padding: 10px;
-			}
-
-			.stat-item .stat-value {
-				display: block;
-				font-size: 24px;
-				font-weight: bold;
-				color: #fff;
-			}
-
-			.stat-item .stat-label {
-				font-size: 10px;
-				color: #888;
-				text-transform: uppercase;
-			}
-
-			.stat-item.status-active .stat-value { color: #0f0; }
-			.stat-item.status-maintenance .stat-value { color: #ff0; }
-			.stat-item.status-unknown .stat-value { color: #666; }
-
-			/* Threat summary */
-			.threat-summary {
-				text-align: center;
-				padding: 10px;
-			}
-
-			.threat-summary.high-alert {
-				background: rgba(255, 0, 0, 0.1);
-				border: 1px solid rgba(255, 0, 0, 0.3);
-				border-radius: 4px;
-			}
-
-			.main-threat-count .count {
-				font-size: 32px;
-				font-weight: bold;
-				color: #f00;
-			}
-
-			.main-threat-count .label {
-				display: block;
-				font-size: 10px;
-				color: #888;
-				text-transform: uppercase;
-			}
-
-			.priority-breakdown {
-				margin-top: 10px;
-				display: flex;
-				justify-content: center;
-				gap: 15px;
-			}
-
-			.p-item {
-				font-size: 11px;
-				padding: 4px 8px;
-				border-radius: 3px;
-			}
-
-			.p-item.p-critical {
-				background: rgba(255, 0, 0, 0.2);
-				color: #f66;
-			}
-
-			.p-item.p-high {
-				background: rgba(255, 170, 0, 0.2);
-				color: #fa0;
-			}
-
-			/* Vision stats */
-			.vision-stats {
-				display: flex;
-				flex-direction: column;
-				gap: 10px;
-			}
-
-			.vision-row {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 8px;
-				background: #1a1a1a;
-				border-radius: 4px;
-			}
-
-			.vision-row .label {
-				font-size: 11px;
-				color: #888;
-			}
-
-			.vision-row .value {
-				font-size: 14px;
-				font-weight: bold;
-				color: #fff;
-			}
-
-			.vision-row .value.highlight {
-				color: #0f0;
-			}
-
-			/* Debug panel */
-			.debug-panel {
-				background: #1a1a1a;
-				padding: 15px;
-				margin-bottom: 15px;
-				border-radius: 4px;
-				border: 1px solid #333;
-			}
-
-			/* Entities grid */
-			.entities-grid {
-				display: grid;
-				grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-				gap: 15px;
-			}
-
-			.empty-state {
-				grid-column: 1 / -1;
-			}
-		</style>
 	</div>
 }
