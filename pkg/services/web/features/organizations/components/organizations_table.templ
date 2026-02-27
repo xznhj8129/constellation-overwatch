@@ -6,7 +6,8 @@ import (
 )
 
 templ OrganizationsPanel(organizations []ontology.Organization, selectedOrgID string) {
-	<div id="organizations-panel" class="panel">
+	<div id="organizations-panel" class="panel"
+		data-init="@get('/api/organizations/sse')">
 		<div class="panel-header">
 			<div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
 				<h2>Organizations</h2>

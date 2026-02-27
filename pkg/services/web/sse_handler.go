@@ -27,8 +27,7 @@ func NewSSEHandler(nc *nats.Conn, js nats.JetStreamContext) *SSEHandler {
 
 // StreamMessages streams NATS messages to the client via SSE
 func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
-	// Create SSE generator using our wrapper (which uses official Datastar)
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Subscribe to all constellation subjects
 	sub, err := h.nc.Subscribe("constellation.>", func(msg *nats.Msg) {
@@ -55,7 +54,7 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 		// Patch the element into the stream (prepend new messages at top)
 		patchErr := sse.PatchElements(messageHTML,
 			datastar.WithSelector("#stream-messages"),
-			datastar.WithMode(datastar.ElementPatchModePrepend))
+			datastar.WithModePrepend())
 		if patchErr != nil {
 			logger.Errorw("Error patching elements", "component", "SSE", "error", patchErr)
 			return
@@ -75,7 +74,7 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 	initialHTML := `<div class="empty-state">Connected to stream. Waiting for messages...</div>`
 	sse.PatchElements(initialHTML,
 		datastar.WithSelector("#stream-messages"),
-		datastar.WithMode(datastar.ElementPatchModeInner))
+		datastar.WithModeInner())
 
 	// Keep the connection alive and send heartbeats
 	ticker := time.NewTicker(15 * time.Second)
@@ -98,8 +97,6 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 
 // renderStreamMessage renders a stream message HTML
 func renderStreamMessage(subject, timestamp, data string) string {
-	// Use the templ component to render
-	// For now, we'll do it manually - later we can use templ properly
 	return fmt.Sprintf(`
 		<div class="stream-message" data-subject="%s">
 			<div class="msg-header">
@@ -121,8 +118,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 		filter = "all"
 	}
 
-	// Create SSE generator using our wrapper (which uses official Datastar)
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Determine which subjects to subscribe to based on filter
 	var subjects []string
@@ -169,7 +165,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 			// Patch the element into the stream
 			patchErr := sse.PatchElements(messageHTML,
 				datastar.WithSelector("#stream-messages"),
-				datastar.WithMode(datastar.ElementPatchModePrepend))
+				datastar.WithModePrepend())
 			if patchErr != nil {
 				logger.Errorw("Error patching elements", "component", "SSE", "error", patchErr)
 				return
@@ -197,7 +193,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, filter)
 	sse.PatchElements(initialHTML,
 		datastar.WithSelector("#stream-messages"),
-		datastar.WithMode(datastar.ElementPatchModeInner))
+		datastar.WithModeInner())
 
 	// Keep the connection alive
 	ticker := time.NewTicker(15 * time.Second)
@@ -220,15 +216,10 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 
 // getMessageType extracts message type from subject
 func getMessageType(subject string) string {
-	// Parse subject to determine type
-	// constellation.entities.{org_id}.created -> "Entity Created"
-	// constellation.telemetry.{org_id}.{entity_id} -> "Telemetry"
-
 	if len(subject) > 21 && subject[:21] == "constellation.entities" {
 		if len(subject) > 22 {
 			parts := subject[22:]
 			if len(parts) > 0 {
-				// Find the last part after org_id
 				lastDot := -1
 				for i := len(parts) - 1; i >= 0; i-- {
 					if parts[i] == '.' {
@@ -249,6 +240,8 @@ func getMessageType(subject string) string {
 		return "Command"
 	} else if len(subject) > 19 && subject[:19] == "constellation.events" {
 		return "Event"
+	} else if len(subject) > 25 && subject[:25] == "constellation.organizations" {
+		return "Organization Event"
 	}
 
 	return "Message"
@@ -256,8 +249,6 @@ func getMessageType(subject string) string {
 
 // renderStreamMessageWithType renders a stream message with type
 func renderStreamMessageWithType(subject, timestamp, msgType, data string) string {
-	// Render with the templates.StreamMessage component
-	// For simplicity, we'll render manually here
 	return fmt.Sprintf(`
 		<div class="stream-message" data-subject="%s">
 			<div class="msg-header">

@@ -52,6 +52,9 @@ type EntitySignal struct {
 	// Heading (for map marker rotation)
 	// Using pointer to distinguish between "not set" and "heading 0 (north)"
 	Heading *int16 `json:"heading,omitempty"`
+
+	// Video (for per-entity WHEP playback)
+	WebRTCURL string `json:"webrtcUrl,omitempty"`
 }
 
 // AnalyticsSignals represents aggregated analytics data.

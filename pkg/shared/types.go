@@ -2,6 +2,8 @@ package shared
 
 import (
 	"time"
+
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
 // API Response types
@@ -129,14 +131,15 @@ type EntityState struct {
 	ThreatIntel *ThreatIntelState `json:"threat_intel,omitempty"`
 
 	// Device Identity (MAVLink/Legacy)
-	SystemID      uint8     `json:"system_id,omitempty"`
-	ComponentID   uint8     `json:"component_id,omitempty"`
-	DeviceID      string    `json:"device_id,omitempty"`
-	StreamPort    string    `json:"stream_port,omitempty"`
-	Subject       string    `json:"subject,omitempty"`
-	FirstSeen     time.Time `json:"first_seen,omitempty"`
-	LastSeen      time.Time `json:"last_seen,omitempty"`
-	Fingerprinted bool      `json:"fingerprinted,omitempty"`
+	SystemID      uint8                  `json:"system_id,omitempty"`
+	ComponentID   uint8                  `json:"component_id,omitempty"`
+	DeviceID      string                 `json:"device_id,omitempty"`
+	StreamPort    string                 `json:"stream_port,omitempty"`
+	VideoConfig   *ontology.VideoConfig `json:"video_config,omitempty"`
+	Subject       string                 `json:"subject,omitempty"`
+	FirstSeen     time.Time              `json:"first_seen,omitempty"`
+	LastSeen      time.Time              `json:"last_seen,omitempty"`
+	Fingerprinted bool                   `json:"fingerprinted,omitempty"`
 
 	// Database Fields
 	Components     map[string]interface{} `json:"components"`
@@ -287,33 +290,64 @@ type AnalyticsState struct {
 	Timestamp            time.Time      `json:"timestamp"`
 }
 
-// DetectionState contains object detection and tracking data
+// DetectionState contains object detection and tracking data.
+// Aligned to the new KV shape: detections.objects.{track_id}
 type DetectionState struct {
-	TrackedObjects map[string]TrackedObject `json:"tracked_objects"`
-	Timestamp      time.Time                `json:"timestamp"`
+	// Detection-level metadata (from detections root)
+	Status     string `json:"status,omitempty"`
+	IsLive     bool   `json:"is_live,omitempty"`
+	FrameCount int    `json:"frame_count,omitempty"`
+
+	// Tracked objects keyed by track_id
+	TrackedObjects map[string]TrackedObject `json:"tracked_objects,omitempty"`
+
+	Timestamp time.Time `json:"timestamp"`
 }
 
-// TrackedObject represents a single tracked object
+// TrackedObject represents a single tracked object from the detection pipeline.
+// New format fields: confidence, bbox{x1,y1,x2,y2}, cx/cy, dx/dy, first_seen, last_seen
 type TrackedObject struct {
-	TrackID              string       `json:"track_id"`
-	Label                string       `json:"label"`
-	FirstSeen            time.Time    `json:"first_seen"`
-	LastSeen             time.Time    `json:"last_seen"`
-	FrameCount           int          `json:"frame_count"`
-	AvgConfidence        float64      `json:"avg_confidence"`
-	IsActive             bool         `json:"is_active"`
-	ThreatLevel          string       `json:"threat_level"`
-	SuspiciousIndicators []string     `json:"suspicious_indicators"`
-	Area                 *float64     `json:"area,omitempty"`
-	CurrentBBox          *BoundingBox `json:"current_bbox,omitempty"`
+	TrackID    string  `json:"track_id"`
+	Label      string  `json:"label"`
+	Confidence float64 `json:"confidence"`
+	FrameCount int     `json:"frame_count"`
+
+	// Bounding box (normalized 0-1)
+	BBox *BoundingBox `json:"bbox,omitempty"`
+
+	// Centroid position (normalized 0-1)
+	CX float64 `json:"cx"`
+	CY float64 `json:"cy"`
+
+	// Motion vector (per-frame delta, normalized)
+	DX float64 `json:"dx"`
+	DY float64 `json:"dy"`
+
+	// Timestamps
+	FirstSeen time.Time `json:"first_seen"`
+	LastSeen  time.Time `json:"last_seen"`
+
+	// Legacy fields (kept for backward compat with old publishers)
+	AvgConfidence        float64  `json:"avg_confidence,omitempty"`
+	IsActive             bool     `json:"is_active,omitempty"`
+	ThreatLevel          string   `json:"threat_level,omitempty"`
+	SuspiciousIndicators []string `json:"suspicious_indicators,omitempty"`
 }
 
-// BoundingBox represents object bounding box coordinates
+// EffectiveConfidence returns whichever confidence value is populated.
+func (t TrackedObject) EffectiveConfidence() float64 {
+	if t.Confidence > 0 {
+		return t.Confidence
+	}
+	return t.AvgConfidence
+}
+
+// BoundingBox represents object bounding box coordinates (normalized 0-1)
 type BoundingBox struct {
-	XMin float64 `json:"x_min"`
-	YMin float64 `json:"y_min"`
-	XMax float64 `json:"x_max"`
-	YMax float64 `json:"y_max"`
+	X1 float64 `json:"x1"`
+	Y1 float64 `json:"y1"`
+	X2 float64 `json:"x2"`
+	Y2 float64 `json:"y2"`
 }
 
 // ThreatIntelState contains threat intelligence data

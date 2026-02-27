@@ -3,15 +3,17 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type OrganizationService struct {
@@ -36,7 +38,10 @@ func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizatio
 
 	metadataJSON := "{}"
 	if req.Metadata != nil {
-		bytes, _ := json.Marshal(req.Metadata)
+		bytes, err := json.Marshal(req.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 		metadataJSON = string(bytes)
 	}
 
@@ -49,7 +54,7 @@ func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizatio
 		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
 
-	return &ontology.Organization{
+	org := &ontology.Organization{
 		OrgID:       orgID,
 		Name:        req.Name,
 		OrgType:     req.OrgType,
@@ -57,7 +62,11 @@ func (s *OrganizationService) CreateOrganization(req *ontology.CreateOrganizatio
 		Metadata:    metadataJSON,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}, nil
+	}
+
+	go s.publishOrgEvent(org, shared.EventTypeCreated)
+
+	return org, nil
 }
 
 func (s *OrganizationService) ListOrganizations() ([]ontology.Organization, error) {
@@ -79,8 +88,16 @@ func (s *OrganizationService) ListOrganizations() ([]ontology.Organization, erro
 			return nil, fmt.Errorf("failed to scan organization: %w", err)
 		}
 
-		org.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		org.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			logger.Debugw("Failed to parse created_at timestamp", "value", createdAt, "error", err)
+		} else {
+			org.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+			logger.Debugw("Failed to parse updated_at timestamp", "value", updatedAt, "error", err)
+		} else {
+			org.UpdatedAt = t
+		}
 		orgs = append(orgs, org)
 	}
 
@@ -97,15 +114,23 @@ func (s *OrganizationService) GetOrganization(orgID string) (*ontology.Organizat
 		orgID,
 	).Scan(&org.OrgID, &org.Name, &org.OrgType, &org.Description, &org.Metadata, &createdAt, &updatedAt)
 
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("organization not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query organization: %w", err)
 	}
 
-	org.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	org.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		logger.Debugw("Failed to parse created_at timestamp", "value", createdAt, "error", err)
+	} else {
+		org.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		logger.Debugw("Failed to parse updated_at timestamp", "value", updatedAt, "error", err)
+	} else {
+		org.UpdatedAt = t
+	}
 
 	return &org, nil
 }
@@ -125,7 +150,10 @@ func (s *OrganizationService) UpdateOrganization(orgID string, updates map[strin
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, value)
 		case "metadata":
-			bytes, _ := json.Marshal(value)
+			bytes, err := json.Marshal(value)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
 			query += ", metadata = ?"
 			args = append(args, string(bytes))
 		}
@@ -139,14 +167,23 @@ func (s *OrganizationService) UpdateOrganization(orgID string, updates map[strin
 		return fmt.Errorf("failed to update organization: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("organization not found")
+		return fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 
 	// If name was updated, we need to update all entities in KV with the new org name
 	if _, ok := updates["name"]; ok {
 		go s.syncOrgNameToKV(orgID, updates["name"].(string))
+	}
+
+	// Publish org updated event
+	org, err := s.GetOrganization(orgID)
+	if err == nil {
+		go s.publishOrgEvent(org, shared.EventTypeUpdated)
 	}
 
 	return nil
@@ -212,10 +249,65 @@ func (s *OrganizationService) DeleteOrganization(orgID string) error {
 		return fmt.Errorf("failed to delete organization: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("organization not found")
+		return fmt.Errorf("organization: %w", shared.ErrNotFound)
 	}
 
+	go s.publishOrgEvent(&ontology.Organization{OrgID: orgID}, shared.EventTypeDeleted)
+
 	return nil
+}
+
+func (s *OrganizationService) publishOrgEvent(org *ontology.Organization, eventType string) {
+	if s.nats == nil || s.nats.JetStream() == nil {
+		logger.Warn("NATS not available for publishing org event")
+		return
+	}
+
+	var subject string
+	switch eventType {
+	case shared.EventTypeCreated:
+		subject = shared.OrgCreatedSubject()
+	case shared.EventTypeUpdated:
+		subject = shared.OrgUpdatedSubject()
+	case shared.EventTypeDeleted:
+		subject = shared.OrgDeletedSubject()
+	default:
+		subject = shared.OrgCreatedSubject()
+	}
+
+	event := shared.Event{
+		ID:      uuid.New().String(),
+		Type:    eventType,
+		Subject: subject,
+		Data: map[string]interface{}{
+			"org_id":   org.OrgID,
+			"name":     org.Name,
+			"org_type": org.OrgType,
+		},
+		Timestamp: time.Now().UTC(),
+		Source:    "organization-service",
+	}
+
+	if eventType == shared.EventTypeCreated || eventType == shared.EventTypeUpdated {
+		event.Data["organization"] = org
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		logger.Error("Failed to marshal org event", zap.Error(err))
+		return
+	}
+
+	msgID := fmt.Sprintf("%s-%s-%d", org.OrgID, eventType, time.Now().UnixNano())
+
+	if err := s.nats.PublishWithDedup(event.Subject, data, msgID); err != nil {
+		logger.Error("Failed to publish org event", zap.Error(err))
+	} else {
+		logger.Info("Published org event", zap.String("event_type", eventType), zap.String("subject", event.Subject))
+	}
 }

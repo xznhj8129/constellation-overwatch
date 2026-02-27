@@ -116,37 +116,40 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 				<div class="detections-section">
 					<div class="detections-header">
 						<h5>Object Detections</h5>
-						if entity.Analytics != nil {
-							<span class="detection-count">{ fmt.Sprintf("%d active", entity.Analytics.ActiveObjectsCount) }</span>
-						}
+						<div class="detection-meta">
+							<span class="detection-count">{ fmt.Sprintf("%d tracked", len(entity.Detections.TrackedObjects)) }</span>
+							if entity.Detections.FrameCount > 0 {
+								<span class="detection-frames">{ fmt.Sprintf("F%d", entity.Detections.FrameCount) }</span>
+							}
+							if entity.Detections.IsLive {
+								<span class="detection-live-badge">LIVE</span>
+							}
+						</div>
 					</div>
 					<div class="tracked-objects-list">
 						for _, obj := range entity.Detections.TrackedObjects {
-							<div class={ "tracked-object", templ.KV("threat-high", obj.ThreatLevel == "high"), templ.KV("threat-medium", obj.ThreatLevel == "medium"), templ.KV("threat-low", obj.ThreatLevel == "low"), templ.KV("inactive", !obj.IsActive) }>
+							<div class="tracked-object">
 								<div class="object-header">
 									<span class="object-label">{ obj.Label }</span>
-									<span class={ "threat-badge", "threat-" + obj.ThreatLevel }>{ obj.ThreatLevel }</span>
+									<span class="confidence-badge">{ fmt.Sprintf("%.0f%%", obj.EffectiveConfidence()*100) }</span>
 								</div>
 								<div class="object-stats">
 									<span class="stat">
-										<span class="stat-label">Conf</span>
-										<span class="stat-value">{ fmt.Sprintf("%.0f%%", obj.AvgConfidence*100) }</span>
+										<span class="stat-label">Pos</span>
+										<span class="stat-value">{ fmt.Sprintf("%.2f, %.2f", obj.CX, obj.CY) }</span>
 									</span>
+									if obj.DX != 0 || obj.DY != 0 {
+										<span class="stat">
+											<span class="stat-label">Vel</span>
+											<span class="stat-value motion">{ fmt.Sprintf("%+.3f, %+.3f", obj.DX, obj.DY) }</span>
+										</span>
+									}
 									<span class="stat">
 										<span class="stat-label">Frames</span>
 										<span class="stat-value">{ fmt.Sprintf("%d", obj.FrameCount) }</span>
 									</span>
-									if obj.IsActive {
-										<span class="active-indicator"></span>
-									}
+									<span class="active-indicator"></span>
 								</div>
-								if len(obj.SuspiciousIndicators) > 0 {
-									<div class="suspicious-indicators">
-										for _, indicator := range obj.SuspiciousIndicators {
-											<span class="indicator-tag">{ indicator }</span>
-										}
-									</div>
-								}
 							</div>
 						}
 					</div>
@@ -166,12 +169,6 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 							<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount) }</span>
 							<span class="analytics-label">Tracked</span>
 						</div>
-						if entity.Analytics.ActiveThreatCount > 0 {
-							<div class="analytics-stat threat">
-								<span class="analytics-value">{ fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount) }</span>
-								<span class="analytics-label">Active Threats</span>
-							</div>
-						}
 					</div>
 					if len(entity.Analytics.LabelDistribution) > 0 {
 						<div class="label-distribution">
@@ -186,32 +183,10 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 	</div>
 }
 
-// C4VideoPlayer is a standalone video component that gets appended once (not morphed)
-// This separation prevents MJPEG stream connection duplication during card morphs
-templ C4VideoPlayer(entityID string) {
-	<div class="video-container" data-entity-id={ entityID }>
-		<div class="no-signal-overlay">
-			<span>No Video Signal</span>
-		</div>
-		<img
-			class="video-mjpeg"
-			src={ "/api/v1/video/stream/" + entityID }
-			alt="Video stream"/>
-	</div>
-	<div class="video-controls">
-		<span class="fps-counter" id={ "c4-fps-" + entityID }>-- fps</span>
-		<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
-			Fullscreen
-		</button>
-	</div>
-}
-
-// C4EntityCardScript contains the JS logic for the card interaction and video
+// C4EntityCardScript contains the JS logic for card interaction (toggle detail view).
+// WHEP video connection is handled by the shared WHEPScript (video_player.templ).
 templ C4EntityCardScript() {
 	<script>
-		// FPS tracking for video streams
-		const c4FpsTrackers = {};
-
 		function toggleEntityDetail(entityId) {
 			const card = document.getElementById('c4-entity-' + entityId);
 			if (!card) return;
@@ -221,521 +196,13 @@ templ C4EntityCardScript() {
 
 			if (isDetailed) {
 				body.style.display = 'block';
-				// Initialize FPS tracking for this card's video
-				initFpsTracker(card, entityId);
+				// Connect video when expanding (shared WHEP manager)
+				if (typeof connectWHEP === 'function') connectWHEP(entityId);
 			} else {
 				body.style.display = 'none';
-				// Clean up FPS tracker
-				delete c4FpsTrackers[entityId];
-				const fpsEl = document.getElementById('c4-fps-' + entityId);
-				if (fpsEl) fpsEl.textContent = '-- fps';
+				// Disconnect video when collapsing
+				if (typeof disconnectWHEP === 'function') disconnectWHEP(entityId);
 			}
-		}
-
-		function initFpsTracker(card, entityId) {
-			const mjpegImg = card.querySelector('.video-mjpeg');
-			const overlay = card.querySelector('.no-signal-overlay');
-			const fpsEl = document.getElementById('c4-fps-' + entityId);
-
-			if (!mjpegImg) return;
-
-			// Initialize FPS tracker
-			c4FpsTrackers[entityId] = {
-				frameCount: 0,
-				lastTime: performance.now()
-			};
-
-			// Set up handlers for FPS tracking
-			mjpegImg.onload = function() {
-				if (overlay) overlay.style.display = 'none';
-
-				const tracker = c4FpsTrackers[entityId];
-				if (!tracker) return;
-
-				tracker.frameCount++;
-				const now = performance.now();
-				if (now - tracker.lastTime >= 1000) {
-					const fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));
-					if (fpsEl) fpsEl.textContent = fps + ' fps';
-					tracker.frameCount = 0;
-					tracker.lastTime = now;
-				}
-			};
-
-			mjpegImg.onerror = function() {
-				if (overlay) overlay.style.display = 'flex';
-			};
-		}
-
-		// Initialize FPS tracking for any cards that start in detailed mode
-		document.addEventListener('DOMContentLoaded', function() {
-			document.querySelectorAll('.c4-entity-card.detailed').forEach(function(card) {
-				const entityId = card.dataset.entityId;
-				if (entityId) initFpsTracker(card, entityId);
-			});
-		});
-
-		function openVideoFullscreen(entityId) {
-			if (!entityId) {
-				console.warn('[Video] No entityId provided for fullscreen');
-				return;
-			}
-
-			// Find the existing video element for this entity
-			const card = document.getElementById('c4-entity-' + entityId);
-			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
-
-			// Remove any existing modal first
-			const existingModal = document.getElementById('video-fullscreen-modal');
-			if (existingModal) existingModal.remove();
-
-			// Create fullscreen modal
-			const modal = document.createElement('div');
-			modal.id = 'video-fullscreen-modal';
-			modal.innerHTML = `
-				<div class="fullscreen-header">
-					<span class="entity-label">${entityId}</span>
-					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
-				</div>
-				<div class="fullscreen-video">
-				</div>
-			`;
-			document.body.appendChild(modal);
-
-			// Clone the existing img element to reuse the stream, or create new one
-			const fullscreenContainer = modal.querySelector('.fullscreen-video');
-			if (existingImg && existingImg.src) {
-				const clonedImg = existingImg.cloneNode(true);
-				clonedImg.style.maxWidth = '100%';
-				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
-				clonedImg.style.objectFit = 'contain';
-				fullscreenContainer.appendChild(clonedImg);
-			} else {
-				// Fallback: create new stream connection
-				const img = document.createElement('img');
-				img.src = '/api/v1/video/stream/' + entityId;
-				img.alt = 'Video stream';
-				fullscreenContainer.appendChild(img);
-			}
-
-			// ESC key to close
-			const escHandler = function(e) {
-				if (e.key === 'Escape') {
-					closeVideoFullscreen();
-					document.removeEventListener('keydown', escHandler);
-				}
-			};
-			document.addEventListener('keydown', escHandler);
-		}
-
-		function closeVideoFullscreen() {
-			const modal = document.getElementById('video-fullscreen-modal');
-			if (modal) modal.remove();
 		}
 	</script>
-	<style>
-		/* Video container styles */
-		.video-container {
-			position: relative;
-			background: #000;
-			border-radius: 4px;
-			overflow: hidden;
-		}
-
-		.video-container .video-mjpeg {
-			width: 100%;
-			height: auto;
-			display: block;
-		}
-
-		.no-signal-overlay {
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			background: rgba(0, 0, 0, 0.85);
-			display: none;
-			align-items: center;
-			justify-content: center;
-			z-index: 10;
-			color: #666;
-			text-align: center;
-			font-size: 14px;
-		}
-
-		.no-signal-overlay.show {
-			display: flex;
-		}
-
-		.video-controls {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			padding: 8px 12px;
-			background: #1a1a1a;
-			border-top: 1px solid #333;
-		}
-
-		.fps-counter {
-			color: #0ff;
-			font-size: 12px;
-			font-family: monospace;
-		}
-
-		.btn-fullscreen {
-			background: #0a4;
-			border: none;
-			color: #fff;
-			padding: 6px 12px;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 12px;
-		}
-
-		.btn-fullscreen:hover {
-			background: #0b5;
-		}
-
-		/* Fullscreen modal */
-		#video-fullscreen-modal {
-			position: fixed;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			background: #000;
-			z-index: 10000;
-			display: flex;
-			flex-direction: column;
-		}
-
-		.fullscreen-header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			padding: 10px 20px;
-			background: #111;
-			border-bottom: 1px solid #333;
-		}
-
-		.fullscreen-header .entity-label {
-			color: #0ff;
-			font-weight: bold;
-		}
-
-		.fullscreen-header .close-btn {
-			background: #a00;
-			border: none;
-			color: #fff;
-			padding: 8px 16px;
-			border-radius: 4px;
-			cursor: pointer;
-			transition: background 0.2s ease;
-			transform: none !important;
-		}
-
-		.fullscreen-header .close-btn:hover {
-			background: #c00;
-			transform: none !important;
-		}
-
-		.fullscreen-video {
-			flex: 1;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			background: #000;
-			position: relative;
-		}
-
-		.fullscreen-video img {
-			max-width: 100%;
-			max-height: calc(100vh - 60px);
-			object-fit: contain;
-		}
-
-		.fullscreen-loading {
-			color: #666;
-			font-size: 16px;
-			position: absolute;
-		}
-
-		/* Entity Type Styling */
-		.entity-type {
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			font-size: 11px;
-			padding: 2px 6px;
-			border-radius: 3px;
-			background: rgba(255,255,255,0.1);
-		}
-
-		.entity-type .type-icon {
-			display: flex;
-			align-items: center;
-		}
-
-		.entity-type .type-icon svg {
-			width: 14px;
-			height: 14px;
-		}
-
-		/* Aircraft types - cyan */
-		.entity-type.type-aircraft {
-			background: rgba(0, 200, 255, 0.15);
-			color: #0cf;
-		}
-
-		/* Ground vehicle types - orange */
-		.entity-type.type-ground {
-			background: rgba(255, 165, 0, 0.15);
-			color: #fa0;
-		}
-
-		/* Marine types - blue */
-		.entity-type.type-marine {
-			background: rgba(0, 100, 255, 0.15);
-			color: #48f;
-		}
-
-		/* System types - green */
-		.entity-type.type-system {
-			background: rgba(0, 255, 100, 0.15);
-			color: #0f8;
-		}
-
-		/* Geographic types - purple */
-		.entity-type.type-geo {
-			background: rgba(180, 100, 255, 0.15);
-			color: #b4f;
-		}
-
-		/* Unknown types - gray */
-		.entity-type.type-unknown {
-			background: rgba(128, 128, 128, 0.15);
-			color: #888;
-		}
-
-		/* Object Detections Section */
-		.detections-section {
-			margin-top: 15px;
-			padding: 12px;
-			background: rgba(255, 100, 0, 0.05);
-			border: 1px solid rgba(255, 100, 0, 0.2);
-			border-radius: 6px;
-		}
-
-		.detections-header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			margin-bottom: 10px;
-		}
-
-		.detections-header h5 {
-			margin: 0;
-			color: #fa0;
-			font-size: 12px;
-			text-transform: uppercase;
-			letter-spacing: 0.5px;
-		}
-
-		.detection-count {
-			font-size: 11px;
-			color: #888;
-			background: rgba(255, 255, 255, 0.1);
-			padding: 2px 8px;
-			border-radius: 10px;
-		}
-
-		.tracked-objects-list {
-			display: flex;
-			flex-direction: column;
-			gap: 8px;
-			max-height: 200px;
-			overflow-y: auto;
-		}
-
-		.tracked-object {
-			background: rgba(0, 0, 0, 0.3);
-			border-radius: 4px;
-			padding: 8px 10px;
-			border-left: 3px solid #666;
-		}
-
-		.tracked-object.threat-high {
-			border-left-color: #f44;
-			background: rgba(255, 68, 68, 0.1);
-		}
-
-		.tracked-object.threat-medium {
-			border-left-color: #fa0;
-			background: rgba(255, 170, 0, 0.1);
-		}
-
-		.tracked-object.threat-low {
-			border-left-color: #0f8;
-			background: rgba(0, 255, 136, 0.05);
-		}
-
-		.tracked-object.inactive {
-			opacity: 0.5;
-		}
-
-		.object-header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			margin-bottom: 6px;
-		}
-
-		.object-label {
-			font-weight: 600;
-			color: #fff;
-			font-size: 12px;
-		}
-
-		.threat-badge {
-			font-size: 9px;
-			padding: 2px 6px;
-			border-radius: 3px;
-			text-transform: uppercase;
-			font-weight: 600;
-		}
-
-		.threat-badge.threat-high {
-			background: rgba(255, 68, 68, 0.3);
-			color: #f66;
-		}
-
-		.threat-badge.threat-medium {
-			background: rgba(255, 170, 0, 0.3);
-			color: #fb0;
-		}
-
-		.threat-badge.threat-low {
-			background: rgba(0, 255, 136, 0.2);
-			color: #0f8;
-		}
-
-		.object-stats {
-			display: flex;
-			gap: 12px;
-			align-items: center;
-		}
-
-		.object-stats .stat {
-			display: flex;
-			flex-direction: column;
-			font-size: 10px;
-		}
-
-		.object-stats .stat-label {
-			color: #666;
-			text-transform: uppercase;
-			font-size: 8px;
-		}
-
-		.object-stats .stat-value {
-			color: #aaa;
-			font-weight: 500;
-		}
-
-		.active-indicator {
-			width: 6px;
-			height: 6px;
-			background: #0f0;
-			border-radius: 50%;
-			animation: pulse 1.5s infinite;
-			margin-left: auto;
-		}
-
-		@keyframes pulse {
-			0%, 100% { opacity: 1; }
-			50% { opacity: 0.4; }
-		}
-
-		.suspicious-indicators {
-			margin-top: 6px;
-			display: flex;
-			flex-wrap: wrap;
-			gap: 4px;
-		}
-
-		.indicator-tag {
-			font-size: 9px;
-			padding: 2px 6px;
-			background: rgba(255, 68, 68, 0.2);
-			color: #f88;
-			border-radius: 3px;
-		}
-
-		/* Analytics Summary */
-		.analytics-summary {
-			margin-top: 15px;
-			padding: 12px;
-			background: rgba(0, 200, 255, 0.05);
-			border: 1px solid rgba(0, 200, 255, 0.2);
-			border-radius: 6px;
-		}
-
-		.analytics-summary h5 {
-			margin: 0 0 10px 0;
-			color: #0cf;
-			font-size: 12px;
-			text-transform: uppercase;
-			letter-spacing: 0.5px;
-		}
-
-		.analytics-grid {
-			display: grid;
-			grid-template-columns: repeat(3, 1fr);
-			gap: 10px;
-		}
-
-		.analytics-stat {
-			text-align: center;
-			padding: 8px;
-			background: rgba(0, 0, 0, 0.2);
-			border-radius: 4px;
-		}
-
-		.analytics-stat.threat {
-			background: rgba(255, 68, 68, 0.15);
-		}
-
-		.analytics-value {
-			display: block;
-			font-size: 18px;
-			font-weight: 600;
-			color: #fff;
-		}
-
-		.analytics-stat.threat .analytics-value {
-			color: #f66;
-		}
-
-		.analytics-label {
-			font-size: 9px;
-			color: #666;
-			text-transform: uppercase;
-		}
-
-		.label-distribution {
-			margin-top: 10px;
-			display: flex;
-			flex-wrap: wrap;
-			gap: 4px;
-		}
-
-		.label-chip {
-			font-size: 10px;
-			padding: 3px 8px;
-			background: rgba(255, 255, 255, 0.1);
-			color: #aaa;
-			border-radius: 10px;
-		}
-	</style>
 }

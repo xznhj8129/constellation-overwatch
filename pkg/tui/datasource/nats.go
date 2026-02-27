@@ -25,7 +25,6 @@ func (n *NATSStats) GetStreamStats() []StreamStat {
 		shared.StreamEvents,
 		shared.StreamTelemetry,
 		shared.StreamCommands,
-		shared.StreamVideoFrames,
 	}
 
 	stats := make([]StreamStat, 0, len(streams))

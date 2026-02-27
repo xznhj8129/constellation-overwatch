@@ -1,0 +1,126 @@
+direction: down
+
+vars: {
+  d2-config: {
+    sketch: true
+  }
+}
+
+title: Constellation Overwatch {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 26
+    bold: true
+  }
+}
+
+classes: {
+  fabric: {
+    shape: cylinder
+    style: {
+      fill: "#e6f3ff"
+      stroke: "#1f78b4"
+    }
+  }
+  worker: {
+    shape: rectangle
+    style: {
+      border-radius: 4
+      fill: "#fff0e6"
+      stroke: "#d95f02"
+    }
+  }
+  animated_edge: {
+    style: {
+      animated: true
+      stroke: "#1f78b4"
+      stroke-width: 2
+    }
+  }
+}
+
+# --- Assets ---
+Hardware: {
+  label: "Field Assets"
+  style: {fill: transparent; stroke: transparent}
+
+  Drone: {
+    label: "UAV / Drone"
+    shape: image
+    icon: https://icons.terrastruct.com/essentials/112-location.svg
+  }
+
+  Robot: {
+    label: "UGV / Robot"
+    shape: image
+    icon: https://icons.terrastruct.com/dev/robot.svg
+  }
+}
+
+# --- Edge Layer ---
+EdgeStation: {
+  label: "Edge Control Station"
+
+  PulsarBroker: {
+    label: "Pulsar\n(Broker)"
+    shape: rectangle
+    style: {
+      border-radius: 4
+      shadow: true
+    }
+  }
+}
+
+# --- Transport Layer ---
+TLSTunnel: {
+  label: "Pulsar TLS 1.3 Tunnel\n(Encrypted Stream)"
+  shape: rectangle
+  style: {
+    stroke: "#2ca02c"
+    stroke-width: 2
+    stroke-dash: 5
+    border-radius: 4
+    fill: "#f0fff0"
+  }
+}
+
+# --- Cloud Layer ---
+OverwatchCloud: {
+  label: "Constellation Overwatch"
+
+  DataFabric: {
+    label: "Data Fabric\n(NATS JetStream)"
+    class: fabric
+  }
+
+  Workers: {
+    label: "Consumer Workers"
+    style: {stroke-dash: 4}
+
+    Telemetry: {label: "Telemetry Worker"; class: worker}
+    Entity: {label: "Entity Worker"; class: worker}
+    Command: {label: "Command Worker"; class: worker}
+  }
+
+  Storage: {
+    label: "SQLite DB\n(State & History)"
+    class: fabric
+  }
+}
+
+# --- Connections ---
+Hardware.Drone -> EdgeStation.PulsarBroker: "RF / ELRS" {class: animated_edge}
+Hardware.Robot -> EdgeStation.PulsarBroker: "RF / ELRS" {class: animated_edge}
+
+EdgeStation.PulsarBroker -> TLSTunnel: "pulsar+ssl://" {class: animated_edge}
+TLSTunnel -> OverwatchCloud.DataFabric: "Telemetry & Commands" {class: animated_edge}
+
+# Internal Overwatch flow
+OverwatchCloud.DataFabric -> OverwatchCloud.Workers.Telemetry: "Sensor Data" {style: {animated: true}}
+OverwatchCloud.DataFabric -> OverwatchCloud.Workers.Entity: "State Events" {style: {animated: true}}
+OverwatchCloud.DataFabric -> OverwatchCloud.Workers.Command: "Route Actions" {style: {animated: true}}
+
+OverwatchCloud.Workers.Telemetry -> OverwatchCloud.Storage: "Persist"
+OverwatchCloud.Workers.Entity -> OverwatchCloud.Storage: "Persist"
+OverwatchCloud.Workers.Command -> OverwatchCloud.Storage: "Persist"

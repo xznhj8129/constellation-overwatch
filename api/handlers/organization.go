@@ -1,12 +1,16 @@
 package handlers
 
 import (
-	"encoding/json"
+	"context"
+	"errors"
 	"net/http"
 
-	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
 type OrganizationHandler struct {
@@ -14,111 +18,103 @@ type OrganizationHandler struct {
 }
 
 func NewOrganizationHandler(service *services.OrganizationService) *OrganizationHandler {
-	return &OrganizationHandler{
-		service: service,
-	}
+	return &OrganizationHandler{service: service}
 }
 
-// Create godoc
-// @Summary Create organization
-// @Description Create a new organization
-// @Tags Organizations
-// @Accept json
-// @Produce json
-// @Param organization body ontology.CreateOrganizationRequest true "Organization data"
-// @Success 201 {object} ontology.Organization
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
-// @Router /organizations [post]
-func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req ontology.CreateOrganizationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		responses.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
-		return
-	}
+// ── Input / Output types ────────────────────────────────────────────
 
-	org, err := h.service.CreateOrganization(&req)
-	if err != nil {
-		responses.SendError(w, http.StatusInternalServerError, "CREATE_FAILED", err.Error())
-		return
-	}
-
-	responses.SendSuccess(w, http.StatusCreated, org)
+type CreateOrgInput struct {
+	Body ontology.CreateOrganizationRequest
 }
 
-// List godoc
-// @Summary List organizations
-// @Description Get a list of all organizations
-// @Tags Organizations
-// @Accept json
-// @Produce json
-// @Success 200 {array} ontology.Organization
-// @Failure 401 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
-// @Router /organizations [get]
-func (h *OrganizationHandler) List(w http.ResponseWriter, r *http.Request) {
-	orgs, err := h.service.ListOrganizations()
-	if err != nil {
-		responses.SendError(w, http.StatusInternalServerError, "LIST_FAILED", err.Error())
-		return
-	}
-
-	responses.SendSuccess(w, http.StatusOK, orgs)
+type OrgOutput struct {
+	Body ontology.Organization
 }
 
-func (h *OrganizationHandler) Get(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-	if orgID == "" {
-		responses.SendError(w, http.StatusBadRequest, "MISSING_ORG_ID", "org_id is required")
-		return
-	}
+type OrgListOutput struct {
+	Body []ontology.Organization
+}
 
-	org, err := h.service.GetOrganization(orgID)
-	if err != nil {
-		if err.Error() == "organization not found" {
-			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
-		} else {
-			responses.SendError(w, http.StatusInternalServerError, "GET_FAILED", err.Error())
+// ── Registration ────────────────────────────────────────────────────
+
+func (h *OrganizationHandler) Register(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-organization",
+		Method:        http.MethodPost,
+		Path:          "/v1/organizations",
+		Summary:       "Create organization",
+		Description:   "Create a new organization",
+		Tags:          []string{"Organizations"},
+		DefaultStatus: http.StatusCreated,
+		Security:      []map[string][]string{{"APIKeyAuth": {"organizations:write"}}},
+	}, func(ctx context.Context, input *CreateOrgInput) (*OrgOutput, error) {
+		org, err := h.service.CreateOrganization(&input.Body)
+		if err != nil {
+			logger.Errorw("Failed to create organization", "error", err)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
 		}
-		return
-	}
+		return &OrgOutput{Body: *org}, nil
+	})
 
-	responses.SendSuccess(w, http.StatusOK, org)
-}
-
-// Delete godoc
-// @Summary Delete organization
-// @Description Delete an organization by ID
-// @Tags Organizations
-// @Accept json
-// @Produce json
-// @Param org_id query string true "Organization ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Security BearerAuth
-// @Router /organizations [delete]
-func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-	if orgID == "" {
-		responses.SendError(w, http.StatusBadRequest, "MISSING_ORG_ID", "org_id is required")
-		return
-	}
-
-	err := h.service.DeleteOrganization(orgID)
-	if err != nil {
-		if err.Error() == "organization not found" {
-			responses.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
-		} else {
-			responses.SendError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
+	huma.Register(api, huma.Operation{
+		OperationID: "list-organizations",
+		Method:      http.MethodGet,
+		Path:        "/v1/organizations",
+		Summary:     "List organizations",
+		Description: "Get all organizations",
+		Tags:        []string{"Organizations"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:read"}}},
+	}, func(ctx context.Context, input *struct{}) (*OrgListOutput, error) {
+		orgs, err := h.service.ListOrganizations()
+		if err != nil {
+			logger.Errorw("Failed to list organizations", "error", err)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
 		}
-		return
-	}
+		if orgs == nil {
+			orgs = []ontology.Organization{}
+		}
+		return &OrgListOutput{Body: orgs}, nil
+	})
 
-	responses.SendSuccess(w, http.StatusOK, map[string]string{"message": "Organization deleted successfully"})
+	huma.Register(api, huma.Operation{
+		OperationID: "get-organization",
+		Method:      http.MethodGet,
+		Path:        "/v1/organizations/{org_id}",
+		Summary:     "Get organization",
+		Description: "Get a single organization by ID",
+		Tags:        []string{"Organizations"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:read"}}},
+	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*OrgOutput, error) {
+		org, err := h.service.GetOrganization(input.OrgID)
+		if err != nil {
+			if errors.Is(err, shared.ErrNotFound) {
+				return nil, huma.Error404NotFound("Organization not found")
+			}
+			logger.Errorw("Failed to get organization", "error", err, "org_id", input.OrgID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
+		}
+		return &OrgOutput{Body: *org}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-organization",
+		Method:      http.MethodDelete,
+		Path:        "/v1/organizations/{org_id}",
+		Summary:     "Delete organization",
+		Description: "Delete an organization by ID",
+		Tags:        []string{"Organizations"},
+		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:write"}}},
+	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*DeletedOutput, error) {
+		err := h.service.DeleteOrganization(input.OrgID)
+		if err != nil {
+			if errors.Is(err, shared.ErrNotFound) {
+				return nil, huma.Error404NotFound("Organization not found")
+			}
+			logger.Errorw("Failed to delete organization", "error", err, "org_id", input.OrgID)
+			return nil, huma.Error500InternalServerError("An internal error occurred")
+		}
+		out := &DeletedOutput{}
+		out.Body.Message = "Organization deleted successfully"
+		return out, nil
+	})
 }

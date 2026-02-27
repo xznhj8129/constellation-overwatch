@@ -1,32 +1,36 @@
 package pages
 
 import (
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
+	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
+	common "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
-templ VideoPage(entityIDs []string, natsAuthToken string) {
+templ VideoPage(entityIDs []string, webrtcBaseURL string) {
 	@layouts.Base("Video") {
-		@components.Navigation("video") {
+		@common.Navigation("video") {
 			<div class="tab-content">
-				@VideoPanel(entityIDs)
+				@VideoPanel(entityIDs, webrtcBaseURL)
 			</div>
 			@VideoPageStyles()
+			@common.WHEPScript()
 		}
 	}
 }
 
-templ VideoPanel(entityIDs []string) {
+templ VideoPanel(entityIDs []string, webrtcBaseURL string) {
 	<div id="video-panel"
 		class="panel"
-		data-signals="{
+		data-signals={ fmt.Sprintf(`{
 			activeStreams: [],
 			streamCount: 0,
 			lastUpdate: '',
 			_isConnected: false,
-			selectedEntity: ''
-		}"
+			selectedEntity: '',
+			webrtcBaseURL: '%s'
+		}`, webrtcBaseURL) }
 		data-init="@get('/api/video/list')">
 		<div class="panel-header">
 			<h2>Video Feeds</h2>
@@ -56,57 +60,26 @@ templ VideoPanel(entityIDs []string) {
 						<option value={ entityID }>{ entityID }</option>
 					}
 				</select>
-				<button
-					data-on-click="openVideoFullscreenByEntity($selectedEntity)"
-					data-show="$selectedEntity != ''"
-					style="background: #0a4; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-					Open Fullscreen
-				</button>
 			</div>
 		</div>
 		<div id="video-content" class="video-content" style="padding: 20px;">
-			<!-- Single entity view (when entity selected) -->
-			<div data-show="$selectedEntity != ''" style="display: flex; justify-content: center;">
-				<div class="video-card-large" style="max-width: 1280px; width: 100%;">
-					<div class="video-card-header" style="background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;">
-						<span style="color: #0ff; font-weight: bold;" data-text="'Entity: ' + $selectedEntity"></span>
-						<span class="fps-counter" style="color: #888; font-size: 12px;">-- fps</span>
-					</div>
-					<div class="video-container-dynamic" style="background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative;">
-						<img
-							class="video-mjpeg-dynamic"
-							data-attr-src="$selectedEntity ? '/api/v1/video/stream/' + $selectedEntity : ''"
-							alt="Video stream"
-							style="width: 100%; height: auto; display: block;"/>
-						<div class="no-signal-overlay" style="display: none;">
-							<span>No Video Signal</span>
-						</div>
-					</div>
-				</div>
-			</div>
 			<!-- Grid view for all active streams -->
-			<div data-show="$selectedEntity == ''">
-				<div id="video-grid" class="video-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;">
-					<!-- Populated by SSE from /api/video/list -->
-					<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
-						<p>No active video streams detected.</p>
-						<p style="font-size: 12px; margin-top: 10px;">Waiting for video frames on constellation.video.* subjects...</p>
-					</div>
+			<div id="video-grid" class="video-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;">
+				<!-- Populated by SSE from /api/video/list -->
+				<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
+					<div style="font-size: 48px; margin-bottom: 10px;">📹</div>
+					<p>No active video streams detected.</p>
+					<p style="font-size: 12px; margin-top: 10px;">Waiting for entities with video configuration...</p>
 				</div>
 			</div>
 		</div>
 	</div>
-	<script>
-		function openVideoFullscreenByEntity(entityId) {
-			if (!entityId) return;
-			openVideoFullscreen(entityId);
-		}
-	</script>
 }
 
-// VideoCard renders a simple video card with MJPEG stream
-templ VideoCard(entity shared.EntityState) {
-	<div id={ "video-card-" + entity.EntityID } class="video-card" data-entity-id={ entity.EntityID }>
+// VideoCard renders a video card with WHEP player.
+// Uses the shared VideoPlayer component; WHEP connection is auto-managed by WHEPScript.
+templ VideoCard(entity shared.EntityState, status mediamtx.PathStatus) {
+	<div id={ "video-card-" + entity.EntityID } class="video-card" data-entity-id={ entity.EntityID } data-ignore-morph>
 		<div class="video-card-header">
 			<span class="entity-name">
 				if entity.Name != "" {
@@ -115,135 +88,33 @@ templ VideoCard(entity shared.EntityState) {
 					{ entity.EntityID }
 				}
 			</span>
-			<span class="entity-type">{ entity.EntityType }</span>
 			<div class="video-card-stats">
-				<span class="fps-counter" id={ "fps-" + entity.EntityID }>-- fps</span>
-				<span class={ "status-dot", templ.KV("connected", entity.Status == "active"), templ.KV("disconnected", entity.Status != "active") }></span>
+				@VideoStatusBadge(entity.EntityID, status.Ready, status.ReaderCount)
 			</div>
 		</div>
-		<div class="video-container" data-entity-id={ entity.EntityID }>
-			<div class="no-signal-overlay">
-				<span>No Video Signal</span>
-			</div>
-			<img
-				class="video-mjpeg"
-				src={ "/api/v1/video/stream/" + entity.EntityID }
-				alt="Video stream"/>
-		</div>
-		<div class="video-card-controls">
-			<span class="status-label">{ entity.Status }</span>
-			<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
-				Fullscreen
-			</button>
-		</div>
+		if entity.VideoConfig != nil && entity.VideoConfig.PreferredWebRTCURL() != "" {
+			@common.VideoPlayer(entity.EntityID, entity.VideoConfig.PreferredWebRTCURL())
+		}
 	</div>
 }
 
-// VideoPageStyles contains the styles and scripts for the video page
+// VideoStatusBadge renders LIVE/OFFLINE badge with viewer count
+templ VideoStatusBadge(entityID string, isLive bool, readerCount int) {
+	<div id={ "video-status-" + entityID } class="video-status-badge">
+		if isLive {
+			<span class="badge-live">LIVE</span>
+		} else {
+			<span class="badge-offline">OFFLINE</span>
+		}
+		if readerCount > 0 {
+			<span class="badge-viewers">{ fmt.Sprintf("%d", readerCount) } viewers</span>
+		}
+	</div>
+}
+
+// VideoPageStyles contains the styles for the video page.
+// WHEP JS is provided by the shared WHEPScript component.
 templ VideoPageStyles() {
-	<script>
-		// FPS tracking state per entity
-		const fpsTrackers = {};
-
-		function initFpsTracker(entityId) {
-			if (fpsTrackers[entityId]) {
-				// Already tracking, just increment frame count
-				fpsTrackers[entityId].frameCount++;
-				const now = performance.now();
-				if (now - fpsTrackers[entityId].lastTime >= 1000) {
-					const fps = Math.round(fpsTrackers[entityId].frameCount * 1000 / (now - fpsTrackers[entityId].lastTime));
-					const fpsEl = document.getElementById('fps-' + entityId);
-					if (fpsEl) fpsEl.textContent = fps + ' fps';
-					fpsTrackers[entityId].frameCount = 0;
-					fpsTrackers[entityId].lastTime = now;
-				}
-				return;
-			}
-			// Initialize new tracker
-			fpsTrackers[entityId] = {
-				frameCount: 1,
-				lastTime: performance.now()
-			};
-		}
-
-		// Initialize FPS tracking for all video cards on page load
-		document.addEventListener('DOMContentLoaded', function() {
-			document.querySelectorAll('.video-card').forEach(function(card) {
-				const entityId = card.dataset.entityId;
-				const img = card.querySelector('.video-mjpeg');
-				const overlay = card.querySelector('.no-signal-overlay');
-
-				if (img) {
-					img.onload = function() {
-						if (overlay) overlay.style.display = 'none';
-						initFpsTracker(entityId);
-					};
-					img.onerror = function() {
-						if (overlay) overlay.style.display = 'flex';
-					};
-				}
-			});
-		});
-
-		function openVideoFullscreen(entityId) {
-			if (!entityId) {
-				console.warn('[Video] No entityId provided for fullscreen');
-				return;
-			}
-
-			// Find the existing video element for this entity
-			const card = document.getElementById('video-card-' + entityId);
-			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
-
-			// Remove any existing modal first
-			const existingModal = document.getElementById('video-fullscreen-modal');
-			if (existingModal) existingModal.remove();
-
-			// Create fullscreen modal
-			const modal = document.createElement('div');
-			modal.id = 'video-fullscreen-modal';
-			modal.innerHTML = `
-				<div class="fullscreen-header">
-					<span class="entity-label">${entityId}</span>
-					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
-				</div>
-				<div class="fullscreen-video">
-				</div>
-			`;
-			document.body.appendChild(modal);
-
-			// Clone the existing img element to reuse the stream, or create new one
-			const fullscreenContainer = modal.querySelector('.fullscreen-video');
-			if (existingImg && existingImg.src) {
-				const clonedImg = existingImg.cloneNode(true);
-				clonedImg.style.maxWidth = '100%';
-				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
-				clonedImg.style.objectFit = 'contain';
-				fullscreenContainer.appendChild(clonedImg);
-			} else {
-				// Fallback: create new stream connection
-				const img = document.createElement('img');
-				img.src = '/api/v1/video/stream/' + entityId;
-				img.alt = 'Video stream';
-				fullscreenContainer.appendChild(img);
-			}
-
-			// ESC key to close
-			const escHandler = function(e) {
-				if (e.key === 'Escape') {
-					closeVideoFullscreen();
-					document.removeEventListener('keydown', escHandler);
-				}
-			};
-			document.addEventListener('keydown', escHandler);
-		}
-
-		function closeVideoFullscreen() {
-			const modal = document.getElementById('video-fullscreen-modal');
-			if (modal) modal.remove();
-		}
-
-	</script>
 	<style>
 		/* Video Card Styles */
 		.video-card {
@@ -267,33 +138,10 @@ templ VideoPageStyles() {
 			font-weight: bold;
 		}
 
-		.video-card-header .entity-type {
-			color: #ff0;
-			font-size: 11px;
-			text-transform: uppercase;
-			background: rgba(255, 255, 0, 0.1);
-			padding: 2px 6px;
-			border-radius: 3px;
-			margin-left: 8px;
-		}
-
 		.video-card-stats {
 			display: flex;
 			align-items: center;
 			gap: 8px;
-		}
-
-		.video-card-stats .fps-counter {
-			color: #888;
-			font-size: 11px;
-			font-family: monospace;
-		}
-
-		.video-card-stats .status-dot {
-			width: 8px;
-			height: 8px;
-			background: #0f0;
-			border-radius: 50%;
 		}
 
 		/* Video Container */
@@ -302,29 +150,11 @@ templ VideoPageStyles() {
 			background: #000;
 		}
 
-		.video-container .video-mjpeg {
+		.video-whep {
 			width: 100%;
 			height: auto;
 			display: block;
-		}
-
-		.video-container .no-signal-overlay {
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			background: rgba(0, 0, 0, 0.85);
-			display: none;
-			align-items: center;
-			justify-content: center;
-			z-index: 10;
-			color: #666;
-			font-size: 14px;
-		}
-
-		.video-container .no-signal-overlay.show {
-			display: flex;
+			background: #000;
 		}
 
 		/* Video Controls */
@@ -337,20 +167,11 @@ templ VideoPageStyles() {
 			border-top: 1px solid #333;
 		}
 
-		.video-card-controls .fps-counter {
-			color: #0ff;
-			font-size: 12px;
-			font-family: monospace;
-		}
-
-		.video-card-controls .status-label {
+		.status-label.live {
 			color: #0f0;
 			font-size: 12px;
 			text-transform: uppercase;
-		}
-
-		.status-dot.disconnected {
-			background: #f00;
+			font-weight: bold;
 		}
 
 		.btn-fullscreen {
@@ -367,60 +188,64 @@ templ VideoPageStyles() {
 			background: #0b5;
 		}
 
-		/* Fullscreen Modal */
-		#video-fullscreen-modal {
-			position: fixed;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			background: #000;
-			z-index: 10000;
+		/* Status Badges */
+		.video-status-badge {
 			display: flex;
-			flex-direction: column;
-		}
-
-		.fullscreen-header {
-			display: flex;
-			justify-content: space-between;
 			align-items: center;
-			padding: 10px 20px;
-			background: #111;
-			border-bottom: 1px solid #333;
+			gap: 6px;
 		}
 
-		.fullscreen-header .entity-label {
-			color: #0ff;
+		.badge-live {
+			color: #0f0;
+			font-size: 11px;
 			font-weight: bold;
+			text-transform: uppercase;
+			position: relative;
+			padding-left: 12px;
 		}
 
-		.fullscreen-header .close-btn {
-			background: #a00;
-			border: none;
-			color: #fff;
-			padding: 8px 16px;
-			border-radius: 4px;
-			cursor: pointer;
-			transform: none !important;
+		.badge-live::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 8px;
+			height: 8px;
+			background: #0f0;
+			border-radius: 50%;
+			animation: pulse-live 2s infinite;
 		}
 
-		.fullscreen-header .close-btn:hover {
-			background: #c00;
-			transform: none !important;
+		.badge-offline {
+			color: #f44;
+			font-size: 11px;
+			font-weight: bold;
+			text-transform: uppercase;
+			position: relative;
+			padding-left: 12px;
 		}
 
-		.fullscreen-video {
-			flex: 1;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			background: #000;
+		.badge-offline::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 8px;
+			height: 8px;
+			background: #f44;
+			border-radius: 50%;
 		}
 
-		.fullscreen-video img {
-			max-width: 100%;
-			max-height: calc(100vh - 60px);
-			object-fit: contain;
+		.badge-viewers {
+			color: #888;
+			font-size: 10px;
+		}
+
+		@keyframes pulse-live {
+			0%, 100% { opacity: 1; }
+			50% { opacity: 0.4; }
 		}
 	</style>
 }

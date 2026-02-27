@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
@@ -24,12 +25,14 @@ import (
 type OverwatchHandler struct {
 	natsEmbedded *embeddednats.EmbeddedNATS
 	orgSvc       *services.OrganizationService
+	entitySvc    *services.EntityService
 }
 
-func NewOverwatchHandler(natsEmbedded *embeddednats.EmbeddedNATS, orgSvc *services.OrganizationService) *OverwatchHandler {
+func NewOverwatchHandler(natsEmbedded *embeddednats.EmbeddedNATS, orgSvc *services.OrganizationService, entitySvc *services.EntityService) *OverwatchHandler {
 	return &OverwatchHandler{
 		natsEmbedded: natsEmbedded,
 		orgSvc:       orgSvc,
+		entitySvc:    entitySvc,
 	}
 }
 
@@ -50,8 +53,8 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	// Get all keys using Keys() method
 	keys, err := kv.Keys()
 	if err != nil {
-		logger.Infow("Error fetching KV keys: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Infof("Error fetching KV keys: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -60,7 +63,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 	for _, key := range keys {
 		entry, err := kv.Get(key)
 		if err != nil {
-			logger.Infow("Error getting key %s: %v", key, err)
+			logger.Infof("Error getting key %s: %v", key, err)
 			continue
 		}
 
@@ -74,13 +77,13 @@ func (h *OverwatchHandler) HandleAPIOverwatchKV(w http.ResponseWriter, r *http.R
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
-		sse := datastar.NewServerSentEventGenerator(w, r)
+		sse := datastar.NewSSE(w, r)
 		component := overwatch.KVStateTable(kvEntries)
-		err := sse.PatchComponent(r.Context(), component,
+		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("#kv-content"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 		if err != nil {
-			logger.Infow("Error patching KV content: %v", err)
+			logger.Infof("Error patching KV content: %v", err)
 		}
 		return
 	}
@@ -113,10 +116,10 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	logger.Infow("[Overwatch] ✓ SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
+	logger.Debugw("[Overwatch] SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
 
 	// Create SSE generator AFTER setting headers
-	sse := datastar.NewServerSentEventGenerator(w, r)
+	sse := datastar.NewSSE(w, r)
 
 	// Determine view mode
 	viewMode := r.URL.Query().Get("view")
@@ -136,16 +139,16 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	if viewMode == "map" {
 		sse.PatchElements(emptyState,
 			datastar.WithSelector("#entity-list"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 	} else {
 		sse.PatchElements(emptyState,
 			datastar.WithSelector("#entities-container"),
-			datastar.WithMode(datastar.ElementPatchModeInner))
+			datastar.WithModeInner())
 	}
 
 	flusher.Flush()
 	writeMutex.Unlock()
-	logger.Infow("SSE client connected", "component", "Overwatch", "remote_addr", r.RemoteAddr)
+	logger.Debugw("SSE client connected", "component", "Overwatch", "remote_addr", r.RemoteAddr)
 
 	// Local cache of all KV data: entityID -> key -> data
 	// This allows us to reconstruct a single entity's state without fetching everything
@@ -154,6 +157,39 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	// Track known entities (ID -> OrgID) to handle cleanup
 	knownEntities := make(map[string]string)
 	knownOrgs := make(map[string]bool)
+
+	// DB entity cache for VideoConfig lookup (same pattern as video handler)
+	// VideoConfig lives in the DB, not KV, so we must look it up separately.
+	videoConfigCache := make(map[string]*ontology.VideoConfig)
+	var videoConfigCacheTime time.Time
+	refreshVideoConfigCache := func() {
+		if time.Since(videoConfigCacheTime) < 30*time.Second {
+			return
+		}
+		if h.entitySvc == nil {
+			return
+		}
+		entities, err := h.entitySvc.ListAllEntities()
+		if err != nil {
+			logger.Warnw("[Overwatch] Failed to refresh video config cache", "error", err)
+			return
+		}
+		next := make(map[string]*ontology.VideoConfig, len(entities))
+		for _, ent := range entities {
+			if ent.VideoConfig == "" || ent.VideoConfig == "{}" {
+				continue
+			}
+			var vc ontology.VideoConfig
+			if json.Unmarshal([]byte(ent.VideoConfig), &vc) == nil {
+				next[ent.EntityID] = &vc
+			}
+		}
+		videoConfigCache = next
+		videoConfigCacheTime = time.Now()
+		logger.Debugw("[Overwatch] Refreshed video config cache", "entries", len(next))
+	}
+	// Initial load
+	refreshVideoConfigCache()
 
 	// Struct to pass data to renderer
 	type RenderPayload struct {
@@ -177,9 +213,9 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		defer close(updateChan)
 
 		// STEP 1: Load existing KV data on initial connection
-		logger.Infow("[Overwatch] Loading initial KV state...")
+		logger.Debugw("[Overwatch] Loading initial KV state...")
 		if initialEntries, err := h.natsEmbedded.GetAllKVEntries(); err == nil {
-			logger.Infow("[Overwatch] Loaded initial state", "kv_entries", len(initialEntries))
+			logger.Debugw("[Overwatch] Loaded initial state", "kv_entries", len(initialEntries))
 
 			// Send existing entries through the update channel to populate initial state
 			for _, entry := range initialEntries {
@@ -193,7 +229,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 					logger.Debugw("[Overwatch] Skipped initial entry due to channel backup", "key", entry.Key())
 				}
 			}
-			logger.Infow("[Overwatch] Initial state load completed", "entities_loaded", len(initialEntries))
+			logger.Debugw("[Overwatch] Initial state load completed", "entities_loaded", len(initialEntries))
 		} else {
 			logger.Warnw("[Overwatch] Failed to load initial KV state", "error", err)
 		}
@@ -205,7 +241,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				return
 			}
 
-			logger.Infow("[Overwatch] KV watcher goroutine started, waiting for changes...")
+			logger.Debugw("[Overwatch] KV watcher goroutine started, waiting for changes...")
 
 			watchErr := h.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
 				select {
@@ -255,7 +291,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				}
 
 				// Render and Flush
-				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode)
+				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode, videoConfigCache)
 			}
 		}
 	}()
@@ -276,10 +312,12 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infow("[Overwatch] Client disconnected", "remote_addr", r.RemoteAddr)
+			logger.Debugw("[Overwatch] Client disconnected", "remote_addr", r.RemoteAddr)
 			return
 
 		case <-ticker.C:
+			// Refresh DB video config cache on heartbeat interval
+			refreshVideoConfigCache()
 			// Send heartbeat only if connection is still valid
 			if flusher != nil {
 				writeMutex.Lock()
@@ -335,7 +373,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 
 		case entry, ok := <-updateChan:
 			if !ok {
-				logger.Infow("[Overwatch] Update channel closed, stopping SSE stream")
+				logger.Debugw("[Overwatch] Update channel closed, stopping SSE stream")
 				return
 			}
 
@@ -396,7 +434,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 						if len(value) < previewLen {
 							previewLen = len(value)
 						}
-						logger.Infow("[Overwatch] NEW MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
+						logger.Debugw("[Overwatch] MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
 					}
 				}
 			}
@@ -408,7 +446,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 }
 
 // Helper to render and flush a snapshot
-func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, removedIDs []string, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string) {
+func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, snapshot []shared.EntityState, removedIDs []string, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string, videoConfigCache map[string]*ontology.VideoConfig) {
 	// Check if flusher is nil to prevent panic
 	if flusher == nil {
 		logger.Debugw("Flusher is nil, connection likely closed, skipping render")
@@ -446,7 +484,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		}
 
 		// Determine patch mode
-		var patchMode datastar.PatchElementMode
+		isNew := false
 		var selector string
 		var containerSelector string
 		entityID := entityState.EntityID
@@ -464,7 +502,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				// Create Org Container
 				if len(knownOrgs) == 0 {
 					// Use specific selector to only target empty state within our container
-					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+					if err := sse.RemoveElement(containerSelector + " .empty-state"); err != nil {
 						logger.Debugw("Failed to patch empty state, connection may be closed", "error", err)
 						return
 					}
@@ -477,14 +515,14 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				}
 				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
 
-				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithMode(datastar.ElementPatchModeAppend)); err != nil {
+				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithModeAppend()); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
 					return
 				}
 				knownOrgs[entityState.OrgID] = true
 
 				// Initialize signal (Same signal for both views)
-				if err := sse.PatchSignals(map[string]interface{}{
+				if err := sse.MarshalAndPatchSignals(map[string]interface{}{
 					fmt.Sprintf("entityStatesByOrg.%s", entityState.OrgID): map[string]interface{}{},
 				}); err != nil {
 					logger.Debugw("Failed to patch org signals, connection may be closed", "error", err)
@@ -493,17 +531,17 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			} else if viewMode == "map" {
 				// For map, remove empty state if first entity
 				if len(knownEntities) == 0 {
-					if err := sse.PatchElements("", datastar.WithSelector(containerSelector+" .empty-state"), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+					if err := sse.RemoveElement(containerSelector + " .empty-state"); err != nil {
 						// Ignore error as empty state might not exist
 					}
 				}
 			}
 
-			patchMode = datastar.ElementPatchModeAppend
+			isNew = true
 			selector = containerSelector
 			knownEntities[entityID] = entityState.OrgID
 		} else {
-			patchMode = datastar.ElementPatchModeMorph
+			isNew = false
 			if viewMode == "map" {
 				selector = fmt.Sprintf("#c4-entity-%s", entityID)
 			} else {
@@ -514,18 +552,31 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		}
 
 		// Patch Element
-		if err := sse.PatchElements(cardHTML.String(), datastar.WithSelector(selector), datastar.WithMode(patchMode)); err != nil {
+		var patchOpts []datastar.PatchElementOption
+		patchOpts = append(patchOpts, datastar.WithSelector(selector))
+		if isNew {
+			patchOpts = append(patchOpts, datastar.WithModeAppend())
+		} else {
+			patchOpts = append(patchOpts, datastar.WithModeOuter())
+		}
+		if err := sse.PatchElements(cardHTML.String(), patchOpts...); err != nil {
 			logger.Debugw("Failed to patch entity, connection may be closed", "entity_id", entityID, "error", err)
 			return
 		}
 
 		// For new entities (append mode), also append the video player component separately
 		// This ensures video is only added once and never morphed, preventing connection duplication
-		if patchMode == datastar.ElementPatchModeAppend && viewMode == "map" {
+		if isNew {
+			// VideoConfig lives in the DB, not KV — look it up from the DB cache
+			// (same approach as the video handler)
+			webrtcURL := ""
+			if vc, ok := videoConfigCache[entityID]; ok {
+				webrtcURL = vc.PreferredWebRTCURL()
+			}
 			var videoHTML strings.Builder
-			if err := common_components.C4VideoPlayer(entityID).Render(context.Background(), &videoHTML); err == nil {
+			if err := common_components.VideoPlayer(entityID, webrtcURL).Render(context.Background(), &videoHTML); err == nil {
 				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
-				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithMode(datastar.ElementPatchModeInner)); err != nil {
+				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithModeInner()); err != nil {
 					logger.Debugw("Failed to append video player", "entity_id", entityID, "error", err)
 				}
 			}
@@ -533,9 +584,15 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 
 		// Patch Signal with typed entity metadata (not the full state - that's too large!)
 		// The full entity data is already rendered server-side in the card HTML
+		// Enrich with VideoConfig from DB cache (KV doesn't contain video_config)
+		if entityState.VideoConfig == nil {
+			if vc, ok := videoConfigCache[entityID]; ok {
+				entityState.VideoConfig = vc
+			}
+		}
 		entitySignal := buildEntitySignal(entityID, entityState)
 
-		if err := sse.PatchSignals(map[string]interface{}{
+		if err := sse.MarshalAndPatchSignals(map[string]interface{}{
 			fmt.Sprintf("entityStatesByOrg.%s.%s", entityState.OrgID, entityID): entitySignal,
 		}); err != nil {
 			logger.Debugw("Failed to patch entity signals, connection may be closed", "entity_id", entityID, "error", err)
@@ -549,7 +606,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 	for _, entityID := range removedIDs {
 		// Only remove if we knew about it
 		if orgID, known := knownEntities[entityID]; known {
-			logger.Infow("[Overwatch] Removing entity", "entity_id", entityID)
+			logger.Debugw("[Overwatch] Removing entity", "entity_id", entityID)
 
 			// Remove from DOM
 			var selector string
@@ -559,12 +616,12 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				selector = fmt.Sprintf("#entity-%s", entityID)
 			}
 
-			if err := sse.PatchElements("", datastar.WithSelector(selector), datastar.WithMode(datastar.ElementPatchModeRemove)); err != nil {
+			if err := sse.RemoveElement(selector); err != nil {
 				logger.Debugw("Failed to remove entity element", "error", err)
 			}
 
 			// Remove from Signal (set to null)
-			if err := sse.PatchSignals(map[string]interface{}{
+			if err := sse.MarshalAndPatchSignals(map[string]interface{}{
 				fmt.Sprintf("entityStatesByOrg.%s.%s", orgID, entityID): nil,
 			}); err != nil {
 				logger.Debugw("Failed to update signal for removed entity", "error", err)
@@ -577,7 +634,10 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 
 	if updatesSent > 0 {
 		// Get total orgs from DB for accurate count
-		orgs, _ := h.orgSvc.ListOrganizations()
+		orgs, err := h.orgSvc.ListOrganizations()
+		if err != nil {
+			logger.Warnw("Failed to fetch organizations for analytics", "error", err)
+		}
 		totalOrgs := len(orgs)
 
 		// Compute analytics from the current snapshot
@@ -592,7 +652,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			Analytics:     analytics,
 		}
 
-		if err := datastar.MarshalAndPatchSignals(sse, dashboardSig); err != nil {
+		if err := sse.MarshalAndPatchSignals(dashboardSig); err != nil {
 			logger.Debugw("Failed to patch final signals, connection may be closed", "error", err)
 			return
 		}
@@ -622,7 +682,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVDebug(w http.ResponseWriter, r *h
 	entries, err := h.natsEmbedded.GetAllKVEntries()
 	if err != nil {
 		logger.Infof("[Overwatch Debug] Error fetching KV entries: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -648,7 +708,7 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVDebug(w http.ResponseWriter, r *h
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(response); err != nil {
 		logger.Infof("[Overwatch Debug] Error encoding JSON: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
@@ -675,10 +735,10 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 	// Now build consolidated EntityState objects
 	entityStatesByOrg := make(map[string][]shared.EntityState)
 
-	logger.Infow("[Overwatch] Aggregating entities from KV entries", "entity_count", len(entitiesByID), "kv_entry_count", len(entries))
+	logger.Debugw("[Overwatch] Aggregating entities from KV entries", "entity_count", len(entitiesByID), "kv_entry_count", len(entries))
 
 	for entityID, dataMap := range entitiesByID {
-		logger.Infow("[Overwatch] Processing entity", "entity_id", entityID, "kv_entry_count", len(dataMap))
+		logger.Debugw("[Overwatch] Processing entity", "entity_id", entityID, "kv_entry_count", len(dataMap))
 		entityState := h.mergeEntityData(entityID, dataMap)
 
 		// Group by org_id
@@ -690,7 +750,7 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 		entityStatesByOrg[orgID] = append(entityStatesByOrg[orgID], entityState)
 	}
 
-	logger.Infow("[Overwatch] Built entities", "total_entities", len(entitiesByID), "org_count", len(entityStatesByOrg))
+	logger.Debugw("[Overwatch] Built entities", "total_entities", len(entitiesByID), "org_count", len(entityStatesByOrg))
 	return entityStatesByOrg
 }
 
@@ -779,43 +839,115 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 	return state
 }
 
-// mergeDetections merges detection data into EntityState
+// mergeDetections merges detection data into EntityState.
+// Supports both old format (tracked_objects with avg_confidence/threat_level)
+// and new format (objects with confidence/bbox/cx/cy/dx/dy).
 func (h *OverwatchHandler) mergeDetections(state *shared.EntityState, data map[string]interface{}) {
-	if trackedObjects, ok := data["tracked_objects"].(map[string]interface{}); ok {
-		detectionState := &shared.DetectionState{
-			TrackedObjects: make(map[string]shared.TrackedObject),
-			Timestamp:      time.Now(),
+	// Try "objects" (new format) first, then "tracked_objects" (old)
+	trackedObjects, ok := data["objects"].(map[string]interface{})
+	if !ok {
+		trackedObjects, ok = data["tracked_objects"].(map[string]interface{})
+	}
+	if !ok {
+		return
+	}
+
+	detectionState := &shared.DetectionState{
+		TrackedObjects: make(map[string]shared.TrackedObject),
+		Timestamp:      time.Now(),
+	}
+
+	// Detection-level metadata (new format)
+	if status, ok := data["status"].(string); ok {
+		detectionState.Status = status
+	}
+	if isLive, ok := data["is_live"].(bool); ok {
+		detectionState.IsLive = isLive
+	}
+	if fc, ok := data["frame_count"].(float64); ok {
+		detectionState.FrameCount = int(fc)
+	}
+
+	for trackID, objData := range trackedObjects {
+		objMap, ok := objData.(map[string]interface{})
+		if !ok {
+			continue
 		}
 
-		for trackID, objData := range trackedObjects {
-			if objMap, ok := objData.(map[string]interface{}); ok {
-				trackedObj := shared.TrackedObject{
-					TrackID:  trackID,
-					IsActive: false,
-				}
+		trackedObj := shared.TrackedObject{
+			TrackID:  trackID,
+			IsActive: true, // presence in KV = active (1Hz atomic replacement)
+		}
 
-				if label, ok := objMap["label"].(string); ok {
-					trackedObj.Label = label
-				}
-				if conf, ok := objMap["avg_confidence"].(float64); ok {
-					trackedObj.AvgConfidence = conf
-				}
-				if active, ok := objMap["is_active"].(bool); ok {
-					trackedObj.IsActive = active
-				}
-				if threat, ok := objMap["threat_level"].(string); ok {
-					trackedObj.ThreatLevel = threat
-				}
-				if frames, ok := objMap["frame_count"].(float64); ok {
-					trackedObj.FrameCount = int(frames)
-				}
+		if label, ok := objMap["label"].(string); ok {
+			trackedObj.Label = label
+		}
 
-				detectionState.TrackedObjects[trackID] = trackedObj
+		// New format: "confidence"; old format: "avg_confidence"
+		if conf, ok := objMap["confidence"].(float64); ok {
+			trackedObj.Confidence = conf
+		}
+		if conf, ok := objMap["avg_confidence"].(float64); ok {
+			trackedObj.AvgConfidence = conf
+		}
+
+		if frames, ok := objMap["frame_count"].(float64); ok {
+			trackedObj.FrameCount = int(frames)
+		}
+
+		// New format fields: bbox, centroid, motion vector
+		if bboxData, ok := objMap["bbox"].(map[string]interface{}); ok {
+			trackedObj.BBox = &shared.BoundingBox{}
+			if v, ok := bboxData["x1"].(float64); ok {
+				trackedObj.BBox.X1 = v
+			}
+			if v, ok := bboxData["y1"].(float64); ok {
+				trackedObj.BBox.Y1 = v
+			}
+			if v, ok := bboxData["x2"].(float64); ok {
+				trackedObj.BBox.X2 = v
+			}
+			if v, ok := bboxData["y2"].(float64); ok {
+				trackedObj.BBox.Y2 = v
+			}
+		}
+		if v, ok := objMap["cx"].(float64); ok {
+			trackedObj.CX = v
+		}
+		if v, ok := objMap["cy"].(float64); ok {
+			trackedObj.CY = v
+		}
+		if v, ok := objMap["dx"].(float64); ok {
+			trackedObj.DX = v
+		}
+		if v, ok := objMap["dy"].(float64); ok {
+			trackedObj.DY = v
+		}
+
+		// Timestamps
+		if fs, ok := objMap["first_seen"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, fs); err == nil {
+				trackedObj.FirstSeen = t
+			}
+		}
+		if ls, ok := objMap["last_seen"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, ls); err == nil {
+				trackedObj.LastSeen = t
 			}
 		}
 
-		state.Detections = detectionState
+		// Legacy fields
+		if active, ok := objMap["is_active"].(bool); ok {
+			trackedObj.IsActive = active
+		}
+		if threat, ok := objMap["threat_level"].(string); ok {
+			trackedObj.ThreatLevel = threat
+		}
+
+		detectionState.TrackedObjects[trackID] = trackedObj
 	}
+
+	state.Detections = detectionState
 }
 
 // mergeAnalytics merges analytics data into EntityState
@@ -939,25 +1071,24 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	}
 
 	if state.OrgID == "" {
-		logger.Infow("[Overwatch] mergeFullState: WARNING - No org_id or organization_id in data")
+		logger.Debugw("[Overwatch] mergeFullState: no org_id or organization_id in data")
 	}
 
-	// Python detection service format (NEW): detections.tracked_objects
+	// Detection service format: detections.objects.{track_id} (new) or detections.tracked_objects (old)
 	if detectionsData, ok := data["detections"].(map[string]interface{}); ok {
-		// Check for tracked_objects (new format)
-		if trackedObjects, ok := detectionsData["tracked_objects"].(map[string]interface{}); ok {
-			h.mergeDetections(state, map[string]interface{}{"tracked_objects": trackedObjects})
-			logger.Infof("[Overwatch] Merged detections.tracked_objects with %d tracked objects", len(trackedObjects))
-		} else if objectsData, ok := detectionsData["objects"].(map[string]interface{}); ok {
-			// Fallback to old format: detections.objects
-			h.mergeDetections(state, map[string]interface{}{"tracked_objects": objectsData})
-			logger.Infof("[Overwatch] Merged detections.objects with %d tracked objects", len(objectsData))
+		// Pass the whole detections map — mergeDetections handles both
+		// "objects" (new) and "tracked_objects" (old), plus detection-level metadata
+		h.mergeDetections(state, detectionsData)
+		objectCount := 0
+		if state.Detections != nil {
+			objectCount = len(state.Detections.TrackedObjects)
 		}
+		logger.Debugw("[Overwatch] Merged detections", "entity_id", state.EntityID, "objects", objectCount)
 
-		// Check for analytics nested inside detections (new format)
+		// Check for analytics nested inside detections
 		if analyticsData, ok := detectionsData["analytics"].(map[string]interface{}); ok {
 			h.mergeAnalytics(state, analyticsData)
-			logger.Infow("[Overwatch] Merged detections.analytics")
+			logger.Debugw("[Overwatch] Merged detections.analytics")
 		}
 	}
 
@@ -965,21 +1096,21 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	if analyticsData, ok := data["analytics"].(map[string]interface{}); ok {
 		if summaryData, ok := analyticsData["summary"].(map[string]interface{}); ok {
 			h.mergeAnalytics(state, summaryData)
-			logger.Infow("[Overwatch] Merged analytics.summary")
+			logger.Debugw("[Overwatch] Merged analytics.summary")
 		}
 	}
 
 	// Python threat intelligence format (NEW): top-level threat_intelligence
 	if threatData, ok := data["threat_intelligence"].(map[string]interface{}); ok {
 		h.mergeThreatIntel(state, threatData)
-		logger.Infow("[Overwatch] Merged threat_intelligence")
+		logger.Debugw("[Overwatch] Merged threat_intelligence")
 	}
 
 	// Python C4ISR format (OLD): c4isr.threat_intelligence
 	if c4isrData, ok := data["c4isr"].(map[string]interface{}); ok {
 		if threatData, ok := c4isrData["threat_intelligence"].(map[string]interface{}); ok {
 			h.mergeThreatIntel(state, threatData)
-			logger.Infow("[Overwatch] Merged c4isr.threat_intelligence")
+			logger.Debugw("[Overwatch] Merged c4isr.threat_intelligence")
 		}
 	}
 
@@ -1197,6 +1328,12 @@ func buildEntitySignal(entityID string, state shared.EntityState) signals.Entity
 	if state.VFR != nil {
 		heading := state.VFR.Heading
 		sig.Heading = &heading
+	}
+
+	// Add WebRTC URL if available (for per-entity WHEP playback)
+	// Prefers overlay (bounding box) stream over raw
+	if state.VideoConfig != nil {
+		sig.WebRTCURL = state.VideoConfig.PreferredWebRTCURL()
 	}
 
 	return sig

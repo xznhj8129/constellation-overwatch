@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  Open Source C4 for the Industrial Edge — Data Fabric & Toolbelt for Agentic Drones, Robots, Sensors, and Video Streams
+  Vendor Agnostic C4ISR Data Plane — Data Fabric & Toolbelt for Drones, Robotics, and the Industrial Edge
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@ Constellation Overwatch is a rapid response industrial data stack designed with 
 * **Real-time Pub/Sub Messaging** for low-latency communication between edge devices and control systems
 * **Durable Event Streams** using NATS JetStream for reliable message delivery and persistence
 * **Multi-Entity Fleet Support** for managing drones, robots, sensors, and other autonomous systems
-* **RESTful API** with bearer token authentication for secure HTTP access
+* **RESTful API** with scoped API key authentication for secure HTTP access
 * **Embedded NATS Server** providing self-contained messaging with no external dependencies
 * **High-Frequency Telemetry** streaming with efficient handling of sensor data
 * **Real-time Web Dashboard** powered by Server-Sent Events (SSE) and Datastar framework
@@ -41,7 +41,7 @@ Constellation Overwatch is a rapid response industrial data stack designed with 
 * **Interactive Maps** using MapLibre web components with global KV watcher
 * **Prometheus Metrics** with NATS and worker collectors for observability
 * **Terminal UI (TUI)** BubbleTea-based dashboard with real-time entity, log, and system panels
-* **Video Streaming & WebRTC** with H.264 codec support, keyframe buffering, and signaling
+* **Video Streaming** via MediaMTX integration with WebRTC/HLS/RTMP playback
 * **Self-Update** binary auto-update from GitHub releases via `--update` flag
 
 The following features are on our current roadmap:
@@ -68,7 +68,7 @@ graph LR
     
     subgraph "API Gateway"
         API[REST API<br/>:8080]
-        AUTH[Bearer Auth<br/>Middleware]
+        AUTH[API Key Auth<br/>Middleware]
     end
     
     subgraph "Core Services"
@@ -189,7 +189,7 @@ go mod download
 task dev
 
 # OR run directly
-go run ./cmd/microlith/main.go
+go run ./cmd/microlith/main.go start
 ```
 
 The server will start:
@@ -242,7 +242,7 @@ Access the real-time web interface at `http://localhost:8080`
 * **Datastar** - Hypermedia framework for reactive UI
 * **Server-Sent Events (SSE)** - Real-time data streaming
 * **MapLibre** - Interactive maps
-* **Pion WebRTC** - Real-time video streaming
+* **MediaMTX** - Video streaming (WebRTC/HLS/RTMP)
 
 **Development Mode:**
 
@@ -281,50 +281,20 @@ cp .env.example .env
 
 Configuration options:
 
-* `OVERWATCH_TOKEN` - Unified token for API and NATS authentication (default: `reindustrialize-dev-token`)
 * `PORT` - HTTP server port (default: `8080`)
 * `OVERWATCH_DATA_DIR` - Root data directory; DB at `<dir>/db/constellation.db`, NATS at `<dir>/overwatch/` (default: `./data`)
 * `NATS_PORT` - NATS server port (default: `4222`)
-* `WEB_UI_PASSWORD` - Password for Web UI access (leave empty to disable)
 
-Example `.env` file:
+See `.env.example` for the full list including production overrides.
 
-```bash
-OVERWATCH_TOKEN=reindustrialize-dev-token
-PORT=8080
-OVERWATCH_DATA_DIR=./data
-NATS_PORT=4222
-WEB_UI_PASSWORD=your-secure-password
-```
+### Authentication
 
-### Web UI Authentication
-
-The Web UI supports optional password-based authentication. When `WEB_UI_PASSWORD` is set in your `.env` file, users must authenticate before accessing the dashboard.
-
-**To enable Web UI authentication:**
+* **Web UI** - WebAuthn passkey authentication. On first run an admin user is bootstrapped and a registration link is printed to the console.
+* **REST API** - API keys with the `c4_live_` / `c4_test_` prefix, passed via `X-API-Key` header or `Authorization: Bearer c4_live_...`.
+* **NATS** - NKey-based authentication for edge devices.
 
 ```bash
-# In your .env file
-WEB_UI_PASSWORD=your-secure-password
-```
-
-When enabled:
-
-* Accessing any protected route redirects to `/login`
-* Sessions are stored in-memory with 24-hour expiration
-* Logout is available at `/logout`
-
-**To disable Web UI authentication:**
-
-Leave `WEB_UI_PASSWORD` empty or unset. The dashboard will be accessible without login.
-
-### API Authentication
-
-All REST API endpoints (`/api/v1/*`) require Bearer token authentication:
-
-```bash
-curl -H "Authorization: Bearer reindustrialize-dev-token" \
-     http://localhost:8080/api/v1/organizations
+curl -H "X-API-Key: c4_live_..." http://localhost:8080/api/v1/organizations
 ```
 
 ## Quick Start Examples
@@ -335,17 +305,17 @@ curl -H "Authorization: Bearer reindustrialize-dev-token" \
 
 Once the server is running, provision an organization and create entities:
 
-**Step 1: Set your API token**
+**Step 1: Set your API key**
 
 ```bash
-export TOKEN="reindustrialize-dev-token"  # or your custom token from .env
+export API_KEY="c4_live_..."  # generate via Web UI → Settings → API Keys
 ```
 
 **Step 2: Create an organization**
 
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/organizations \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Fleet",
@@ -379,7 +349,7 @@ Extract the `org_id` from the response above:
 ```sh
 export ORG_ID='ae9c65d0-b5f3-4cec-8ffa-68ff1173e050'
 curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Drone-001",
@@ -416,15 +386,15 @@ export ENTITY_ID='5458eec0-b0e3-4290-8db5-17936dbbfc64'
 
 # List all entities in organization
 curl -s "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
-  -H "Authorization: Bearer $TOKEN" | jq
+  -H "X-API-Key: $API_KEY" | jq
 
 # Get specific entity details
 curl -s "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$ENTITY_ID" \
-  -H "Authorization: Bearer $TOKEN" | jq
+  -H "X-API-Key: $API_KEY" | jq
 
 # Update entity status
 curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$ENTITY_ID" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "active",
@@ -455,11 +425,14 @@ curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$
 * `PUT /api/v1/entities?org_id=xxx&entity_id=yyy` - Update entity
 * `DELETE /api/v1/entities?org_id=xxx&entity_id=yyy` - Delete entity
 
-### Video & WebRTC
+### Video (via MediaMTX)
 
-* `GET /api/v1/video/list` - List available video streams
-* `GET /api/v1/video/stream/*` - Stream video feed
-* `POST /api/v1/webrtc/signal` - WebRTC signaling endpoint
+Video streaming is handled by [MediaMTX](https://github.com/bluenviron/mediamtx) when configured. The web UI queries stream status via internal endpoints:
+
+* `GET /api/video/list` - List available streams (web UI)
+* `GET /api/video/status` - Stream status (web UI)
+
+WebRTC/HLS/RTMP playback is served directly by MediaMTX.
 
 ### Monitoring
 
@@ -493,10 +466,10 @@ constellation-overwatch/
 ├── cmd/
 │   └── microlith/              # Main application entry point
 ├── api/
-│   ├── handlers/               # API handlers (health, orgs, entities, video, webrtc, monitor)
+│   ├── handlers/               # API handlers (health, orgs, entities, monitor)
 │   ├── middleware/             # HTTP middleware (auth, CORS)
 │   ├── responses/             # JSON response helpers
-│   ├── services/               # Business logic services (entities, organizations)
+│   ├── services/               # Business logic (entities, organizations, API keys, auth)
 │   └── router.go               # API router definition
 ├── db/
 │   ├── service.go              # Database service with auto-initialization
@@ -513,15 +486,15 @@ constellation-overwatch/
 │   └── services/
 │       ├── embedded-nats/      # Embedded NATS JetStream server
 │       ├── logger/             # Centralized logging service (Zap)
-│       ├── transcoder/         # Media transcoding
-│       ├── workers/            # Background event processors (entity, command, telemetry, event, video)
+│       ├── mediamtx/           # MediaMTX video integration client
+│       ├── workers/            # Background event processors (entity, command, telemetry, event)
 │       └── web/                # Web UI and SSE services
 │           ├── components/     # Reusable Templ UI components (badge, button, card, etc.)
 │           ├── datastar/       # Datastar framework integration
 │           ├── features/       # Feature-based pages
-│           │   ├── auth/      # Login page
+│           │   ├── admin/     # User, API key, and invite management
+│           │   ├── auth/      # Passkey login and registration
 │           │   ├── common/    # Shared layouts, navigation, entity card
-│           │   ├── docs/      # API documentation (Redoc)
 │           │   ├── fleet/     # Fleet management table
 │           │   ├── map/       # Interactive MapLibre map
 │           │   ├── metrics/   # Metrics dashboard
@@ -529,7 +502,7 @@ constellation-overwatch/
 │           │   ├── overwatch/ # Main dashboard with analytics
 │           │   ├── streams/   # NATS streams viewer
 │           │   └── video/     # Video streaming page
-│           ├── handlers/       # Web page handlers (overwatch, map, video, docs, metrics)
+│           ├── handlers/       # Web page handlers (admin, auth, map, video, metrics, etc.)
 │           ├── signals/        # Web component signal types
 │           ├── static/         # Static assets (CSS, JS, images)
 │           ├── router.go       # Web router and API mounting
@@ -553,10 +526,11 @@ constellation-overwatch/
 Update to the latest version with a single command:
 
 ```bash
-overwatch --update
+overwatch update
 ```
 
 This will:
+
 1. Check GitHub for the latest release
 2. Download the appropriate binary for your platform
 3. Replace the current binary with the new version
@@ -583,7 +557,7 @@ task build
 
 # Run the binary
 task run
-# OR manually: ./bin/overwatch
+# OR manually: ./bin/overwatch start
 
 # Run tests
 go test ./...
@@ -603,25 +577,18 @@ task --list
 ## Security
 
 <details>
-<summary>🔒 Token Authentication</summary>
+<summary>🔒 Authentication</summary>
 <br>
 
-Authentication is enabled automatically when `OVERWATCH_TOKEN` is set. This single token secures both the REST API and NATS connections:
+**REST API:** Use API keys (generated via Web UI or admin bootstrap):
 
 ```bash
-# In your .env file
-OVERWATCH_TOKEN=your-secure-token
+curl -H "X-API-Key: c4_live_..." http://localhost:8080/api/v1/organizations
 ```
 
-**REST API:** Include the token in the Authorization header:
-```bash
-curl -H "Authorization: Bearer your-secure-token" http://localhost:8080/api/v1/organizations
-```
+**Web UI:** WebAuthn passkey authentication. On first run, a registration link is printed to the console.
 
-**NATS Clients:** Connect with the token:
-```bash
-nats sub "constellation.>" --server nats://localhost:4222 --creds-token your-secure-token
-```
+**NATS Edge Devices:** NKey-based authentication, managed via the API.
 
 </details>
 

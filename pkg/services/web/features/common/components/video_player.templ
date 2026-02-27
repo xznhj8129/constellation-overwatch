@@ -1,0 +1,210 @@
+package components
+
+// VideoPlayer renders a WHEP video player for a given entity.
+// This is the single shared video component used by the video page, overwatch, and map.
+// The WHEPScript MutationObserver auto-connects when the player appears in the DOM.
+templ VideoPlayer(entityID string, webrtcURL string) {
+	<div class="video-player" data-entity-id={ entityID } data-webrtc-url={ webrtcURL }>
+		<div class="no-signal-overlay">
+			<span>No Video Signal</span>
+		</div>
+		<video
+			id={ "video-whep-" + entityID }
+			class="video-whep"
+			autoplay
+			muted
+			playsinline
+			style="width: 100%; height: auto; display: block; background: #000;">
+		</video>
+		<div class="video-controls">
+			<span class="connection-status" id={ "video-conn-" + entityID }>connecting...</span>
+			<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
+				Fullscreen
+			</button>
+		</div>
+	</div>
+}
+
+// WHEPScript provides unified WHEP connection management JS.
+// Include once per page that needs video playback. Uses a MutationObserver
+// to auto-connect new .video-player elements added via SSE PatchElements.
+templ WHEPScript() {
+	<script>
+		// ─── Unified WHEP Connection Manager ─────────────────────────
+		const whepConnections = {};
+		const WHEP_MAX_RETRIES = 8;
+		const WHEP_BASE_DELAY = 2000;
+		const WHEP_MAX_DELAY  = 30000;
+
+		// Auto-initialize a video player wrapper element
+		function initVideoPlayer(wrapper) {
+			if (wrapper.dataset.whepInit) return;
+			wrapper.dataset.whepInit = 'true';
+
+			var entityId  = wrapper.dataset.entityId;
+			var webrtcUrl = wrapper.dataset.webrtcUrl;
+
+			if (!entityId || !webrtcUrl) {
+				var statusEl = document.getElementById('video-conn-' + (entityId || ''));
+				if (statusEl) statusEl.textContent = entityId ? 'no video url' : 'error';
+				return;
+			}
+
+			// Skip auto-connect if hidden (e.g. inside a collapsed C4 card body)
+			if (wrapper.offsetParent === null) return;
+
+			connectWHEP(entityId);
+		}
+
+		// MutationObserver: detect new .video-player elements added to the DOM
+		const _whepObserver = new MutationObserver(function(mutations) {
+			for (const m of mutations) {
+				for (const node of m.addedNodes) {
+					if (node.nodeType !== 1) continue;
+					if (node.classList && node.classList.contains('video-player')) {
+						initVideoPlayer(node);
+					}
+					if (node.querySelectorAll) {
+						node.querySelectorAll('.video-player:not([data-whep-init])').forEach(initVideoPlayer);
+					}
+				}
+			}
+		});
+		_whepObserver.observe(document.body, { childList: true, subtree: true });
+
+		// Initialize any video players already in the DOM at script load time
+		document.querySelectorAll('.video-player:not([data-whep-init])').forEach(initVideoPlayer);
+
+		async function connectWHEP(entityId) {
+			var existing = whepConnections[entityId];
+
+			// Guard: already connected or connecting
+			if (existing && existing.connecting) return;
+			if (existing && existing.pc && existing.pc.connectionState === 'connected') return;
+
+			disconnectWHEP(entityId);
+
+			var wrapper = document.querySelector('.video-player[data-entity-id="' + entityId + '"]');
+			if (!wrapper) return;
+
+			var videoEl  = document.getElementById('video-whep-' + entityId);
+			var statusEl = document.getElementById('video-conn-' + entityId);
+			var overlay  = wrapper.querySelector('.no-signal-overlay');
+			var webrtcURL = wrapper.dataset.webrtcUrl;
+
+			if (!videoEl) return;
+			if (!webrtcURL) {
+				if (statusEl) statusEl.textContent = 'no video url';
+				return;
+			}
+
+			// WHEP endpoint = webrtc_url + "/whep"
+			var whepURL = webrtcURL.replace(/\/+$/, '') + '/whep';
+
+			var retries = (existing && existing.retries) || 0;
+			whepConnections[entityId] = { pc: null, reconnectTimer: null, connecting: true, retries: retries };
+
+			if (statusEl) statusEl.textContent = 'connecting...';
+
+			var pc = null;
+			try {
+				pc = new RTCPeerConnection({
+					iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+				});
+
+				pc.addTransceiver('video', { direction: 'recvonly' });
+				pc.addTransceiver('audio', { direction: 'recvonly' });
+
+				pc.ontrack = function(evt) {
+					videoEl.srcObject = evt.streams[0];
+					if (overlay) overlay.style.display = 'none';
+					if (statusEl) statusEl.textContent = 'live';
+				};
+
+				var offer = await pc.createOffer();
+				await pc.setLocalDescription(offer);
+
+				var resp = await fetch(whepURL, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/sdp' },
+					body: pc.localDescription.sdp
+				});
+
+				if (!resp.ok) throw new Error('WHEP: ' + resp.status);
+
+				var sdp = await resp.text();
+				await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdp }));
+
+				// Success — store and reset retries
+				whepConnections[entityId] = { pc: pc, reconnectTimer: null, connecting: false, retries: 0 };
+
+				pc.onconnectionstatechange = function() {
+					var conn = whepConnections[entityId];
+					if (!conn || conn.pc !== pc) return; // stale listener
+					if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+						if (statusEl) statusEl.textContent = 'reconnecting...';
+						if (overlay) overlay.style.display = 'flex';
+						scheduleWHEPReconnect(entityId, 0);
+					}
+				};
+			} catch (err) {
+				if (pc) { try { pc.close(); } catch (_) {} }
+				if (whepConnections[entityId]) whepConnections[entityId].connecting = false;
+				console.error('[WHEP] Error connecting ' + entityId + ':', err.message);
+				if (statusEl) statusEl.textContent = 'error';
+				if (overlay) overlay.style.display = 'flex';
+				scheduleWHEPReconnect(entityId, retries);
+			}
+		}
+
+		function scheduleWHEPReconnect(entityId, retries) {
+			var conn = whepConnections[entityId];
+			if (conn && conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
+
+			if (retries >= WHEP_MAX_RETRIES) {
+				console.error('[WHEP] Max retries for ' + entityId);
+				var statusEl = document.getElementById('video-conn-' + entityId);
+				if (statusEl) statusEl.textContent = 'failed';
+				return;
+			}
+
+			var delay = Math.min(WHEP_BASE_DELAY * Math.pow(2, retries), WHEP_MAX_DELAY);
+			console.log('[WHEP] Retry ' + (retries + 1) + '/' + WHEP_MAX_RETRIES + ' for ' + entityId + ' in ' + delay + 'ms');
+
+			var timer = setTimeout(function() {
+				if (!whepConnections[entityId]) return;
+				whepConnections[entityId].retries = retries + 1;
+				connectWHEP(entityId);
+			}, delay);
+
+			if (!whepConnections[entityId]) {
+				whepConnections[entityId] = { pc: null, reconnectTimer: timer, connecting: false, retries: retries };
+			} else {
+				whepConnections[entityId].reconnectTimer = timer;
+			}
+		}
+
+		function disconnectWHEP(entityId) {
+			var conn = whepConnections[entityId];
+			if (conn) {
+				if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer);
+				if (conn.pc) { try { conn.pc.close(); } catch (_) {} }
+				delete whepConnections[entityId];
+			}
+			var videoEl = document.getElementById('video-whep-' + entityId);
+			if (videoEl) videoEl.srcObject = null;
+			var statusEl = document.getElementById('video-conn-' + entityId);
+			if (statusEl) statusEl.textContent = 'disconnected';
+		}
+
+		function openVideoFullscreen(entityId) {
+			if (!entityId) return;
+			var videoEl = document.getElementById('video-whep-' + entityId);
+			if (videoEl && videoEl.requestFullscreen) {
+				videoEl.requestFullscreen();
+			} else if (videoEl && videoEl.webkitRequestFullscreen) {
+				videoEl.webkitRequestFullscreen();
+			}
+		}
+	</script>
+}

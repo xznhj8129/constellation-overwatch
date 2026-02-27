@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	httpRequestsTotal *prometheus.CounterVec
-	httpRequestDuration *prometheus.HistogramVec
+	httpRequestsTotal    *prometheus.CounterVec
+	httpRequestDuration  *prometheus.HistogramVec
 	httpRequestsInFlight prometheus.Gauge
-	httpMetricsOnce sync.Once
+	httpMetricsOnce      sync.Once
 )
 
 // initHTTPMetrics initializes HTTP metrics collectors

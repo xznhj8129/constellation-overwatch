@@ -1,13 +1,15 @@
 package handlers
 
 import (
+	"context"
+	"database/sql"
 	"net/http"
 	"time"
 
-	"database/sql"
-	"github.com/Constellation-Overwatch/constellation-overwatch/api/responses"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
 type HealthHandler struct {
@@ -16,49 +18,43 @@ type HealthHandler struct {
 }
 
 func NewHealthHandler(db *sql.DB, nats *embeddednats.EmbeddedNATS) *HealthHandler {
-	return &HealthHandler{
-		db:   db,
-		nats: nats,
-	}
+	return &HealthHandler{db: db, nats: nats}
 }
 
-// Check godoc
-// @Summary Health check
-// @Description Get the health status of the API and its dependencies
-// @Tags Health
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 503 {object} map[string]interface{}
-// @Router /health [get]
-func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
-	health := shared.HealthStatus{
-		Status:    "healthy",
-		Service:   "constellation-overwatch",
-		Timestamp: time.Now(),
-		Details:   make(map[string]string),
-	}
+type HealthOutput struct {
+	Body shared.HealthStatus
+}
 
-	// Check database
-	if err := h.db.Ping(); err != nil {
-		health.Status = "unhealthy"
-		health.Details["database"] = "unhealthy: " + err.Error()
-	} else {
-		health.Details["database"] = "healthy"
-	}
+func (h *HealthHandler) Register(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "health-check",
+		Method:      http.MethodGet,
+		Path:        "/v1/health",
+		Summary:     "Health check",
+		Description: "Get the health status of the API and its dependencies",
+		Tags:        []string{"System"},
+	}, func(ctx context.Context, input *struct{}) (*HealthOutput, error) {
+		health := shared.HealthStatus{
+			Status:    "healthy",
+			Service:   "constellation-overwatch",
+			Timestamp: time.Now(),
+			Details:   make(map[string]string),
+		}
 
-	// Check NATS
-	if err := h.nats.HealthCheck(); err != nil {
-		health.Status = "unhealthy"
-		health.Details["nats"] = "unhealthy: " + err.Error()
-	} else {
-		health.Details["nats"] = "healthy"
-	}
+		if err := h.db.Ping(); err != nil {
+			health.Status = "unhealthy"
+			health.Details["database"] = "unhealthy: " + err.Error()
+		} else {
+			health.Details["database"] = "healthy"
+		}
 
-	statusCode := http.StatusOK
-	if health.Status == "unhealthy" {
-		statusCode = http.StatusServiceUnavailable
-	}
+		if err := h.nats.HealthCheck(); err != nil {
+			health.Status = "unhealthy"
+			health.Details["nats"] = "unhealthy: " + err.Error()
+		} else {
+			health.Details["nats"] = "healthy"
+		}
 
-	responses.SendSuccess(w, statusCode, health)
+		return &HealthOutput{Body: health}, nil
+	})
 }

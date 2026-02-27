@@ -16,18 +16,18 @@ tasks:
     deps: [build]
     cmds:
       - echo "Running {{.BINARY_NAME}}..."
-      - ./bin/{{.BINARY_NAME}}
+      - ./bin/{{.BINARY_NAME}} start
 
   tui:
     desc: Run with TUI dashboard
     cmds:
-      - go run ./cmd/microlith/main.go --tui
+      - go run ./cmd/microlith/main.go start --tui
 
   build-tui:
     desc: Build binary and run TUI
     deps: [build]
     cmds:
-      - ./bin/{{.BINARY_NAME}} --tui
+      - ./bin/{{.BINARY_NAME}} start --tui
 
   docker-build:
     desc: Build Docker image
@@ -90,7 +90,7 @@ tasks:
   dev:
     desc: Start development mode (build and run)
     cmds:
-      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith/main.go"
+      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith/main.go start"
 
   default:
     desc: Show available tasks

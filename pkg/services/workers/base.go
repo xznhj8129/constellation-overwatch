@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -82,11 +83,11 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 			msgs, err := sub.Fetch(10, nats.MaxWait(2*time.Second))
 			if err != nil {
 				// Timeout is expected and normal - just continue
-				if err == nats.ErrTimeout {
+				if errors.Is(err, nats.ErrTimeout) {
 					continue
 				}
 				// These errors indicate shutdown or connection closure - exit gracefully
-				if err == nats.ErrBadSubscription || err == nats.ErrConnectionClosed {
+				if errors.Is(err, nats.ErrBadSubscription) || errors.Is(err, nats.ErrConnectionClosed) {
 					return nil
 				}
 				// For other errors, log and continue

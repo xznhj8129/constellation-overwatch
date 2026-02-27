@@ -14,7 +14,7 @@
 // @BasePath /api/v1
 // @schemes http https
 
-// @securityDefinitions.apikey BearerAuth
+// @securityDefinitions.apikey APIKeyAuth
 // @in header
 // @name Authorization
 // @description Enter the token with the `Bearer: ` prefix, e.g. "Bearer abcde12345"
@@ -28,14 +28,17 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	svcmgr "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/transcoder"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/tui"
@@ -86,41 +89,44 @@ func fileExists(path string) bool {
 }
 
 func main() {
-	// Override default flag usage with custom help
-	flag.Usage = printHelp
-
-	// CLI flags
-	var (
-		showVersion = flag.Bool("version", false, "Print version and exit")
-		showHelp    = flag.Bool("help", false, "Show help message")
-		doUpdate    = flag.Bool("update", false, "Update to the latest version")
-		tuiMode     = flag.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
-		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
-		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
-		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
-		token       = flag.String("token", "", "Overwatch auth token (for API and NATS)")
-		dataDir     = flag.String("data-dir", "", "Data directory (default: ./data)")
-		envFile     = flag.String("env", ".env", "Path to .env file")
-	)
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
-		os.Exit(0)
-	}
-
-	if *showHelp {
+	// No subcommand or help flags → show splash + help
+	if len(os.Args) < 2 {
 		printHelp()
-		os.Exit(0)
+		return
 	}
 
-	if *doUpdate {
+	switch os.Args[1] {
+	case "start":
+		cmdStart(os.Args[2:])
+	case "version", "--version", "-v":
+		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
+	case "update":
 		if err := updater.Update(version, false); err != nil {
 			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
 			os.Exit(1)
 		}
-		os.Exit(0)
+	case "help", "--help", "-h":
+		printHelp()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+		printHelp()
+		os.Exit(1)
 	}
+}
+
+func cmdStart(args []string) {
+	startFlags := flag.NewFlagSet("start", flag.ExitOnError)
+	startFlags.Usage = printStartHelp
+
+	var (
+		tuiMode  = startFlags.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
+		port     = startFlags.String("port", "", "Web UI and API port (default: 8080)")
+		host     = startFlags.String("host", "", "Bind address (default: 0.0.0.0)")
+		natsPort = startFlags.String("nats-port", "", "NATS server port (default: 4222)")
+		dataDir  = startFlags.String("data-dir", "", "Data directory (default: ./data)")
+		envFile  = startFlags.String("env", ".env", "Path to .env file")
+	)
+	startFlags.Parse(args)
 
 	// Load .env file (flags override env vars)
 	if envPath := findEnvFile(*envFile); envPath != "" {
@@ -134,7 +140,7 @@ func main() {
 	}
 
 	// Apply CLI flag overrides to environment (flags take precedence)
-	applyFlagOverrides(*port, *host, *natsPort, *token, *dataDir)
+	applyFlagOverrides(*port, *host, *natsPort, *dataDir)
 
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
@@ -158,6 +164,12 @@ func main() {
 				LogHook: logHook,
 			})
 		}
+	}
+
+	// Print splash screen in headless mode (TUI takes over the terminal)
+	if !*tuiMode {
+		printSplash()
+		fmt.Println()
 	}
 
 	// Print startup banner with version info
@@ -187,9 +199,6 @@ func main() {
 		logger.Fatalw("Failed to start NATS service", "error", err)
 	}
 
-	// Wait for NATS to be ready
-	time.Sleep(1 * time.Second)
-
 	// Get NATS connection
 	nc := natsService.Connection()
 
@@ -199,24 +208,18 @@ func main() {
 	if err != nil {
 		logger.Fatalw("Failed to initialize worker manager", "error", err)
 	}
-	if err := workerManager.Start(); err != nil {
+	if err := workerManager.Start(ctx); err != nil {
 		logger.Fatalw("Failed to start workers", "error", err)
 	}
 
-	// 3b. Initialize Video Transcoder (converts MPEG-TS to JPEG)
-	logger.Info("Initializing video transcoder...")
-	videoTranscoder := transcoder.New(nc)
-	go func() {
-		if err := videoTranscoder.Start(ctx); err != nil {
-			logger.Errorw("Video transcoder error", "error", err)
-		}
-	}()
+	// 4. Bootstrap admin user if none exist
+	bootstrapAdmin(dbService)
 
-	// 4. Initialize API Router
+	// 5. Initialize API Router
 	logger.Info("Initializing API router...")
 	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
 
-	// 5. Initialize Web Server
+	// 6. Initialize Web Server
 	logger.Info("Initializing web server...")
 	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
 	if err != nil {
@@ -227,6 +230,13 @@ func main() {
 	}
 
 	logger.Info("All services started successfully")
+
+	// Register services for managed shutdown (reverse order of addition)
+	mgr := svcmgr.NewManager()
+	mgr.AddService(dbService)
+	mgr.AddService(natsService)
+	mgr.AddService(workerManager)
+	mgr.AddService(webServer)
 
 	// TUI mode or headless mode
 	sigChan := make(chan os.Signal, 1)
@@ -268,25 +278,10 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
-	// Stop services in reverse order with timeout context
-	logger.Info("Stopping web server...")
-	if err := webServer.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping web server", "error", err)
-	}
-
-	logger.Info("Stopping workers...")
-	if err := workerManager.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping workers", "error", err)
-	}
-
-	logger.Info("Stopping NATS service...")
-	if err := natsService.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping NATS service", "error", err)
-	}
-
-	logger.Info("Stopping database service...")
-	if err := dbService.Stop(shutdownCtx); err != nil {
-		logger.Errorw("Error stopping database service", "error", err)
+	// Stop all services in reverse registration order
+	logger.Info("Stopping all services...")
+	if err := mgr.Stop(shutdownCtx); err != nil {
+		logger.Errorw("Error during shutdown", "error", err)
 	}
 
 	// Cancel main context
@@ -295,66 +290,182 @@ func main() {
 	logger.Info("Shutdown complete")
 }
 
-func printHelp() {
-	fmt.Println(`Constellation Overwatch - Edge C4ISR Server Mesh
+// printSplash renders the boxed splash screen with logo, tagline, and version info.
+func printSplash() {
+	const boxWidth = 78 // inner width (between the vertical bars)
 
-USAGE:
-    overwatch [OPTIONS]
+	h := "─"
+	topBorder := "┌" + strings.Repeat(h, boxWidth) + "┐"
+	midBorder := "├" + strings.Repeat(h, boxWidth) + "┤"
+	botBorder := "└" + strings.Repeat(h, boxWidth) + "┘"
 
-OPTIONS:
-    --tui                  Start with TUI dashboard (interactive terminal UI)
-    --port <PORT>          HTTP server port for Web UI and REST API (default: 8080)
-    --host <HOST>          Network bind address (default: 0.0.0.0)
-    --nats-port <PORT>     NATS TCP port for edge device connections (default: 4222)
-    --token <TOKEN>        Auth token for API and NATS (default: reindustrialize-dev-token)
-    --data-dir <PATH>      Data directory for database and NATS storage (default: ./data)
-    --env <PATH>           Path to .env configuration file (default: .env)
-    --update               Download and install the latest version
-    --version              Print version and exit
-    --help                 Show this help message
+	padLine := func(content string) string {
+		runeLen := utf8.RuneCountInString(content)
+		pad := boxWidth - runeLen
+		if pad < 0 {
+			pad = 0
+		}
+		return "│" + content + strings.Repeat(" ", pad) + "│"
+	}
 
-QUICK START:
-    # Run with defaults (headless)
-    overwatch
+	empty := padLine("")
 
-    # Run with TUI dashboard
-    overwatch --tui
+	logo := []string{
+		`      ██████╗██╗  ██╗`,
+		`     ██╔════╝██║  ██║      C O N S T E L L A T I O N`,
+		`     ██║     ███████║      O V E R W A T C H`,
+		`     ██║     ╚════██║`,
+		`     ╚██████╗     ██║      "Edge C4ISR at the speed of command"`,
+		`      ╚═════╝     ╚═╝`,
+	}
 
-    # Run on a different port
-    overwatch --port 9090
+	versionStr := "  Constellation Overwatch"
+	if version != "dev" {
+		versionStr = fmt.Sprintf("  Constellation Overwatch v%s", version)
+	}
 
-    # Run with custom token
-    overwatch --token mysecuretoken
-
-    # Update to the latest version
-    overwatch --update
-
-TUI CONTROLS:
-    Tab/Shift+Tab  Navigate between panels
-    j/k or arrows  Scroll within panel
-    v              Toggle entities/streams view
-    r              Refresh all data
-    ?              Show help
-    q              Quit
-
-ENVIRONMENT:
-    All options can also be set via environment variables or .env file:
-    PORT, HOST, NATS_PORT, OVERWATCH_TOKEN, OVERWATCH_DATA_DIR
-
-    Priority: CLI flags > environment variables > .env file > defaults
-
-ENDPOINTS:
-    Web UI:     http://localhost:8080
-    REST API:   http://localhost:8080/api/v1/
-    NATS TCP:   nats://localhost:4222 (edge devices connect here with token auth)
-    NATS WS:    ws://localhost:8222 (browser WebSocket connections)
-    Health:     http://localhost:8080/health
-
-DOCUMENTATION:
-    https://github.com/Constellation-Overwatch/constellation-overwatch`)
+	fmt.Println(topBorder)
+	fmt.Println(empty)
+	for _, line := range logo {
+		fmt.Println(padLine(line))
+	}
+	fmt.Println(empty)
+	fmt.Println(midBorder)
+	fmt.Println(padLine(versionStr))
+	fmt.Println(padLine("  Vendor-agnostic edge C4ISR data plane for drones, robots & sensors"))
+	fmt.Println(empty)
+	fmt.Println(padLine("  https://constellation-overwatch.dev"))
+	fmt.Println(botBorder)
 }
 
-func applyFlagOverrides(port, host, natsPort, token, dataDir string) {
+func printHelp() {
+	printSplash()
+	fmt.Println(`
+Usage:
+  overwatch <command> [options]
+
+Commands:
+  start          Start the server (headless or TUI)
+  version        Print version and exit
+  update         Download and install the latest version
+  help           Show this help message
+
+Quick Start:
+  overwatch start              Start in headless mode
+  overwatch start --tui        Start with TUI dashboard
+  overwatch start --port 9090  Run on a different port
+
+Run 'overwatch start --help' for server options.`)
+}
+
+func printStartHelp() {
+	fmt.Println(`Start the Constellation Overwatch server.
+
+Usage:
+  overwatch start [options]
+
+Options:
+  --tui                Start with TUI dashboard (interactive terminal UI)
+  --port <PORT>        HTTP server port for Web UI and REST API (default: 8080)
+  --host <HOST>        Network bind address (default: 0.0.0.0)
+  --nats-port <PORT>   NATS TCP port for edge device connections (default: 4222)
+  --data-dir <PATH>    Data directory for database and NATS storage (default: ./data)
+  --env <PATH>         Path to .env configuration file (default: .env)
+
+TUI Controls:
+  Tab/Shift+Tab   Navigate between panels
+  j/k or arrows   Scroll within panel
+  v               Toggle entities/streams view
+  r               Refresh all data
+  ?               Show help
+  q               Quit
+
+Environment:
+  All options can also be set via environment variables or .env file:
+  PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
+
+  Priority: CLI flags > environment variables > .env file > defaults
+
+Endpoints:
+  Web UI      http://localhost:8080
+  REST API    http://localhost:8080/api/v1/
+  NATS TCP    nats://localhost:4222
+  Health      http://localhost:8080/health`)
+}
+
+// bootstrapAdmin ensures at least one admin user exists for first-time setup.
+// If no users exist, it creates the default org, a bootstrap admin, and a
+// one-time invite token. The invite URL is printed to the console; there is no
+// zero-credential login path.
+func bootstrapAdmin(dbService *db.Service) {
+	database := dbService.GetDB()
+
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		logger.Warnw("Failed to check user count for bootstrap", "error", err)
+		return
+	}
+	if count > 0 {
+		return
+	}
+
+	logger.Info("No users found, bootstrapping default organization and admin user...")
+
+	// Ensure the default organization exists
+	_, err := database.Exec(
+		`INSERT OR IGNORE INTO organizations (org_id, name, org_type, description) VALUES (?, ?, ?, ?)`,
+		"default", "Default Organization", "commercial", "Auto-created default organization",
+	)
+	if err != nil {
+		logger.Errorw("Failed to create default organization", "error", err)
+		return
+	}
+
+	// Read admin email from env var, fallback to admin@localhost
+	adminEmail := os.Getenv("OVERWATCH_ADMIN_EMAIL")
+	if adminEmail == "" {
+		adminEmail = "admin@localhost"
+	}
+
+	userSvc := services.NewUserService(database)
+	admin := &services.User{
+		OrgID:             "default",
+		Username:          adminEmail, // email IS the identity
+		Email:             adminEmail,
+		Role:              "admin",
+		NeedsPasskeySetup: true,
+	}
+
+	if err := userSvc.CreateUser(admin); err != nil {
+		logger.Errorw("Failed to create bootstrap admin", "error", err)
+		return
+	}
+
+	// Generate a one-time invite so the admin can set up their passkey.
+	inviteSvc := services.NewInviteService(database)
+	_, plainToken, err := inviteSvc.CreateInvite("default", adminEmail, "admin", admin.UserID)
+	if err != nil {
+		logger.Errorw("Failed to create bootstrap invite", "error", err)
+		return
+	}
+
+	// Print setup instructions to console
+	host := os.Getenv("HOST")
+	if host == "" || host == "0.0.0.0" {
+		host = "localhost"
+	}
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	logger.Infow("Bootstrap admin created",
+		"email", admin.Email, "user_id", admin.UserID)
+	fmt.Printf("\n  ✦ Admin account created for: %s\n", admin.Email)
+	fmt.Printf("  ✦ Complete setup at: http://%s:%s/invite/%s\n\n", host, port, plainToken)
+}
+
+func applyFlagOverrides(port, host, natsPort, dataDir string) {
 	if port != "" {
 		os.Setenv("PORT", port)
 	}
@@ -363,9 +474,6 @@ func applyFlagOverrides(port, host, natsPort, token, dataDir string) {
 	}
 	if natsPort != "" {
 		os.Setenv("NATS_PORT", natsPort)
-	}
-	if token != "" {
-		os.Setenv("OVERWATCH_TOKEN", token)
 	}
 	if dataDir != "" {
 		os.Setenv("OVERWATCH_DATA_DIR", dataDir)

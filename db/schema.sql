@@ -55,6 +55,7 @@ CREATE TABLE entities (
   classification TEXT,
 
   metadata TEXT DEFAULT '{}',
+  video_config TEXT DEFAULT '{}',
 
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -130,13 +131,15 @@ CREATE TABLE users (
   user_id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
   username TEXT NOT NULL UNIQUE,
-  email TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
   role TEXT NOT NULL DEFAULT 'viewer' CHECK(role IN ('viewer', 'operator', 'commander', 'admin')),
   permissions TEXT DEFAULT '',
+  webauthn_id BLOB,
   certificate_fingerprint TEXT,
   api_key_hash TEXT,
   metadata TEXT DEFAULT '{}',
   last_login TEXT,
+  needs_passkey_setup INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
 
@@ -180,6 +183,86 @@ CREATE TABLE audit_log (
 
   FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE SET NULL,
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+-- ============================================================================
+-- WEBAUTHN / PASSKEY TABLES
+-- ============================================================================
+
+-- WebAuthn credentials (passkeys registered by users, stored as JSON blobs)
+CREATE TABLE webauthn_credentials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  credential_id TEXT NOT NULL,
+  credential_data TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- WebAuthn ceremony session data (short-lived, auto-cleaned)
+CREATE TABLE webauthn_sessions (
+  ceremony TEXT NOT NULL,
+  session_key TEXT NOT NULL,
+  session_data TEXT NOT NULL,
+  user_ref TEXT DEFAULT '',
+  expires_at TEXT NOT NULL,
+  PRIMARY KEY (ceremony, session_key)
+);
+
+-- ============================================================================
+-- API KEYS (unified provisioning for REST API + NATS)
+-- ============================================================================
+
+CREATE TABLE api_keys (
+  key_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE,
+  key_prefix TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  scopes TEXT NOT NULL DEFAULT '[]',
+  role TEXT NOT NULL DEFAULT 'operator',
+  nats_pub_key TEXT,
+  expires_at TEXT,
+  revoked INTEGER NOT NULL DEFAULT 0,
+  last_used_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+  FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- USER INVITATIONS
+-- ============================================================================
+
+CREATE TABLE invites (
+  invite_id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer' CHECK(role IN ('viewer', 'operator', 'commander', 'admin')),
+  token_hash TEXT NOT NULL UNIQUE,
+  invited_by_user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'expired', 'revoked')),
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
+  FOREIGN KEY (invited_by_user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- SESSIONS (persistent session store)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS sessions (
+  session_token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  org_id TEXT NOT NULL DEFAULT '',
+  needs_passkey_setup INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- ============================================================================
@@ -234,6 +317,30 @@ CREATE INDEX idx_audit_org_id ON audit_log(org_id);
 CREATE INDEX idx_audit_user_id ON audit_log(user_id);
 CREATE INDEX idx_audit_action ON audit_log(action);
 CREATE INDEX idx_audit_timestamp ON audit_log(timestamp DESC);
+
+-- WebAuthn Credentials
+CREATE INDEX idx_webauthn_creds_user ON webauthn_credentials(user_id);
+CREATE INDEX idx_webauthn_creds_cred_id ON webauthn_credentials(credential_id);
+
+-- WebAuthn Sessions (for cleanup)
+CREATE INDEX idx_webauthn_sessions_expires ON webauthn_sessions(expires_at);
+CREATE INDEX idx_webauthn_sessions_ceremony ON webauthn_sessions(ceremony);
+
+-- API Keys
+CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);
+CREATE INDEX idx_api_keys_user ON api_keys(user_id);
+CREATE INDEX idx_api_keys_org ON api_keys(org_id);
+CREATE INDEX idx_api_keys_nats_pub ON api_keys(nats_pub_key) WHERE nats_pub_key IS NOT NULL;
+
+-- Sessions
+CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+
+-- Invites
+CREATE INDEX idx_invites_token ON invites(token_hash);
+CREATE INDEX idx_invites_email ON invites(email);
+CREATE INDEX idx_invites_org ON invites(org_id);
+CREATE INDEX idx_invites_status ON invites(status);
 
 -- ============================================================================
 -- TRIGGERS

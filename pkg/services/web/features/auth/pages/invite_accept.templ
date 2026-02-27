@@ -1,0 +1,39 @@
+package pages
+
+templ InviteAcceptPage(email string, orgID string, token string, errorMsg string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Accept Invite - C4 Overwatch</title>
+			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+		</head>
+		<body>
+			<div class="login-page">
+				<div class="warp-tunnel">
+					<div class="starfield">
+						for i := 0; i < 20; i++ {
+							<div class="star"></div>
+						}
+					</div>
+				</div>
+				<div class="login-box">
+					<div class="login-avatar">
+						<img src="/static/images/c4.png" alt="C4 Overwatch"/>
+					</div>
+					<h2 class="invite-heading">Accept Invitation</h2>
+					<div class="subtitle" style="margin-bottom: 4px;">Organization: { orgID }</div>
+					<div class="subtitle" style="margin-bottom: 16px;">Invited as: { email }</div>
+					if errorMsg != "" {
+						<div class="login-error">{ errorMsg }</div>
+					}
+					<form action={ templ.SafeURL("/invite/" + token + "/accept") } method="POST" class="login-form">
+						<button type="submit" class="login-btn" id="accept-btn">Accept & Setup Passkey</button>
+					</form>
+				</div>
+			</div>
+		</body>
+	</html>
+}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
@@ -31,18 +32,10 @@ type Config struct {
 	AutoInitialize bool // Automatically initialize schema if DB doesn't exist
 }
 
-// getEnv gets environment variable with fallback
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
-
 // DefaultConfig returns default database configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DBPath:         getEnv("OVERWATCH_DATA_DIR", "./data") + "/db/constellation.db",
+		DBPath:         shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/db/constellation.db",
 		MaxOpenConns:   1, // SQLite doesn't handle concurrent writes well
 		MaxIdleConns:   1,
 		AutoInitialize: true,
@@ -64,7 +57,7 @@ func New(config *Config) (*Service, error) {
 
 	// Ensure the directory exists
 	dbDir := filepath.Dir(config.DBPath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
+	if err := os.MkdirAll(dbDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
@@ -124,6 +117,12 @@ func (s *Service) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
+
+	// Apply incremental migrations for existing databases
+	if err := s.MigrateSchema(); err != nil {
+		logger.Warnw("Schema migration encountered issues", "error", err)
+	}
+
 	return nil
 }
 
@@ -249,6 +248,10 @@ func (s *Service) VerifySchema() error {
 		"users",
 		"telemetry",
 		"audit_log",
+		"webauthn_credentials",
+		"webauthn_sessions",
+		"api_keys",
+		"invites",
 	}
 
 	for _, table := range requiredTables {
@@ -326,12 +329,56 @@ func fileExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
-// MigrateSchema applies any pending schema migrations
-// This is a placeholder for future migration support
+// MigrateSchema applies any pending schema migrations.
 func (s *Service) MigrateSchema() error {
-	// TODO: Implement migration system
-	logger.Info("Schema migration not yet implemented")
+	// Ensure users.email has a unique index (added after initial schema).
+	_, err := s.DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)`)
+	if err != nil {
+		logger.Warnw("Failed to create unique email index (may already exist)", "error", err)
+	}
+
+	// Create sessions table if it doesn't exist (persistent session store).
+	_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS sessions (
+		session_token TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'viewer',
+		org_id TEXT NOT NULL DEFAULT '',
+		needs_passkey_setup INTEGER NOT NULL DEFAULT 0,
+		expires_at TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		FOREIGN KEY (user_id) REFERENCES users(user_id)
+	)`)
+	if err != nil {
+		logger.Warnw("Failed to create sessions table", "error", err)
+	}
+	s.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`)
+	s.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`)
+
+	// Add user_ref column to webauthn_sessions if it doesn't exist (needed for
+	// random session keys that store the user reference alongside the session).
+	if !s.columnExists("webauthn_sessions", "user_ref") {
+		if _, err := s.DB.Exec(`ALTER TABLE webauthn_sessions ADD COLUMN user_ref TEXT DEFAULT ''`); err != nil {
+			logger.Warnw("Failed to add user_ref column to webauthn_sessions", "error", err)
+		} else {
+			logger.Info("Added user_ref column to webauthn_sessions")
+		}
+	}
+
 	return nil
+}
+
+// columnExists checks whether a column exists on a table using the
+// pragma_table_info() table-valued function which accepts parameterized input.
+func (s *Service) columnExists(table, column string) bool {
+	var count int
+	err := s.DB.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?",
+		table, column,
+	).Scan(&count)
+	if err != nil {
+		return false
+	}
+	return count > 0
 }
 
 // GetSchemaVersion returns the current schema version

@@ -16,6 +16,13 @@ const (
 	SubjectEntityStatus    = "constellation.entities.%s.status"    // org_id
 	SubjectEntityTelemetry = "constellation.entities.%s.telemetry" // org_id
 
+	// Organization subjects
+	SubjectOrganizations    = "constellation.organizations"
+	SubjectOrganizationsAll = "constellation.organizations.>"
+	SubjectOrgCreated       = "constellation.organizations.created"
+	SubjectOrgUpdated       = "constellation.organizations.updated"
+	SubjectOrgDeleted       = "constellation.organizations.deleted"
+
 	// Event subjects
 	SubjectEvents    = "constellation.events"
 	SubjectEventsAll = "constellation.events.>"
@@ -35,20 +42,14 @@ const (
 	SubjectSystemHealth  = "constellation.system.health"
 	SubjectSystemMetrics = "constellation.system.metrics"
 	SubjectSystemAlerts  = "constellation.system.alerts"
-
-	// Video frame subjects
-	SubjectVideo       = "constellation.video"
-	SubjectVideoAll    = "constellation.video.>"
-	SubjectVideoEntity = "constellation.video.%s" // entity_id
 )
 
 // Stream names
 const (
-	StreamEntities    = "CONSTELLATION_ENTITIES"
-	StreamEvents      = "CONSTELLATION_EVENTS"
-	StreamTelemetry   = "CONSTELLATION_TELEMETRY"
-	StreamCommands    = "CONSTELLATION_COMMANDS"
-	StreamVideoFrames = "CONSTELLATION_VIDEO_FRAMES"
+	StreamEntities  = "CONSTELLATION_ENTITIES"
+	StreamEvents    = "CONSTELLATION_EVENTS"
+	StreamTelemetry = "CONSTELLATION_TELEMETRY"
+	StreamCommands  = "CONSTELLATION_COMMANDS"
 )
 
 // Consumer names
@@ -57,7 +58,6 @@ const (
 	ConsumerEventProcessor     = "event-processor"
 	ConsumerCommandProcessor   = "command-processor"
 	ConsumerTelemetryProcessor = "telemetry-processor"
-	ConsumerVideoProcessor     = "video-processor"
 )
 
 // KV Bucket names
@@ -111,6 +111,18 @@ func CommandBroadcastSubject(orgID string) string {
 	return fmt.Sprintf(SubjectCommandBroadcast, orgID)
 }
 
+func OrgCreatedSubject() string {
+	return SubjectOrgCreated
+}
+
+func OrgUpdatedSubject() string {
+	return SubjectOrgUpdated
+}
+
+func OrgDeletedSubject() string {
+	return SubjectOrgDeleted
+}
+
 // Helper functions to generate KV keys
 func EntityKey(entityID string) string {
 	// Return just the entity_id as the key (not "entity:{id}" format)
@@ -135,9 +147,4 @@ func SwarmFleetKey(swarmID string) string {
 
 func OrgEntitiesKey(orgID string) string {
 	return fmt.Sprintf(KVKeyOrgEntities, orgID)
-}
-
-// VideoFrameSubject returns the subject for video frames from a specific entity
-func VideoFrameSubject(entityID string) string {
-	return fmt.Sprintf(SubjectVideoEntity, entityID)
 }

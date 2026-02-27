@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
@@ -27,6 +28,10 @@ func NewEntityService(db *sql.DB, nats *embeddednats.EmbeddedNATS) *EntityServic
 }
 
 func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityRequest) (*ontology.Entity, error) {
+	if !ontology.IsValidEntityType(req.EntityType) {
+		return nil, fmt.Errorf("invalid entity_type %q: %w", req.EntityType, shared.ErrInvalidInput)
+	}
+
 	entityID := uuid.New().String()
 	now := time.Now()
 
@@ -43,8 +48,20 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 
 	metadataJSON := "{}"
 	if req.Metadata != nil {
-		bytes, _ := json.Marshal(req.Metadata)
+		bytes, err := json.Marshal(req.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 		metadataJSON = string(bytes)
+	}
+
+	videoConfigJSON := "{}"
+	if req.VideoConfig != nil {
+		bytes, err := json.Marshal(req.VideoConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal video config: %w", err)
+		}
+		videoConfigJSON = string(bytes)
 	}
 
 	var latitude, longitude, altitude interface{}
@@ -57,9 +74,9 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	}
 
 	_, err := s.db.Exec(
-		`INSERT INTO entities (entity_id, org_id, name, entity_type, status, priority, latitude, longitude, altitude, metadata, created_at, updated_at) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entityID, orgID, req.Name, req.EntityType, status, priority, latitude, longitude, altitude, metadataJSON,
+		`INSERT INTO entities (entity_id, org_id, name, entity_type, status, priority, latitude, longitude, altitude, metadata, video_config, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entityID, orgID, req.Name, req.EntityType, status, priority, latitude, longitude, altitude, metadataJSON, videoConfigJSON,
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
@@ -67,15 +84,16 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 	}
 
 	entity := &ontology.Entity{
-		EntityID:   entityID,
-		OrgID:      orgID,
-		Name:       req.Name,
-		EntityType: req.EntityType,
-		Status:     status,
-		Priority:   priority,
-		Metadata:   metadataJSON,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		EntityID:    entityID,
+		OrgID:       orgID,
+		Name:        req.Name,
+		EntityType:  req.EntityType,
+		Status:      status,
+		Priority:    priority,
+		Metadata:    metadataJSON,
+		VideoConfig: videoConfigJSON,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
 	if req.Position != nil {
@@ -99,7 +117,7 @@ func (s *EntityService) ListEntities(orgID string) ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
 		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
 		        latitude, longitude, altitude, heading, velocity,
-		        components, tags, metadata, created_at, updated_at
+		        components, tags, metadata, video_config, created_at, updated_at
 		 FROM entities WHERE org_id = ?`, orgID,
 	)
 	if err != nil {
@@ -123,7 +141,7 @@ func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 	rows, err := s.db.Query(
 		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
 		        latitude, longitude, altitude, heading, velocity,
-		        components, tags, metadata, created_at, updated_at
+		        components, tags, metadata, video_config, created_at, updated_at
 		 FROM entities ORDER BY updated_at DESC`,
 	)
 	if err != nil {
@@ -145,16 +163,16 @@ func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 
 func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, error) {
 	row := s.db.QueryRow(
-		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live, 
-		        latitude, longitude, altitude, heading, velocity, 
-		        components, tags, metadata, created_at, updated_at 
+		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
+		        latitude, longitude, altitude, heading, velocity,
+		        components, tags, metadata, video_config, created_at, updated_at
 		 FROM entities WHERE org_id = ? AND entity_id = ?`,
 		orgID, entityID,
 	)
 
 	entity, err := s.scanEntity(row)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("entity not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 	if err != nil {
 		return nil, err
@@ -165,7 +183,7 @@ func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, err
 
 func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]interface{}) (*ontology.Entity, error) {
 	if len(updates) == 0 {
-		return nil, fmt.Errorf("no updates provided")
+		return nil, shared.ErrNoUpdates
 	}
 
 	// Build dynamic update query
@@ -189,8 +207,11 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 		case "latitude", "longitude", "altitude", "heading", "velocity":
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, value)
-		case "metadata", "components", "tags":
-			bytes, _ := json.Marshal(value)
+		case "metadata", "components", "tags", "video_config":
+			bytes, err := json.Marshal(value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal %s: %w", key, err)
+			}
 			query += fmt.Sprintf(", %s = ?", key)
 			args = append(args, string(bytes))
 		}
@@ -204,9 +225,12 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 		return nil, fmt.Errorf("failed to update entity: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf("entity not found")
+		return nil, fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 
 	// Get updated entity
@@ -239,9 +263,12 @@ func (s *EntityService) DeleteEntity(orgID, entityID string) error {
 		return fmt.Errorf("failed to delete entity: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("entity not found")
+		return fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 
 	// Publish entity deleted event
@@ -275,10 +302,24 @@ func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType st
 		return
 	}
 
+	var subjectFn func(string) string
+	switch eventType {
+	case shared.EventTypeCreated:
+		subjectFn = shared.EntityCreatedSubject
+	case shared.EventTypeUpdated:
+		subjectFn = shared.EntityUpdatedSubject
+	case shared.EventTypeDeleted:
+		subjectFn = shared.EntityDeletedSubject
+	case shared.EventTypeStatus:
+		subjectFn = shared.EntityStatusSubject
+	default:
+		subjectFn = shared.EntityCreatedSubject
+	}
+
 	event := shared.Event{
 		ID:      uuid.New().String(),
 		Type:    eventType,
-		Subject: shared.EntityCreatedSubject(entity.OrgID),
+		Subject: subjectFn(entity.OrgID),
 		Data: map[string]interface{}{
 			"entity_id":   entity.EntityID,
 			"org_id":      entity.OrgID,
@@ -320,7 +361,7 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 	err := scanner.Scan(
 		&entity.EntityID, &entity.OrgID, &name, &entity.EntityType, &entity.Status, &entity.Priority,
 		&isLive, &lat, &lon, &alt, &heading, &velocity,
-		&entity.Components, &entity.Tags, &entity.Metadata, &createdAt, &updatedAt,
+		&entity.Components, &entity.Tags, &entity.Metadata, &entity.VideoConfig, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan entity: %w", err)
@@ -347,8 +388,16 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 		entity.Velocity = &velocity.Float64
 	}
 
-	entity.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	entity.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		logger.Debugw("Failed to parse created_at timestamp", "value", createdAt, "error", err)
+	} else {
+		entity.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		logger.Debugw("Failed to parse updated_at timestamp", "value", updatedAt, "error", err)
+	} else {
+		entity.UpdatedAt = t
+	}
 
 	return &entity, nil
 }
@@ -386,6 +435,14 @@ func (s *EntityService) syncToKV(entity *ontology.Entity) {
 	state.Priority = entity.Priority
 	state.IsLive = entity.IsLive
 	state.UpdatedAt = time.Now()
+
+	// Parse and set video config
+	if entity.VideoConfig != "" && entity.VideoConfig != "{}" {
+		var vc ontology.VideoConfig
+		if json.Unmarshal([]byte(entity.VideoConfig), &vc) == nil {
+			state.VideoConfig = &vc
+		}
+	}
 
 	// If we have an org name available (we might need to fetch it if not in entity struct), set it
 	// For now, we'll rely on the fact that if it was already there, we kept it.
