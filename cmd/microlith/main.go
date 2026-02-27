@@ -28,8 +28,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
@@ -87,40 +89,44 @@ func fileExists(path string) bool {
 }
 
 func main() {
-	// Override default flag usage with custom help
-	flag.Usage = printHelp
-
-	// CLI flags
-	var (
-		showVersion = flag.Bool("version", false, "Print version and exit")
-		showHelp    = flag.Bool("help", false, "Show help message")
-		doUpdate    = flag.Bool("update", false, "Update to the latest version")
-		tuiMode     = flag.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
-		port        = flag.String("port", "", "Web UI and API port (default: 8080)")
-		host        = flag.String("host", "", "Bind address (default: 0.0.0.0)")
-		natsPort    = flag.String("nats-port", "", "NATS server port (default: 4222)")
-		dataDir     = flag.String("data-dir", "", "Data directory (default: ./data)")
-		envFile     = flag.String("env", ".env", "Path to .env file")
-	)
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
-		os.Exit(0)
-	}
-
-	if *showHelp {
+	// No subcommand or help flags → show splash + help
+	if len(os.Args) < 2 {
 		printHelp()
-		os.Exit(0)
+		return
 	}
 
-	if *doUpdate {
+	switch os.Args[1] {
+	case "start":
+		cmdStart(os.Args[2:])
+	case "version", "--version", "-v":
+		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
+	case "update":
 		if err := updater.Update(version, false); err != nil {
 			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
 			os.Exit(1)
 		}
-		os.Exit(0)
+	case "help", "--help", "-h":
+		printHelp()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+		printHelp()
+		os.Exit(1)
 	}
+}
+
+func cmdStart(args []string) {
+	startFlags := flag.NewFlagSet("start", flag.ExitOnError)
+	startFlags.Usage = printStartHelp
+
+	var (
+		tuiMode  = startFlags.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
+		port     = startFlags.String("port", "", "Web UI and API port (default: 8080)")
+		host     = startFlags.String("host", "", "Bind address (default: 0.0.0.0)")
+		natsPort = startFlags.String("nats-port", "", "NATS server port (default: 4222)")
+		dataDir  = startFlags.String("data-dir", "", "Data directory (default: ./data)")
+		envFile  = startFlags.String("env", ".env", "Path to .env file")
+	)
+	startFlags.Parse(args)
 
 	// Load .env file (flags override env vars)
 	if envPath := findEnvFile(*envFile); envPath != "" {
@@ -158,6 +164,12 @@ func main() {
 				LogHook: logHook,
 			})
 		}
+	}
+
+	// Print splash screen in headless mode (TUI takes over the terminal)
+	if !*tuiMode {
+		printSplash()
+		fmt.Println()
 	}
 
 	// Print startup banner with version info
@@ -278,58 +290,104 @@ func main() {
 	logger.Info("Shutdown complete")
 }
 
+// printSplash renders the boxed splash screen with logo, tagline, and version info.
+func printSplash() {
+	const boxWidth = 78 // inner width (between the vertical bars)
+
+	h := "─"
+	topBorder := "┌" + strings.Repeat(h, boxWidth) + "┐"
+	midBorder := "├" + strings.Repeat(h, boxWidth) + "┤"
+	botBorder := "└" + strings.Repeat(h, boxWidth) + "┘"
+
+	padLine := func(content string) string {
+		runeLen := utf8.RuneCountInString(content)
+		pad := boxWidth - runeLen
+		if pad < 0 {
+			pad = 0
+		}
+		return "│" + content + strings.Repeat(" ", pad) + "│"
+	}
+
+	empty := padLine("")
+
+	logo := []string{
+		`      ██████╗██╗  ██╗`,
+		`     ██╔════╝██║  ██║      C O N S T E L L A T I O N`,
+		`     ██║     ███████║      O V E R W A T C H`,
+		`     ██║     ╚════██║`,
+		`     ╚██████╗     ██║      "Edge C4ISR at the speed of command"`,
+		`      ╚═════╝     ╚═╝`,
+	}
+
+	versionStr := fmt.Sprintf("  Constellation Overwatch %s", version)
+
+	fmt.Println(topBorder)
+	fmt.Println(empty)
+	for _, line := range logo {
+		fmt.Println(padLine(line))
+	}
+	fmt.Println(empty)
+	fmt.Println(midBorder)
+	fmt.Println(padLine(versionStr))
+	fmt.Println(padLine("  Vendor-agnostic edge C4ISR server mesh for drones, robots & sensors"))
+	fmt.Println(empty)
+	fmt.Println(padLine("  https://constellation-overwatch.dev"))
+	fmt.Println(botBorder)
+}
+
 func printHelp() {
-	fmt.Println(`Constellation Overwatch - Edge C4ISR Server Mesh
+	printSplash()
+	fmt.Println(`
+Usage:
+  overwatch <command> [options]
 
-USAGE:
-    overwatch [OPTIONS]
+Commands:
+  start          Start the server (headless or TUI)
+  version        Print version and exit
+  update         Download and install the latest version
+  help           Show this help message
 
-OPTIONS:
-    --tui                  Start with TUI dashboard (interactive terminal UI)
-    --port <PORT>          HTTP server port for Web UI and REST API (default: 8080)
-    --host <HOST>          Network bind address (default: 0.0.0.0)
-    --nats-port <PORT>     NATS TCP port for edge device connections (default: 4222)
-    --data-dir <PATH>      Data directory for database and NATS storage (default: ./data)
-    --env <PATH>           Path to .env configuration file (default: .env)
-    --update               Download and install the latest version
-    --version              Print version and exit
-    --help                 Show this help message
+Quick Start:
+  overwatch start              Start in headless mode
+  overwatch start --tui        Start with TUI dashboard
+  overwatch start --port 9090  Run on a different port
 
-QUICK START:
-    # Run with defaults (headless)
-    overwatch
+Run 'overwatch start --help' for server options.`)
+}
 
-    # Run with TUI dashboard
-    overwatch --tui
+func printStartHelp() {
+	fmt.Println(`Start the Constellation Overwatch server.
 
-    # Run on a different port
-    overwatch --port 9090
+Usage:
+  overwatch start [options]
 
-    # Update to the latest version
-    overwatch --update
+Options:
+  --tui                Start with TUI dashboard (interactive terminal UI)
+  --port <PORT>        HTTP server port for Web UI and REST API (default: 8080)
+  --host <HOST>        Network bind address (default: 0.0.0.0)
+  --nats-port <PORT>   NATS TCP port for edge device connections (default: 4222)
+  --data-dir <PATH>    Data directory for database and NATS storage (default: ./data)
+  --env <PATH>         Path to .env configuration file (default: .env)
 
-TUI CONTROLS:
-    Tab/Shift+Tab  Navigate between panels
-    j/k or arrows  Scroll within panel
-    v              Toggle entities/streams view
-    r              Refresh all data
-    ?              Show help
-    q              Quit
+TUI Controls:
+  Tab/Shift+Tab   Navigate between panels
+  j/k or arrows   Scroll within panel
+  v               Toggle entities/streams view
+  r               Refresh all data
+  ?               Show help
+  q               Quit
 
-ENVIRONMENT:
-    All options can also be set via environment variables or .env file:
-    PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
+Environment:
+  All options can also be set via environment variables or .env file:
+  PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
 
-    Priority: CLI flags > environment variables > .env file > defaults
+  Priority: CLI flags > environment variables > .env file > defaults
 
-ENDPOINTS:
-    Web UI:     http://localhost:8080
-    REST API:   http://localhost:8080/api/v1/
-    NATS TCP:   nats://localhost:4222 (edge devices connect here with token auth)
-    Health:     http://localhost:8080/health
-
-DOCUMENTATION:
-    https://github.com/Constellation-Overwatch/constellation-overwatch`)
+Endpoints:
+  Web UI      http://localhost:8080
+  REST API    http://localhost:8080/api/v1/
+  NATS TCP    nats://localhost:4222
+  Health      http://localhost:8080/health`)
 }
 
 // bootstrapAdmin ensures at least one admin user exists for first-time setup.

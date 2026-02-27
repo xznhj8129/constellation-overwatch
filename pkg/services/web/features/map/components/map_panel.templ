@@ -34,10 +34,10 @@ templ MapPanel() {
 					<span class="status-dot disconnected"></span>
 					Connecting...
 				</span>
-				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+				<span class="stats" data-show="$_isConnected">
 					<span data-text="$totalEntities + ' entities tracked'"></span>
 				</span>
-				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
+				<span class="last-update" data-show="$lastUpdate != ''" data-text="$lastUpdate"></span>
 			</div>
 		</div>
 		<div class="map-wrapper">

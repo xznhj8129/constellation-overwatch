@@ -1,8 +1,29 @@
 /* ============================================ */
-/* MAP PAGE STYLES */
+/* MAP PAGE STYLES                             */
+/* Constellation Overwatch — Tactical Map      */
 /* ============================================ */
 
-/* Map wrapper - contains map and sidebar */
+/* --- Design Tokens (page-scoped) --- */
+.map-wrapper {
+    --map-surface: rgba(18, 18, 22, 0.9);
+    --map-surface-dim: rgba(18, 18, 22, 0.6);
+    --map-border: rgba(255, 255, 255, 0.08);
+    --map-border-subtle: rgba(255, 255, 255, 0.06);
+    --map-dim: rgba(200, 210, 205, 0.45);
+    --map-dimmer: rgba(200, 210, 205, 0.25);
+    --map-cyan: #00e5ff;
+    --map-green: var(--success, #22c55e);
+    --map-teal: #00ffaa;
+    --map-red: #ff1744;
+    --map-amber: #ffab00;
+    --map-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+
+/* ============================================ */
+/* MAP LAYOUT                                  */
+/* ============================================ */
+
 .map-wrapper {
     display: flex;
     height: calc(100vh - 120px);
@@ -10,23 +31,101 @@
     gap: 0;
 }
 
-/* Map container - main map area */
 .map-container {
     flex: 1;
     position: relative;
     min-height: 400px;
     background: #0a0a0b;
-    /* Contain MapLibre canvas within this element */
     overflow: hidden;
     z-index: 1;
 }
 
-/* Ensure MapLibre canvas stays within container */
 .map-container canvas {
     z-index: 1 !important;
 }
 
-/* Map controls - positioned on left side of map */
+
+/* ============================================ */
+/* MAP PANEL HEADER                            */
+/* ============================================ */
+
+#map-panel > .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--map-border);
+    background: linear-gradient(180deg, rgba(14, 14, 18, 0.95) 0%, rgba(10, 10, 14, 0.9) 100%);
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#map-panel > .panel-header h2 {
+    margin: 0;
+    color: var(--map-cyan);
+    font-size: 1rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+#map-panel .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+#map-panel .connection-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--map-border);
+    border-radius: 14px;
+}
+
+#map-panel .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+#map-panel .status-dot.connected {
+    background: var(--map-green);
+    box-shadow: 0 0 6px var(--map-green);
+    animation: pulse 2s infinite;
+}
+
+#map-panel .status-dot.disconnected {
+    background: var(--map-red);
+    box-shadow: 0 0 6px var(--map-red);
+    animation: map-blink 1s infinite;
+}
+
+@keyframes map-blink {
+    50% { opacity: 0.3; }
+}
+
+#map-panel .stats {
+    color: var(--map-cyan);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+
+#map-panel .last-update {
+    color: var(--map-dim);
+    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+
+/* ============================================ */
+/* MAP CONTROLS                                */
+/* ============================================ */
+
 .map-controls {
     position: absolute;
     top: 16px;
@@ -37,12 +136,10 @@
     gap: 8px;
 }
 
-
 .control-group {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 0;
 }
 
 .map-control-btn {
@@ -51,13 +148,13 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: rgba(18, 18, 22, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--map-surface);
+    border: 1px solid var(--map-border);
     border-radius: 4px;
     color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--map-shadow);
 }
 
 .map-control-btn:hover {
@@ -74,13 +171,14 @@
 
 .map-style-select {
     padding: 8px;
-    background: rgba(18, 18, 22, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--map-surface);
+    border: 1px solid var(--map-border);
     border-radius: 4px;
     color: var(--text-primary);
-    font-size: 0.85rem;
+    font-size: 0.78rem;
+    font-family: 'Orbitron', monospace;
     cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--map-shadow);
 }
 
 .map-style-select:focus {
@@ -89,15 +187,19 @@
 }
 
 .map-style-select option {
-    background: #131316;
+    background: var(--bg-medium, #131316);
     color: var(--text-primary);
 }
 
-/* Map sidebar - entity list */
+
+/* ============================================ */
+/* MAP SIDEBAR                                 */
+/* ============================================ */
+
 .map-sidebar {
     width: 280px;
-    background: rgba(18, 18, 22, 0.6);
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--map-surface-dim);
+    border-left: 1px solid var(--map-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -123,7 +225,6 @@
     transition: opacity 0.2s ease;
 }
 
-/* Sidebar toggle button */
 .sidebar-toggle {
     position: absolute;
     left: -16px;
@@ -132,7 +233,7 @@
     width: 32px;
     height: 48px;
     background: rgba(18, 18, 22, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--map-border);
     border-radius: 6px 0 0 6px;
     color: var(--text-primary);
     cursor: pointer;
@@ -158,12 +259,12 @@
 
 .sidebar-header {
     padding: 12px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--map-border-subtle);
 }
 
 .sidebar-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.88rem;
     color: var(--text-primary);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -181,7 +282,7 @@
     gap: 10px;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--map-border-subtle);
     border-radius: 6px;
     margin-bottom: 6px;
     cursor: pointer;
@@ -212,7 +313,7 @@
 }
 
 .entity-info .entity-name {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: var(--text-primary);
     font-weight: 600;
     white-space: nowrap;
@@ -221,9 +322,9 @@
 }
 
 .entity-info .entity-coords {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
     color: var(--text-secondary);
-    font-family: 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
 
 .entity-status-dot {
@@ -234,15 +335,19 @@
 }
 
 .entity-status-dot.active {
-    background: var(--success);
-    box-shadow: 0 0 6px var(--success);
+    background: var(--map-green);
+    box-shadow: 0 0 6px var(--map-green);
 }
 
 .entity-status-dot.inactive {
-    background: #666;
+    background: #555;
 }
 
-/* Map loading state */
+
+/* ============================================ */
+/* MAP LOADING STATE                           */
+/* ============================================ */
+
 .map-loading {
     position: absolute;
     top: 50%;
@@ -255,20 +360,22 @@
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid rgba(255, 255, 255, 0.06);
+    border: 3px solid var(--map-border);
     border-top-color: var(--text-primary);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: map-spin 1s linear infinite;
     margin: 0 auto 16px;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+@keyframes map-spin {
+    to { transform: rotate(360deg); }
 }
 
-/* Entity markers on map */
+
+/* ============================================ */
+/* MAP MARKERS                                 */
+/* ============================================ */
+
 .entity-marker {
     width: 24px;
     height: 24px;
@@ -305,169 +412,15 @@
     transform: translateX(-50%);
     margin-top: 4px;
     padding: 2px 6px;
-    background: rgba(18, 18, 22, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--map-surface);
+    border: 1px solid var(--map-border);
     border-radius: 3px;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--text-primary);
     white-space: nowrap;
     pointer-events: none;
 }
 
-/* Map popup styles */
-.map-popup {
-    padding: 8px;
-    min-width: 180px;
-}
-
-.map-popup .popup-header {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #131316;
-    margin-bottom: 4px;
-}
-
-.map-popup .popup-type {
-    font-size: 0.75rem;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
-}
-
-.map-popup .popup-status {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-}
-
-.map-popup .popup-status.live {
-    background: rgba(76, 175, 80, 0.2);
-    color: #4CAF50;
-}
-
-.map-popup .popup-status.offline {
-    background: rgba(128, 128, 128, 0.2);
-    color: #666;
-}
-
-.map-popup .popup-section {
-    padding: 6px 0;
-    border-top: 1px solid #eee;
-}
-
-.map-popup .popup-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    padding: 2px 0;
-}
-
-.map-popup .popup-row span:first-child {
-    color: #666;
-}
-
-.map-popup .popup-row span:last-child {
-    font-family: 'Courier New', monospace;
-    font-weight: 600;
-    color: #131316;
-}
-
-/* MapLibre GL overrides */
-.maplibregl-popup-content {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    padding: 0;
-}
-
-.maplibregl-popup-close-button {
-    font-size: 18px;
-    padding: 4px 8px;
-    color: #666;
-}
-
-.maplibregl-popup-close-button:hover {
-    background: transparent;
-    color: #000;
-}
-
-.maplibregl-ctrl-group {
-    background: rgba(18, 18, 22, 0.9) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-
-.maplibregl-ctrl-group button {
-    background: transparent !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-.maplibregl-ctrl-group button:hover {
-    background: rgba(255, 255, 255, 0.06) !important;
-}
-
-.maplibregl-ctrl-group button span {
-    filter: invert(1);
-}
-
-.maplibregl-ctrl-scale {
-    background: rgba(18, 18, 22, 0.9) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    color: var(--text-primary) !important;
-}
-
-/* Empty state */
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-secondary);
-    text-align: center;
-    padding: 20px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-    .map-sidebar {
-        width: 240px;
-    }
-}
-
-@media (max-width: 768px) {
-    .map-wrapper {
-        flex-direction: column;
-    }
-
-    .map-container {
-        height: 60vh;
-    }
-
-    .map-sidebar {
-        width: 100%;
-        height: 40vh;
-        border-left: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-    }
-}
-/* Style overrides for C5 Card in Map Popup */
-.maplibregl-popup-content {
-    background: transparent !important;
-    padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.maplibregl-popup-tip {
-    border-top-color: rgba(18, 18, 22, 0.9) !important;
-}
-
-/* Style for Selected Entity Marker */
 .selected-marker {
     width: 30px;
     height: 30px;
@@ -493,17 +446,501 @@
     height: 30px;
     background-color: rgba(0, 255, 136, 0.15);
     border-radius: 50%;
-    animation: pulsate 1.5s infinite;
+    animation: map-pulsate 1.5s infinite;
     z-index: 1;
 }
 
-@keyframes pulsate {
-    0% {
-        transform: scale(0.5);
-        opacity: 0.8;
+@keyframes map-pulsate {
+    0% { transform: scale(0.5); opacity: 0.8; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+
+/* ============================================ */
+/* MAP POPUP                                   */
+/* ============================================ */
+
+.map-popup {
+    padding: 8px;
+    min-width: 180px;
+}
+
+.map-popup .popup-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #131316;
+    margin-bottom: 4px;
+}
+
+.map-popup .popup-type {
+    font-size: 0.68rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+
+.map-popup .popup-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.map-popup .popup-status.live {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+}
+
+.map-popup .popup-status.offline {
+    background: rgba(128, 128, 128, 0.2);
+    color: #666;
+}
+
+.map-popup .popup-section {
+    padding: 6px 0;
+    border-top: 1px solid #eee;
+}
+
+.map-popup .popup-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    padding: 2px 0;
+}
+
+.map-popup .popup-row span:first-child { color: #666; }
+.map-popup .popup-row span:last-child { font-family: 'Courier New', monospace; font-weight: 600; color: #131316; }
+
+
+/* ============================================ */
+/* MAPLIBRE GL OVERRIDES                       */
+/* ============================================ */
+
+.maplibregl-popup-content {
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.maplibregl-popup-tip {
+    border-top-color: rgba(18, 18, 22, 0.9) !important;
+}
+
+.maplibregl-popup-close-button {
+    font-size: 18px;
+    padding: 4px 8px;
+    color: #666;
+}
+
+.maplibregl-popup-close-button:hover {
+    background: transparent;
+    color: #000;
+}
+
+.maplibregl-ctrl-group {
+    background: var(--map-surface) !important;
+    border: 1px solid var(--map-border) !important;
+}
+
+.maplibregl-ctrl-group button {
+    background: transparent !important;
+    border-color: var(--map-border) !important;
+}
+
+.maplibregl-ctrl-group button:hover {
+    background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.maplibregl-ctrl-group button span {
+    filter: invert(1);
+}
+
+.maplibregl-ctrl-scale {
+    background: var(--map-surface) !important;
+    border: 1px solid var(--map-border) !important;
+    color: var(--text-primary) !important;
+}
+
+
+/* ============================================ */
+/* C4 ENTITY CARD                              */
+/* (Consolidated from c4_entity_card.templ)    */
+/* ============================================ */
+
+/* --- Video Container --- */
+.video-container {
+    position: relative;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.video-container .video-whep {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.no-signal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    color: #555;
+    text-align: center;
+    font-size: 0.82rem;
+}
+
+.no-signal-overlay.show {
+    display: flex;
+}
+
+.video-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: rgba(14, 14, 18, 0.9);
+    border-top: 1px solid var(--map-border, rgba(255, 255, 255, 0.08));
+}
+
+.video-controls .connection-status {
+    color: var(--map-cyan, #00e5ff);
+    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
+.btn-fullscreen {
+    background: var(--secondary-color, #339970);
+    border: none;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-family: 'Orbitron', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transition: background 0.2s ease;
+}
+
+.btn-fullscreen:hover {
+    background: var(--primary-muted, #1a7a4a);
+}
+
+
+/* --- Entity Type Badges --- */
+.c4-entity-card .entity-type {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.c4-entity-card .entity-type .type-icon {
+    display: flex;
+    align-items: center;
+}
+
+.c4-entity-card .entity-type .type-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Category colors */
+.c4-entity-card .entity-type.type-aircraft {
+    background: rgba(0, 200, 255, 0.12);
+    color: #0cf;
+}
+
+.c4-entity-card .entity-type.type-ground {
+    background: rgba(255, 165, 0, 0.12);
+    color: #fa0;
+}
+
+.c4-entity-card .entity-type.type-marine {
+    background: rgba(0, 100, 255, 0.12);
+    color: #48f;
+}
+
+.c4-entity-card .entity-type.type-system {
+    background: rgba(0, 255, 100, 0.12);
+    color: #0f8;
+}
+
+.c4-entity-card .entity-type.type-geo {
+    background: rgba(180, 100, 255, 0.12);
+    color: #b4f;
+}
+
+.c4-entity-card .entity-type.type-unknown {
+    background: rgba(128, 128, 128, 0.12);
+    color: #888;
+}
+
+
+/* --- Object Detections Section --- */
+.detections-section {
+    margin-top: 14px;
+    padding: 12px;
+    background: rgba(0, 255, 200, 0.03);
+    border: 1px solid rgba(0, 255, 200, 0.12);
+    border-radius: 6px;
+}
+
+.detections-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.detections-header h5 {
+    margin: 0;
+    color: var(--map-teal, #00ffaa);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.detection-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.detection-count {
+    font-size: 0.65rem;
+    color: var(--map-dim, #888);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.detection-frames {
+    font-size: 0.6rem;
+    color: #555;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.detection-live-badge {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 255, 100, 0.2);
+    color: var(--map-teal, #00ffaa);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tracked-objects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tracked-object {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    padding: 8px 10px;
+    border-left: 3px solid var(--map-teal, #00ffaa);
+}
+
+.object-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.object-label {
+    font-weight: 600;
+    color: #fff;
+    font-size: 0.72rem;
+}
+
+.confidence-badge {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 255, 200, 0.12);
+    color: var(--map-teal, #00ffaa);
+    font-weight: 500;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.object-stats {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.object-stats .stat {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.6rem;
+}
+
+.object-stats .stat-label {
+    color: #555;
+    text-transform: uppercase;
+    font-size: 0.5rem;
+    letter-spacing: 0.03em;
+}
+
+.object-stats .stat-value {
+    color: #999;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.object-stats .stat-value.motion {
+    color: var(--map-cyan, #00e5ff);
+}
+
+.active-indicator {
+    width: 6px;
+    height: 6px;
+    background: var(--map-green, #22c55e);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+
+/* --- Analytics Summary (in C4 card body) --- */
+.c4-entity-card .analytics-summary {
+    margin-top: 14px;
+    padding: 12px;
+    background: rgba(0, 200, 255, 0.04);
+    border: 1px solid rgba(0, 200, 255, 0.15);
+    border-radius: 6px;
+}
+
+.c4-entity-card .analytics-summary h5 {
+    margin: 0 0 10px 0;
+    color: var(--map-cyan, #00e5ff);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.c4-entity-card .analytics-summary .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.analytics-stat {
+    text-align: center;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.analytics-value {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.analytics-label {
+    font-size: 0.55rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+    display: block;
+}
+
+.label-distribution {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.label-chip {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #999;
+    border-radius: 10px;
+}
+
+
+/* ============================================ */
+/* EMPTY STATE                                 */
+/* ============================================ */
+
+.map-sidebar .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 20px;
+    font-size: 0.78rem;
+}
+
+
+/* ============================================ */
+/* RESPONSIVE                                  */
+/* ============================================ */
+
+@media (max-width: 1024px) {
+    .map-sidebar {
+        width: 240px;
     }
-    100% {
-        transform: scale(1.5);
-        opacity: 0;
+}
+
+@media (max-width: 768px) {
+    .map-wrapper {
+        flex-direction: column;
+    }
+
+    .map-container {
+        height: 60vh;
+    }
+
+    .map-sidebar {
+        width: 100%;
+        height: 40vh;
+        border-left: none;
+        border-top: 1px solid var(--map-border);
+    }
+
+    #map-panel > .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    #map-panel .status-bar {
+        width: 100%;
+        justify-content: flex-start;
     }
 }

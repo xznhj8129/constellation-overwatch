@@ -34,4 +34,4 @@ ENV OVERWATCH_DATA_DIR=/data
 # Expose ports
 EXPOSE 4222 8080
 
-ENTRYPOINT ["/app/overwatch"]
+ENTRYPOINT ["/app/overwatch", "start"]

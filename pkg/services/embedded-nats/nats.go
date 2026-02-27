@@ -187,7 +187,9 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		return fmt.Errorf("failed to create NATS server: %w", err)
 	}
 
-	ns.ConfigureLogger()
+	// Use a quiet logger that only surfaces warnings/errors through zap,
+	// silencing the verbose NATS/JetStream boot info lines.
+	ns.SetLogger(&quietLogger{}, false, false)
 
 	go ns.Start()
 
@@ -734,6 +736,23 @@ func (en *EmbeddedNATS) RestoreNKeyUsers(keys []NKeyRecord) error {
 	en.serverOpts = newOpts
 	logger.Infow("Restored NATS NKey users", "count", len(keys))
 	return nil
+}
+
+// quietLogger implements server.Logger, routing only warnings/errors/fatals
+// through our zap logger and silencing the verbose NATS boot info.
+type quietLogger struct{}
+
+func (q *quietLogger) Noticef(format string, v ...any) {}
+func (q *quietLogger) Debugf(format string, v ...any)  {}
+func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Warnf(format string, v ...any) {
+	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
+}
+func (q *quietLogger) Errorf(format string, v ...any) {
+	logger.Errorw(fmt.Sprintf(format, v...), "component", "nats")
+}
+func (q *quietLogger) Fatalf(format string, v ...any) {
+	logger.Errorw(fmt.Sprintf(format, v...), "component", "nats")
 }
 
 // BuildNATSPermissions converts scope strings to NATS subject permissions.

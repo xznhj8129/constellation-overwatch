@@ -5,26 +5,16 @@ import (
 	"time"
 )
 
-// PrintStartupBanner prints the Constellation Overwatch ASCII banner in NATS style
+// PrintStartupBanner prints NATS-style version/commit/date info lines.
+// The CH logo is now rendered by the splash screen in main.go.
 func PrintStartupBanner(version, commit, date string) {
 	lines := []string{
 		"",
 		"Starting Constellation Overwatch",
 		"",
-		"   ██████╗██╗  ██╗",
-		"  ██╔════╝██║  ██║",
-		"  ██║     ███████║",
-		"  ██║     ╚════██║",
-		"  ╚██████╗     ██║",
-		"   ╚═════╝     ╚═╝",
-		"",
-		"  https://constellation-overwatch.dev",
-		"",
-		"  -------- CONSTELLATION OVERWATCH --------",
-		fmt.Sprintf("    Version:       %s", version),
-		fmt.Sprintf("    Commit:        %s", commit),
-		fmt.Sprintf("    Built:         %s", date),
-		"  ------------------------------------------",
+		fmt.Sprintf("  Version:  %s", version),
+		fmt.Sprintf("  Commit:   %s", commit),
+		fmt.Sprintf("  Built:    %s", date),
 		"",
 	}
 
