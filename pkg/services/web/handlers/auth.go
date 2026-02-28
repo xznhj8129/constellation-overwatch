@@ -344,12 +344,16 @@ func setWebAuthnSessionCookie(w http.ResponseWriter, key string) {
 }
 
 // clearWebAuthnSessionCookie clears the WebAuthn session key cookie.
+// Attributes mirror setWebAuthnSessionCookie so browsers reliably delete it.
 func clearWebAuthnSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:   webauthnSessionCookie,
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     webauthnSessionCookie,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secureCookies(),
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 

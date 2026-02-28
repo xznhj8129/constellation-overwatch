@@ -105,13 +105,16 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	// Parse scopes from comma-separated string.
 	scopes := parseScopes(scopesJSON)
 
-	// Update last_used asynchronously.
-	go func() {
-		_, _ = m.db.Exec(
-			`UPDATE api_keys SET last_used_at = ? WHERE key_id = ?`,
-			time.Now().Format(time.RFC3339), keyID,
-		)
-	}()
+	// Update last_used inline with a short timeout so it doesn't block the
+	// request for long, but avoids unbounded goroutine-per-request growth.
+	updateCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := m.db.ExecContext(updateCtx,
+		`UPDATE api_keys SET last_used_at = ? WHERE key_id = ?`,
+		time.Now().Format(time.RFC3339), keyID,
+	); err != nil {
+		logger.Warnw("Failed to update API key last_used_at", "error", err, "key_id", keyID)
+	}
 
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, ContextKeyUserID, userID)
@@ -141,7 +144,7 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 // extractAPIKey retrieves the API key from the X-API-Key header first,
 // then falls back to the Authorization: Bearer header.
 func extractAPIKey(r *http.Request) string {
-	if key := r.Header.Get("X-API-Key"); key != "" {
+	if key := strings.TrimSpace(r.Header.Get("X-API-Key")); key != "" {
 		return key
 	}
 

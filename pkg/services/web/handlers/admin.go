@@ -8,6 +8,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -85,6 +86,11 @@ func (h *AdminHandler) HandleCreateInvite(w http.ResponseWriter, r *http.Request
 
 	if req.Email == "" || req.Role == "" {
 		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "email and role are required")
+		return
+	}
+
+	if !shared.IsValidRole(req.Role) {
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid role: must be admin, operator, or viewer")
 		return
 	}
 
@@ -203,7 +209,10 @@ func (h *AdminHandler) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request
 	}
 
 	// Look up NATS pub key before revoking so we can remove it from NATS.
-	natsPubKey, _ := h.apiKeySvc.GetNATSPubKey(keyID)
+	natsPubKey, err := h.apiKeySvc.GetNATSPubKey(keyID)
+	if err != nil {
+		logger.Warnf("Failed to look up NATS pub key for API key %s: %v", keyID, err)
+	}
 
 	if err := h.apiKeySvc.RevokeKey(keyID); err != nil {
 		logger.Errorf("Failed to revoke API key %s: %v", keyID, err)

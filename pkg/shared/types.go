@@ -448,6 +448,18 @@ const (
 	EntityTypeGeofence  = "geofence"
 )
 
+// ValidRoles is the set of allowed user roles.
+var ValidRoles = map[string]bool{
+	RoleAdmin:    true,
+	RoleOperator: true,
+	RoleViewer:   true,
+}
+
+// IsValidRole reports whether role is a recognized user role.
+func IsValidRole(role string) bool {
+	return ValidRoles[role]
+}
+
 // EntityTypeDisplayNames maps entity types to human-readable display names
 var EntityTypeDisplayNames = map[string]string{
 	EntityTypeAircraftFixedWing:    "Fixed Wing",
@@ -548,6 +560,11 @@ const (
 	OrgTypeCompany    = "company"
 	OrgTypeAgency     = "agency"
 	OrgTypeIndividual = "individual"
+
+	// User Roles
+	RoleAdmin    = "admin"
+	RoleOperator = "operator"
+	RoleViewer   = "viewer"
 
 	// Event Types
 	EventTypeCreated = "created"
